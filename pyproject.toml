@@ -58,6 +58,10 @@ ignore = ["E501"]
 [tool.ruff.lint.isort]
 known-first-party = ["vaticore"]
 
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI dependency injection uses callables in argument defaults by design.
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Path", "fastapi.Body"]
+
 [tool.mypy]
 python_version = "3.11"
 packages = ["vaticore"]
@@ -70,7 +74,16 @@ no_implicit_optional = true
 
 # Third party libraries without type stubs.
 [[tool.mypy.overrides]]
-module = ["lightgbm.*", "sklearn.*", "pandera.*", "mlflow.*", "streamlit.*", "fastapi.*"]
+module = [
+    "lightgbm.*",
+    "sklearn.*",
+    "pandera.*",
+    "mlflow.*",
+    "streamlit.*",
+    "fastapi.*",
+    "plotly.*",
+    "uvicorn.*",
+]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
