@@ -18,7 +18,10 @@ Working end to end, with a real forecasting model, an API and a dashboard.
 - **Ingestion and schema**: CSV/API intake, timezone normalisation, gap
   detection, and strict validation against the internal schema.
 - **Models**: a probabilistic persistence baseline and a quantile gradient
-  boosting model (`quantile_gbm`), both behind one interface.
+  boosting model (`quantile_gbm`), both behind one interface. The GBM can take
+  exogenous weather covariates (forecast radiation, cloud cover, temperature),
+  which sharply improve the solar generation forecast (see
+  `examples/weather_lift.py`).
 - **Evaluation**: pinball loss, calibration and a rolling origin backtest that
   always scores the candidate against persistence. On synthetic demo data the
   quantile GBM cuts pinball loss by roughly **40% on load** and **18% on solar
