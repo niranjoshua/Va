@@ -16,6 +16,7 @@ from vaticore.evaluation.backtest import BacktestResult, backtest_site
 from vaticore.forecasting import Forecaster, PersistenceForecaster, QuantileGBMForecaster
 from vaticore.forecasting.base import DEFAULT_QUANTILES
 from vaticore.schemas import GENERATION_KW, LOAD_KW, OPERATOR_ID, SITE_ID, TIMESTAMP
+from vaticore.tracking import Tracker
 
 # Registry of model builders keyed by public name. Add new models here once
 # they conform to the Forecaster interface.
@@ -70,12 +71,20 @@ def run_backtest(
     model: str = "quantile_gbm",
     quantiles: tuple[float, ...] = DEFAULT_QUANTILES,
     exog: tuple[str, ...] = (),
+    tracker: Tracker | None = None,
+    operator_id: str | None = None,
+    site_id: str | None = None,
 ) -> BacktestResult:
     """Backtest a model against persistence on one site.
 
     When exog columns are given and the model is quantile_gbm, the candidate is
     built with those exogenous (weather) features and receives the test window's
     values as future_exog, mirroring having a weather forecast in production.
+
+    When a tracker is supplied, the comparison is logged to it (see
+    vaticore.tracking). Pass operator_id and site_id so the logged run records
+    which site it scored. A NoOpTracker (the default via get_tracker when tracking
+    is not configured) makes this a no-op.
     """
 
     def make_model() -> Forecaster:
@@ -83,7 +92,7 @@ def run_backtest(
             return QuantileGBMForecaster(target=target, quantiles=quantiles, exog_features=exog)
         return _build(model, target, quantiles)
 
-    return backtest_site(
+    result = backtest_site(
         history,
         target=target,
         make_model=make_model,
@@ -94,6 +103,21 @@ def run_backtest(
         model_name=model,
         exog=exog,
     )
+
+    if tracker is not None:
+        tracker.log_backtest(
+            result,
+            candidate_model=model,
+            operator_id=operator_id,
+            site_id=site_id,
+            extra_params={
+                "initial": initial,
+                "step": step if step is not None else horizon,
+                "exog": ",".join(exog) if exog else None,
+            },
+        )
+
+    return result
 
 
 def advisory_for_site(
