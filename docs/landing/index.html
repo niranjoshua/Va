@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Vaticore: probabilistic load and solar forecasting</title>
 <meta name="description" content="Vaticore forecasts electricity demand and solar generation for mini-grid and C&I solar operators, and turns the forecast into a battery and generator advisory." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Nunito+Sans:wght@400;500;600;700&display=swap" />
 </head>
 <body>
 <style>
@@ -22,7 +25,8 @@
     --band: rgba(75, 214, 201, 0.16);
     --good: #56d364;
     --shadow: 0 20px 60px -30px rgba(0, 0, 0, 0.7);
-    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --sans: "Nunito Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --display: "Fraunces", Georgia, "Times New Roman", serif;
     --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Roboto Mono", Menlo, Consolas, monospace;
   }
   @media (prefers-color-scheme: light) {
@@ -67,14 +71,15 @@
   a { color: inherit; }
 
   .eyebrow {
-    font-family: var(--mono);
-    font-size: 12px;
-    letter-spacing: 0.18em;
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
     text-transform: uppercase;
     color: var(--amber);
     margin: 0 0 18px;
   }
-  h1, h2, h3 { text-wrap: balance; margin: 0; }
+  h1, h2, h3, h4 { font-family: var(--display); text-wrap: balance; margin: 0; }
 
   /* Nav */
   nav {
@@ -110,7 +115,7 @@
   h1 .accent { color: var(--amber); }
   .lede { font-size: clamp(1.05rem, 1.6vw, 1.2rem); color: var(--ink-soft); margin: 22px 0 30px; max-width: 40ch; }
   .hero-cta { display: flex; flex-wrap: wrap; gap: 12px; }
-  .hero-note { margin-top: 20px; font-family: var(--mono); font-size: 12px; color: var(--ink-faint); letter-spacing: 0.02em; }
+  .hero-note { margin-top: 20px; font-family: var(--sans); font-style: italic; font-size: 13.5px; color: var(--ink-faint); letter-spacing: 0; }
 
   /* Chart card */
   .chart-card {
@@ -134,7 +139,7 @@
   .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px 0; padding: 8px 0; }
   @media (min-width: 780px) { .stats-grid { grid-template-columns: repeat(4, 1fr); } }
   .stat { padding: 22px 8px; }
-  .stat .n { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: clamp(1.9rem, 3vw, 2.5rem); font-weight: 600; letter-spacing: -0.02em; color: var(--ink); }
+  .stat .n { font-family: var(--display); font-variant-numeric: tabular-nums; font-size: clamp(2rem, 3.1vw, 2.6rem); font-weight: 600; letter-spacing: -0.01em; color: var(--ink); }
   .stat .n .u { color: var(--amber); }
   .stat .l { font-size: 13px; color: var(--ink-soft); margin-top: 4px; }
 
@@ -224,16 +229,16 @@
         <a class="btn btn-primary" href="#contact">Request a pilot</a>
         <a class="btn btn-ghost" href="#product">See how it works</a>
       </div>
-      <p class="hero-note">// forecasts are ranges, not guesses. P10 to P90, not a single line</p>
+      <p class="hero-note">Forecasts are ranges, not guesses. You see P10 to P90, not a single line.</p>
     </div>
 
     <div class="chart-card">
       <div class="chart-head">
-        <div class="chart-title"><b>Ikeja mini-grid</b> &middot; load, next 24h</div>
+        <div class="chart-title"><b>Ikeja mini-grid</b>, load over the next 24h</div>
         <div class="legend">
           <span><i class="swatch sw-actual"></i>actual</span>
           <span><i class="swatch sw-fc"></i>forecast</span>
-          <span><i class="swatch sw-band"></i>P10&ndash;P90</span>
+          <span><i class="swatch sw-band"></i>P10 to P90</span>
         </div>
       </div>
       <canvas id="forecastChart" aria-label="A load forecast with a P10 to P90 uncertainty band"></canvas>
@@ -248,7 +253,7 @@
       <div class="l">lower forecast error than the standard baseline, in backtests</div>
     </div>
     <div class="stat">
-      <div class="n">P10&ndash;P90</div>
+      <div class="n">P10 to P90</div>
       <div class="l">calibrated uncertainty on every forecast</div>
     </div>
     <div class="stat">
@@ -301,7 +306,7 @@
       <div class="step"><div class="k">2</div><div><h4>Forecast with weather</h4><p>Calendar and lag features plus live weather from Open-Meteo drive per-site load and solar forecasts.</p></div></div>
       <div class="step"><div class="k">3</div><div><h4>Score honestly</h4><p>Rolling-origin backtest against persistence on every run, so accuracy claims are reproducible.</p></div></div>
     </div>
-    <p class="hero-note" style="margin-top:22px">// current results are from backtests on benchmark and real solar-resource data; pilot data replaces them site by site</p>
+    <p class="hero-note" style="margin-top:22px">Current results come from backtests on benchmark and real solar-resource data. Pilot data replaces them site by site.</p>
   </div>
 </section>
 
@@ -343,7 +348,7 @@
 <footer>
   <div class="wrap foot-in">
     <div class="brand" style="font-size:15px"><span>Vaticore</span></div>
-    <div class="foot-note">Probabilistic load &amp; solar forecasting &middot; advisory only, never closed-loop control</div>
+    <div class="foot-note">Probabilistic load and solar forecasting. Advisory only, never closed-loop control.</div>
   </div>
 </footer>
 
