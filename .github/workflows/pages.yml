@@ -1,8 +1,8 @@
 name: Deploy landing page
 
-# Publishes docs/landing to GitHub Pages. The site goes live once this workflow
-# runs on the default branch AND Pages is set to deploy from GitHub Actions
-# (Settings -> Pages -> Build and deployment -> Source: GitHub Actions).
+# Publishes docs/landing to GitHub Pages. The Configure Pages step self-enables
+# Pages (enablement: true), so the deploy does not depend on manually setting
+# Settings -> Pages -> Source to GitHub Actions first.
 
 on:
   push:
@@ -34,6 +34,8 @@ jobs:
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       - name: Upload landing page
         uses: actions/upload-pages-artifact@v3
