@@ -27,6 +27,10 @@ Working end to end, with a real forecasting model, an API and a dashboard.
   quantile GBM cuts pinball loss by roughly **40% on load** and **18% on solar
   generation** versus the baseline.
 - **Decisions**: battery reserve and genset advisory from the quantile forecast.
+- **Experiment tracking**: every backtest can be logged to MLflow (site, model,
+  config and metrics, plus the pinball skill over persistence), so model
+  comparisons are reproducible. Off by default; enable it by setting
+  `VATICORE_MLFLOW_TRACKING_URI` and installing the `tracking` extra.
 - **Weather**: a real Open-Meteo client (no API key) feeding weather features.
 - **Copilot**: an optional LLM layer that explains an advisory in plain language,
   grounded on the engine's numbers, with a deterministic template fallback.
@@ -40,8 +44,8 @@ Working end to end, with a real forecasting model, an API and a dashboard.
   and serves from the store. `examples/ingest_csv.py` loads a real operator CSV.
   The database is chosen by the `VATICORE_DATABASE_URL` scheme.
 
-Next: model tracking (MLflow), an LSTM and ensemble, and a real pilot data feed.
-LSTM, TIME-LLM and an ensemble remain stubbed against the interface.
+Next: an LSTM and ensemble, and a real pilot data feed. LSTM, TIME-LLM and an
+ensemble remain stubbed against the interface.
 
 ## Layout
 
@@ -51,6 +55,7 @@ vaticore/
   features/      # calendar, lags, weather enrichment
   forecasting/   # baselines, quantile GBM, (later) LSTM, TIME-LLM, ensemble
   evaluation/    # backtesting harness, pinball loss, calibration, baseline comparison
+  tracking/      # MLflow experiment tracking, with a no-op fallback
   decisions/     # forecast -> battery reserve / genset advisory / unserved energy
   api/           # FastAPI service (thin handlers over the engine)
   dashboard/     # Streamlit app
@@ -98,6 +103,7 @@ Optional extras, installed only when needed:
 uv sync --extra service     # FastAPI service
 uv sync --extra dashboard   # Streamlit dashboard
 uv sync --extra models      # xgboost + torch (LSTM, TIME-LLM)
+uv sync --extra tracking    # MLflow experiment tracking
 uv sync --all-extras        # everything
 ```
 
