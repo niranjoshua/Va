@@ -1,6 +1,6 @@
 # CLAUDE.md — Vaticore
 
-Working conventions for this repository. Read this before writing code. For the product vision, target users and roadmap, see `VATICORE_BRIEF.md`; this file is about *how* we build, not *what* we are building.
+Working conventions for this repository. Read this before writing code. This file is about *how* we build, not *what* we are building; the product vision, target users and roadmap are kept in Vaticore's private strategy repo.
 
 Vaticore is a probabilistic forecasting engine for electricity load and solar generation, for mini-grid and C&I solar operators. Forecasts must be probabilistic, the code must tolerate messy and sparse data, and evaluation is a first-class concern.
 

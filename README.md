@@ -130,5 +130,4 @@ Two contracts hold the system together and should not be broken:
 - Built for messy, sparse data and cold-start sites.
 - Advisory only. No closed-loop control that touches an operator's dispatch.
 
-See `VATICORE_BRIEF.md` for the full product context and `CLAUDE.md` for build
-conventions.
+See `CLAUDE.md` for build conventions.
