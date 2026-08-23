@@ -110,25 +110,42 @@ def main() -> None:
     forecast = engine.forecast_site(
         history, target, horizon=horizon, model=model, quantiles=QUANTILES
     )
+    advisory = engine.advisory_for_site(
+        history, horizon=horizon, usable_battery_kwh=battery, model=model, quantiles=QUANTILES
+    )
+
+    # Site Today: lead with the plain-language answer an operator acts on, then
+    # the chart, then the evidence. Answers first, jargon later.
+    # The explanation uses the LLM when ANTHROPIC_API_KEY is set, otherwise a
+    # deterministic template. It never blocks the numbers below.
+    from vaticore.copilot import explain_advisory
+
+    explanation = explain_advisory(advisory)
+    st.subheader(f"Site today: {site_id}")
+    banner = (
+        "background:#1b2740;border-left:4px solid #f5a524;border-radius:10px;"
+        "padding:14px 18px;margin-bottom:8px;color:#eaf0f7"
+    )
+    st.markdown(
+        f"<div style='{banner}'><b>Today's plan.</b> {explanation.text}</div>",
+        unsafe_allow_html=True,
+    )
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Run the generator", "Yes" if advisory.genset_recommended else "No")
+    c2.metric("Battery reserve to hold", f"{advisory.recommended_reserve_kwh:.0f} kWh")
+    c3.metric("Expected net load", f"{advisory.expected_net_load_kwh:.0f} kWh")
 
     left, right = st.columns([3, 1])
     with left:
-        st.subheader(f"{target_label} forecast: {site_id}")
+        st.subheader(f"{target_label} forecast")
         st.plotly_chart(_forecast_figure(history, target, forecast), width="stretch")
     with right:
-        st.subheader("Advisory")
-        advisory = engine.advisory_for_site(
-            history, horizon=horizon, usable_battery_kwh=battery, model=model, quantiles=QUANTILES
+        st.subheader("How to read this")
+        st.write(
+            "The line is the expected forecast; the shaded band is the likely "
+            "range (P10 to P90). Plan for the top of the band, so you stay "
+            "covered on a bad day."
         )
-        st.metric("Genset needed", "Yes" if advisory.genset_recommended else "No")
-        st.metric("Recommended reserve", f"{advisory.recommended_reserve_kwh:.0f} kWh")
-        st.metric("Expected net load", f"{advisory.expected_net_load_kwh:.0f} kWh")
-        # Plain-language explanation. Uses the LLM when ANTHROPIC_API_KEY is set,
-        # otherwise a deterministic template. Never blocks the numbers above.
-        from vaticore.copilot import explain_advisory
-
-        explanation = explain_advisory(advisory)
-        st.info(explanation.text)
         st.caption(f"Explanation source: {explanation.generated_by}")
 
     st.subheader("Backtest vs persistence baseline")
