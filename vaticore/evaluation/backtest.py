@@ -121,6 +121,11 @@ def backtest_site(
         train = data.iloc[:cutoff]
         test = data.iloc[cutoff : cutoff + horizon]
         actual = test[target].to_numpy(dtype=float)
+        # A fold with no actuals at all cannot be scored: there is no ground
+        # truth to compare against (for example a full horizon-length gap in a
+        # real operator feed). Skip it rather than crash the whole backtest.
+        if np.isnan(actual).all():
+            continue
         future_exog = test[[TIMESTAMP, *exog]] if exog else None
 
         candidate = _score_one(
