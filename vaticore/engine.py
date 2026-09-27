@@ -8,14 +8,32 @@ Nothing above this layer touches model classes directly.
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import asdict, dataclass
 
 import pandas as pd
 
 from vaticore.decisions import Advisory, battery_and_genset_advisory
+from vaticore.decisions.dispatch import DispatchPlan, SiteAssets, plan_dispatch
 from vaticore.evaluation.backtest import BacktestResult, backtest_site
+from vaticore.evaluation.calibration import (
+    CalibrationReport,
+    calibration_report,
+    conformalize_forecasts,
+)
+from vaticore.evaluation.value import PolicySource, ValueReport, value_backtest
 from vaticore.forecasting import Forecaster, PersistenceForecaster, QuantileGBMForecaster
-from vaticore.forecasting.base import DEFAULT_QUANTILES
-from vaticore.schemas import GENERATION_KW, LOAD_KW, OPERATOR_ID, SITE_ID, TIMESTAMP
+from vaticore.forecasting.base import DEFAULT_QUANTILES, quantile_column
+from vaticore.forecasting.conformal import ConformalQuantileForecaster
+from vaticore.forecasting.quantile_gbm import DAY_AHEAD_LAGS
+from vaticore.schemas import (
+    GENERATION_KW,
+    LOAD_KW,
+    NET_LOAD_KW,
+    OPERATOR_ID,
+    SITE_ID,
+    TIMESTAMP,
+    with_net_load,
+)
 from vaticore.tracking import Tracker
 
 # Registry of model builders keyed by public name. Add new models here once
@@ -27,7 +45,15 @@ _MODELS: dict[str, ModelFactory] = {
     "quantile_gbm": lambda target, quantiles: QuantileGBMForecaster(
         target=target, quantiles=quantiles
     ),
+    # Day ahead preset: lags known at issue time only, so bands stay honest
+    # over a 24 hour horizon. The default for planning (see DAY_AHEAD_LAGS).
+    "quantile_gbm_day_ahead": lambda target, quantiles: QuantileGBMForecaster(
+        target=target, quantiles=quantiles, lags=DAY_AHEAD_LAGS
+    ),
 }
+
+# Model used for day ahead planning and the value backtest.
+PLANNING_MODEL = "quantile_gbm_day_ahead"
 
 
 def available_models() -> list[str]:
@@ -142,3 +168,200 @@ def advisory_for_site(
         step_hours=step_hours,
         reserve_quantile=reserve_q,
     )
+
+
+# -- net load: calibration, value and the hourly plan ------------------------
+
+
+def _net_load_model(
+    model: str, quantiles: tuple[float, ...], exog: tuple[str, ...] = ()
+) -> Callable[[], Forecaster]:
+    """Factory for a model forecasting signed net load (no clipping at zero)."""
+    if model in ("quantile_gbm", "quantile_gbm_day_ahead"):
+        lags = DAY_AHEAD_LAGS if model == "quantile_gbm_day_ahead" else (1, 2, 3, 24, 48, 168)
+        return lambda: QuantileGBMForecaster(
+            target=NET_LOAD_KW,
+            quantiles=quantiles,
+            lags=lags,
+            exog_features=exog,
+            nonnegative=False,
+        )
+    if model == "persistence":
+        return lambda: PersistenceForecaster(target=NET_LOAD_KW, nonnegative=False)
+    raise ValueError(f"unknown model {model!r}; available: {available_models()}")
+
+
+def policy_label(model: str, quantile: float) -> str:
+    """Human label for a planning policy, for example 'quantile_gbm P90'."""
+    return f"{model} P{round(quantile * 100)}"
+
+
+@dataclass(frozen=True)
+class ValueBacktest:
+    """Everything one value backtest produced."""
+
+    backtest: BacktestResult
+    calibration: dict[str, CalibrationReport]
+    value: ValueReport
+    baseline_policy: str
+
+
+def run_value_backtest(
+    history: pd.DataFrame,
+    *,
+    assets: SiteAssets,
+    initial: int,
+    horizon: int = 24,
+    model: str = PLANNING_MODEL,
+    quantiles: tuple[float, ...] = DEFAULT_QUANTILES,
+    plan_quantiles: tuple[float, ...] = (0.5, 0.9),
+    conformal_window: int | None = 28,
+    exog: tuple[str, ...] = (),
+    tracker: Tracker | None = None,
+    operator_id: str | None = None,
+    site_id: str | None = None,
+) -> ValueBacktest:
+    """Measure what forecasts are worth to one site in fuel, outages and money.
+
+    Forecasts net load day ahead with the candidate model and persistence on
+    back to back windows, optionally calibrates the candidate's bands fold by
+    fold (conformal_window prior folds; None to skip), then plans and operates
+    the site on each policy's forecasts. The baseline is persistence planned
+    on its median: roughly what an operator does today by assuming tomorrow
+    looks like yesterday.
+    """
+    if model == "persistence":
+        raise ValueError("the candidate model must differ from the persistence baseline")
+    missing = [q for q in plan_quantiles if not any(abs(q - x) < 1e-9 for x in quantiles)]
+    if missing:
+        raise ValueError(f"plan quantiles {missing} are not among the forecast quantiles")
+
+    data = with_net_load(history)
+    result = backtest_site(
+        data,
+        target=NET_LOAD_KW,
+        make_model=_net_load_model(model, quantiles, exog),
+        horizon=horizon,
+        initial=initial,
+        step=horizon,
+        quantiles=quantiles,
+        model_name=model,
+        exog=exog,
+        nonnegative=False,
+    )
+    base_fc = result.forecasts_for("persistence")
+    cand_fc = result.forecasts_for(model)
+
+    calibration = {
+        "persistence": calibration_report(base_fc),
+        model: calibration_report(cand_fc),
+    }
+    baseline = policy_label("persistence", 0.5)
+    policies: dict[str, PolicySource] = {baseline: PolicySource(base_fc, 0.5)}
+    for q in plan_quantiles:
+        if abs(q - 0.5) > 1e-9:
+            policies[policy_label("persistence", q)] = PolicySource(base_fc, q)
+    for q in plan_quantiles:
+        policies[policy_label(model, q)] = PolicySource(cand_fc, q)
+
+    if conformal_window:
+        conf = conformalize_forecasts(cand_fc, window_folds=conformal_window, nonnegative=False)
+        conf_name = conf.forecasts[0].model
+        calibration[conf_name] = calibration_report(conf.forecasts)
+        for q in plan_quantiles:
+            if abs(q - 0.5) > 1e-9:  # calibration leaves the median unchanged
+                policies[policy_label(conf_name, q)] = PolicySource(conf.forecasts, q)
+
+    value = value_backtest(policies, assets=assets, baseline=baseline)
+    outcome = ValueBacktest(
+        backtest=result, calibration=calibration, value=value, baseline_policy=baseline
+    )
+    if tracker is not None:
+        _log_value_backtest(
+            tracker,
+            outcome,
+            model=model,
+            horizon=horizon,
+            initial=initial,
+            conformal_window=conformal_window,
+            operator_id=operator_id,
+            site_id=site_id,
+        )
+    return outcome
+
+
+def _log_value_backtest(
+    tracker: Tracker,
+    outcome: ValueBacktest,
+    *,
+    model: str,
+    horizon: int,
+    initial: int,
+    conformal_window: int | None,
+    operator_id: str | None,
+    site_id: str | None,
+) -> None:
+    params: dict[str, object] = {
+        "operator_id": operator_id,
+        "site_id": site_id,
+        "candidate_model": model,
+        "target": NET_LOAD_KW,
+        "horizon": horizon,
+        "initial": initial,
+        "conformal_window": conformal_window,
+        "baseline_policy": outcome.baseline_policy,
+    }
+    params.update({f"asset.{k}": v for k, v in asdict(outcome.value.assets).items()})
+    metrics: dict[str, float] = {}
+    frame = outcome.value.to_frame()
+    for policy, row in frame.iterrows():
+        for col in ("fuel_l", "unserved_kwh", "total_cost", "savings_vs_baseline"):
+            metrics[f"{policy}.{col}"] = float(row[col])
+        share = row["share_of_possible"]
+        if share is not None and pd.notna(share):
+            metrics[f"{policy}.share_of_possible"] = float(share)
+    for name, report in outcome.calibration.items():
+        for band in report.intervals:
+            metrics[f"{name}.coverage_{band.lower:g}_{band.upper:g}"] = band.observed
+    tracker.log_summary(
+        run_name=f"value-{model}",
+        params=params,
+        metrics=metrics,
+        tags={"kind": "value_backtest"},
+    )
+
+
+def dispatch_plan_for_site(
+    history: pd.DataFrame,
+    *,
+    assets: SiteAssets,
+    soc_kwh: float,
+    horizon: int = 24,
+    model: str = PLANNING_MODEL,
+    plan_quantile: float = 0.9,
+    quantiles: tuple[float, ...] = DEFAULT_QUANTILES,
+    calibrate: bool = True,
+) -> DispatchPlan:
+    """Today's hour by hour generator schedule for one site. Advisory only.
+
+    Forecasts net load (calibrated on the site's own last week when
+    calibrate=True), then schedules the generator for the hours the chosen
+    quantile needs it, starting from the battery's current charge.
+    """
+    if not any(abs(plan_quantile - q) < 1e-9 for q in quantiles):
+        raise ValueError(f"plan_quantile {plan_quantile} is not among quantiles {quantiles}")
+    data = with_net_load(history)
+    make = _net_load_model(model, quantiles)
+    forecaster: Forecaster
+    if calibrate:
+        forecaster = ConformalQuantileForecaster(
+            make,
+            target=NET_LOAD_KW,
+            quantiles=quantiles,
+            window_horizon=horizon,
+            nonnegative=False,
+        )
+    else:
+        forecaster = make()
+    forecast = forecaster.fit(data).predict_quantiles(horizon=horizon, quantiles=quantiles)
+    return plan_dispatch(forecast[quantile_column(plan_quantile)], soc_kwh=soc_kwh, assets=assets)

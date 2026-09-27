@@ -5,6 +5,12 @@ cycles. This module turns a probabilistic load and generation forecast into a
 simple, explainable battery reserve and genset advisory with an uncertainty
 range. It is advisory only. It never touches an operator's actual dispatch.
 That is a safety and liability boundary, not a feature to add quietly later.
+
+This is the simple daily summary. For an hour by hour generator schedule use
+vaticore.decisions.dispatch.plan_dispatch (engine.dispatch_plan_for_site),
+which forecasts net load directly. The conservative figure here combines P90
+load with P10 generation; quantiles do not add, so it overstates the bad case
+and leans towards recommending the generator.
 """
 
 from __future__ import annotations

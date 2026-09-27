@@ -39,17 +39,38 @@ class FoldMetrics:
     coverage: float | None
 
 
+@dataclass(frozen=True)
+class FoldForecast:
+    """What one model forecast on one fold, next to what actually happened.
+
+    Kept so the same backtest can be re-scored for calibration and for the
+    money it would have saved, without refitting anything. Arrays are aligned
+    position by position with timestamps; a missing actual is NaN.
+    """
+
+    model: str
+    fold: int
+    timestamps: pd.DatetimeIndex
+    actual: np.ndarray
+    quantiles: dict[float, np.ndarray]
+
+
 @dataclass
 class BacktestResult:
-    """Per fold metrics for the candidate model and the baseline."""
+    """Per fold metrics and forecasts for the candidate model and the baseline."""
 
     target: str
     horizon: int
     quantiles: tuple[float, ...]
     folds: list[FoldMetrics] = field(default_factory=list)
+    forecasts: list[FoldForecast] = field(default_factory=list)
 
     def to_frame(self) -> pd.DataFrame:
         return pd.DataFrame(self.folds)
+
+    def forecasts_for(self, model: str) -> list[FoldForecast]:
+        """This model's fold forecasts, in chronological order."""
+        return sorted((f for f in self.forecasts if f.model == model), key=lambda f: f.fold)
 
     def summary(self) -> pd.DataFrame:
         """Mean metrics per model, plus whether the candidate beats persistence."""
@@ -82,6 +103,7 @@ def backtest_site(
     quantiles: tuple[float, ...] = DEFAULT_QUANTILES,
     model_name: str = "candidate",
     exog: tuple[str, ...] = (),
+    nonnegative: bool = True,
 ) -> BacktestResult:
     """Backtest one candidate model against persistence on a single site.
 
@@ -104,6 +126,9 @@ def backtest_site(
         candidate receives the test window's exogenous values as future_exog,
         mirroring having a weather forecast in production. The baseline ignores
         them.
+    nonnegative:
+        Whether the baseline clips at zero. Set False for signed targets such
+        as net load, and build the candidate the same way.
     """
     step = step or horizon
     columns = [TIMESTAMP, target, *exog]
@@ -127,12 +152,13 @@ def backtest_site(
         if np.isnan(actual).all():
             continue
         future_exog = test[[TIMESTAMP, *exog]] if exog else None
+        stamps = pd.DatetimeIndex(test[TIMESTAMP])
 
-        candidate = _score_one(
+        candidate, candidate_fc = _score_one(
             make_model(), model_name, fold, train, actual, horizon, quantiles, future_exog
         )
-        baseline = _score_one(
-            PersistenceForecaster(target=target),
+        baseline, baseline_fc = _score_one(
+            PersistenceForecaster(target=target, nonnegative=nonnegative),
             "persistence",
             fold,
             train,
@@ -142,6 +168,12 @@ def backtest_site(
             None,
         )
         result.folds.extend([candidate, baseline])
+        for name, by_q in ((model_name, candidate_fc), ("persistence", baseline_fc)):
+            result.forecasts.append(
+                FoldForecast(
+                    model=name, fold=fold, timestamps=stamps, actual=actual, quantiles=by_q
+                )
+            )
 
     return result
 
@@ -155,7 +187,7 @@ def _score_one(
     horizon: int,
     quantiles: tuple[float, ...],
     future_exog: pd.DataFrame | None = None,
-) -> FoldMetrics:
+) -> tuple[FoldMetrics, dict[float, np.ndarray]]:
     model.fit(train)
     # Pass future_exog only to models whose predict supports it (the GBM does).
     supports_exog = "future_exog" in inspect.signature(model.predict_quantiles).parameters
@@ -178,7 +210,7 @@ def _score_one(
         hi = forecast[quantile_column(max(quantiles))].to_numpy(dtype=float)
         cov = coverage(actual, lo, hi)
 
-    return FoldMetrics(
+    metrics = FoldMetrics(
         model=name,
         fold=fold,
         n_scored=int(np.sum(~np.isnan(actual))),
@@ -187,3 +219,4 @@ def _score_one(
         rmse=rmse(actual, median),
         coverage=cov,
     )
+    return metrics, by_quantile
