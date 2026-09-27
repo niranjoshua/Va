@@ -15,6 +15,7 @@ Run with:
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -26,6 +27,13 @@ from vaticore.schemas import GENERATION_KW, LOAD_KW, OPERATOR_ID, SITE_ID, TIMES
 
 QUANTILES = (0.1, 0.5, 0.9)
 HISTORY_TAIL = 24 * 7  # show one week of context behind the forecast
+
+# Brand palette, matching the logo sheet and docs/landing/brand.
+NAVY = "#102A43"
+TEAL = "#00B8A9"
+TEAL_BAND = "rgba(0,184,169,0.22)"
+HISTORY_GREY = "#829AB1"
+ASSETS = Path(__file__).parent / "assets"
 
 
 def _load_fleet(days: int) -> pd.DataFrame:
@@ -43,7 +51,7 @@ def _forecast_figure(history: pd.DataFrame, target: str, forecast: pd.DataFrame)
             x=context[TIMESTAMP],
             y=context[target],
             name="actual",
-            line={"color": "#1f77b4"},
+            line={"color": HISTORY_GREY},
         )
     )
     fig.add_trace(
@@ -61,7 +69,7 @@ def _forecast_figure(history: pd.DataFrame, target: str, forecast: pd.DataFrame)
             y=forecast[quantile_column(0.1)],
             name="P10 to P90",
             fill="tonexty",
-            fillcolor="rgba(255,127,14,0.2)",
+            fillcolor=TEAL_BAND,
             line={"width": 0},
         )
     )
@@ -70,7 +78,7 @@ def _forecast_figure(history: pd.DataFrame, target: str, forecast: pd.DataFrame)
             x=forecast.index,
             y=forecast[quantile_column(0.5)],
             name="forecast (P50)",
-            line={"color": "#ff7f0e"},
+            line={"color": TEAL, "dash": "dash"},
         )
     )
     fig.update_layout(
@@ -78,15 +86,22 @@ def _forecast_figure(history: pd.DataFrame, target: str, forecast: pd.DataFrame)
         legend={"orientation": "h"},
         yaxis_title="kW",
         height=420,
+        font={"color": NAVY},
+        plot_bgcolor="#FFFFFF",
+        paper_bgcolor="#FFFFFF",
     )
+    fig.update_xaxes(gridcolor="rgba(16,42,67,0.08)")
+    fig.update_yaxes(gridcolor="rgba(16,42,67,0.08)")
     return fig
 
 
 def main() -> None:
     import streamlit as st
 
-    st.set_page_config(page_title="Vaticore", layout="wide")
-    st.title("Vaticore")
+    st.set_page_config(
+        page_title="Vaticore", page_icon=str(ASSETS / "favicon-32.png"), layout="wide"
+    )
+    st.logo(str(ASSETS / "vaticore-lockup.png"), icon_image=str(ASSETS / "vaticore-icon-512.png"))
     st.caption("Probabilistic load and solar forecasting for distributed energy operators.")
 
     fleet = _load_fleet(days=90)
@@ -123,8 +138,8 @@ def main() -> None:
     explanation = explain_advisory(advisory)
     st.subheader(f"Site today: {site_id}")
     banner = (
-        "background:#1b2740;border-left:4px solid #f5a524;border-radius:10px;"
-        "padding:14px 18px;margin-bottom:8px;color:#eaf0f7"
+        f"background:{NAVY};border-left:4px solid {TEAL};border-radius:10px;"
+        "padding:14px 18px;margin-bottom:8px;color:#F4F7FA"
     )
     st.markdown(
         f"<div style='{banner}'><b>Today's plan.</b> {explanation.text}</div>",
