@@ -27,6 +27,10 @@ TIMESTAMP = "timestamp"
 LOAD_KW = "load_kw"
 GENERATION_KW = "generation_kw"
 
+# Derived, signed: load minus generation. Positive means the battery or genset
+# must serve it; negative means surplus solar. Never ingested, always computed.
+NET_LOAD_KW = "net_load_kw"
+
 SCOPE_KEYS = (OPERATOR_ID, SITE_ID)
 TARGET_COLUMNS = (LOAD_KW, GENERATION_KW)
 
@@ -60,3 +64,14 @@ def validate(frame: pd.DataFrame) -> pd.DataFrame:
     """
     validated: pd.DataFrame = TimeSeriesSchema.validate(frame)
     return validated
+
+
+def with_net_load(frame: pd.DataFrame) -> pd.DataFrame:
+    """Return a copy of frame with the derived net_load_kw column added.
+
+    Net load is load minus generation. If either input is missing for a row,
+    net load is missing too: a gap stays a gap rather than being guessed.
+    """
+    out = frame.copy()
+    out[NET_LOAD_KW] = out[LOAD_KW] - out[GENERATION_KW]
+    return out
