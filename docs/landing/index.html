@@ -5,22 +5,32 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Vaticore: probabilistic energy forecasting</title>
 <meta name="description" content="Vaticore forecasts electricity demand and on-site solar as a calibrated range, and turns it into a clear operating decision: how much battery to hold, when to run backup. A UK company." />
+<meta name="color-scheme" content="light" />
+<meta name="theme-color" content="#102A43" />
+<link rel="icon" href="brand/favicon.svg" type="image/svg+xml" />
+<link rel="icon" href="brand/favicon-32.png" sizes="32x32" type="image/png" />
+<link rel="apple-touch-icon" href="brand/apple-touch-icon.png" />
+<meta property="og:title" content="Vaticore: probabilistic energy forecasting" />
+<meta property="og:description" content="Forecast demand and solar as a calibrated range, and turn it into a clear operating decision." />
+<meta property="og:image" content="brand/og-image.png" />
+<meta name="twitter:card" content="summary_large_image" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" />
 </head>
 <body>
 <style>
   :root{
-    /* Light Palantir-style scheme: white page, black text, black surfaces. */
-    --bg:#FFFFFF; --ink:#0A0A0A; --soft:#565656; --faint:#8A8A8A;
-    --line:rgba(0,0,0,.16); --hair:rgba(0,0,0,.09);
-    /* Black inverted surfaces */
-    --ink-on:#F4F4F4; --soft-on:#A6A6A6; --hair-on:rgba(255,255,255,.10);
-    /* Forecast chart palette (on the black panel), the original brand colours */
-    --fc-hist:#EDEDED; --fc-med:#4BD6C9; --fc-band:rgba(23,179,163,.22);
-    --fc-dot:#F5A524; --fc-grid:rgba(255,255,255,.08); --fc-now:#8A8A8A;
-    --sans:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+    /* Vaticore brand: white page, navy ink and navy surfaces, teal accent. */
+    --bg:#FFFFFF; --tint:#F4F7FA; --ink:#102A43; --soft:#486581; --faint:#829AB1;
+    --line:rgba(16,42,67,.20); --hair:rgba(16,42,67,.10);
+    --teal:#00B8A9; --teal-ink:#00897E; --cyan:#22D3EE;
+    /* Navy inverted surfaces */
+    --navy:#102A43; --ink-on:#F4F7FA; --soft-on:#9FB3C8; --hair-on:rgba(255,255,255,.10);
+    /* Forecast chart palette (on the navy panel) */
+    --fc-hist:#D9E2EC; --fc-med:#22D3EE; --fc-band:rgba(0,184,169,.30);
+    --fc-dot:#F5A524; --fc-grid:rgba(255,255,255,.08); --fc-now:#829AB1;
+    --sans:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
     --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
     --maxw:1140px;
   }
@@ -31,20 +41,20 @@
   a{color:inherit;text-decoration:none}
   .wrap{max-width:var(--maxw);margin:0 auto;padding:0 28px}
   .eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--faint)}
-  h1,h2,h3,h4{margin:0;font-weight:600;letter-spacing:-0.02em;text-wrap:balance}
+  h1,h2,h3,h4{margin:0;font-weight:700;letter-spacing:-0.025em;text-wrap:balance}
 
   /* nav */
   nav{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.86);backdrop-filter:blur(8px);border-bottom:1px solid var(--hair)}
   .nav{display:flex;align-items:center;justify-content:space-between;height:66px}
-  .brand{font-family:var(--mono);font-weight:500;letter-spacing:.14em;font-size:16px;text-transform:uppercase;display:flex;align-items:center;gap:12px}
-  .glyph{width:20px;height:20px;display:block}
+  .brand{display:flex;align-items:center}
+  .brand img{height:30px;width:auto;display:block}
   .nav-links{display:none;gap:34px;font-size:14px;color:var(--soft)}
   .nav-links a:hover{color:var(--ink)}
   @media(min-width:820px){.nav-links{display:flex;align-items:center}}
   .btn{font-family:var(--sans);font-size:13.5px;font-weight:600;padding:9px 16px;border:1px solid var(--line);color:var(--ink);background:transparent;cursor:pointer;transition:background .15s,color .15s}
-  .btn:hover{background:var(--ink);color:#fff}
+  .btn:hover{background:var(--ink);color:#fff;border-color:var(--ink)}
   .btn-solid{background:var(--ink);color:#fff;border-color:var(--ink)}
-  .btn-solid:hover{background:transparent;color:var(--ink)}
+  .btn-solid:hover{background:var(--teal);color:var(--ink);border-color:var(--teal)}
 
   /* hero */
   .hero{padding:96px 0 64px;border-bottom:1px solid var(--hair)}
@@ -56,17 +66,18 @@
   .hero-meta{margin-top:26px;font-family:var(--mono);font-size:12px;color:var(--faint);letter-spacing:.02em}
 
   /* black forecast panel */
-  .panel{background:#0A0A0A;border:1px solid #0A0A0A;color:var(--ink-on);box-shadow:0 30px 60px -40px rgba(0,0,0,.5)}
+  .panel{background:var(--navy);border:1px solid var(--navy);color:var(--ink-on);box-shadow:0 30px 60px -40px rgba(16,42,67,.6)}
   .panel-h{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--hair-on);font-family:var(--mono);font-size:11.5px;letter-spacing:.08em;color:var(--soft-on);text-transform:uppercase}
   .dot{width:7px;height:7px;border-radius:50%;background:var(--fc-dot);display:inline-block;margin-right:7px;vertical-align:middle}
   canvas{width:100%;height:300px;display:block}
 
   /* stat strip */
-  .stats{border-bottom:1px solid var(--hair)}
+  .stats{border-bottom:1px solid var(--hair);background:var(--tint)}
   .stats-grid{display:grid;grid-template-columns:repeat(2,1fr)}
   @media(min-width:780px){.stats-grid{grid-template-columns:repeat(4,1fr)}}
   .stat{padding:34px 0;border-right:1px solid var(--hair)}
   .stat:last-child{border-right:0}
+  @media(max-width:779px){.stat:nth-child(2n){border-right:0}}
   .stat .n{font-family:var(--mono);font-size:clamp(1.9rem,3vw,2.5rem);font-weight:500;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
   .stat .l{color:var(--soft);font-size:13px;margin-top:8px;max-width:22ch;padding-right:14px}
 
@@ -81,17 +92,17 @@
   .row{display:grid;grid-template-columns:1fr;gap:8px;padding:30px 0;border-top:1px solid var(--hair)}
   @media(min-width:820px){.row{grid-template-columns:0.5fr 1.5fr;gap:40px;align-items:baseline}}
   .row h3{font-size:1.2rem;font-weight:600}
-  .row .k{font-family:var(--mono);font-size:12px;color:var(--faint);letter-spacing:.06em}
+  .row .k{font-family:var(--mono);font-size:12px;color:var(--teal-ink);letter-spacing:.06em}
   .row p{color:var(--soft);margin:0;max-width:60ch}
 
   /* inverted (black) section */
-  .invert{background:#0A0A0A;color:var(--ink-on);border-bottom:1px solid #0A0A0A}
+  .invert{background:var(--navy);color:var(--ink-on);border-bottom:1px solid var(--navy)}
   .invert .eyebrow{color:var(--soft-on)}
   .invert h2{color:#fff}
   .who{display:grid;grid-template-columns:1fr;gap:1px;background:var(--hair-on);border:1px solid var(--hair-on)}
   @media(min-width:820px){.who{grid-template-columns:repeat(3,1fr)}}
-  .who .cell{background:#0A0A0A;padding:30px 26px}
-  .who .tag{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
+  .who .cell{background:var(--navy);padding:30px 26px}
+  .who .tag{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--teal)}
   .who h3{font-size:1.12rem;margin:12px 0 10px;color:#fff}
   .who p{color:var(--soft-on);font-size:.96rem;margin:0}
 
@@ -108,14 +119,15 @@
   .cta p{color:var(--soft-on);max-width:52ch;margin:0 auto 32px}
   .cta .hero-cta{justify-content:center}
   .cta .btn{border-color:rgba(255,255,255,.4);color:#fff}
-  .cta .btn:hover{background:#fff;color:#000}
-  .cta .btn-solid{background:#fff;color:#000;border-color:#fff}
-  .cta .btn-solid:hover{background:transparent;color:#fff}
+  .cta .btn:hover{background:#fff;color:var(--ink);border-color:#fff}
+  .cta .btn-solid{background:var(--teal);color:var(--ink);border-color:var(--teal)}
+  .cta .btn-solid:hover{background:#fff;color:var(--ink);border-color:#fff}
 
   footer{padding:40px 0 64px;color:var(--faint);font-size:13px}
   .foot{display:flex;flex-wrap:wrap;gap:14px 28px;align-items:center;justify-content:space-between}
   .foot .mono{font-family:var(--mono);font-size:11.5px;letter-spacing:.04em}
-  ::selection{background:#0A0A0A;color:#fff}
+  ::selection{background:var(--teal);color:var(--ink)}
+  .foot .brand img{height:24px}
   a.btn:focus-visible,.nav-links a:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
   .invert a:focus-visible{outline-color:#fff}
   @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}html{scroll-behavior:auto}}
@@ -123,11 +135,7 @@
 
 <nav>
   <div class="wrap nav">
-    <div class="brand">
-      <!-- Placeholder mark. Swap for the final Vaticore logo when ready. -->
-      <svg class="glyph" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M2 16 L8 16 L12 5 L16 20 L20 12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      Vaticore
-    </div>
+    <a class="brand" href="#"><img src="brand/vaticore-lockup.svg" alt="Vaticore" width="154" height="30" /></a>
     <div class="nav-links">
       <a href="#product">Product</a>
       <a href="#how">How it works</a>
@@ -250,7 +258,7 @@
 
 <footer>
   <div class="wrap foot">
-    <div class="brand" style="font-size:14px">Vaticore</div>
+    <div class="brand"><img src="brand/vaticore-lockup.svg" alt="Vaticore" width="123" height="24" /></div>
     <div class="mono">Probabilistic load and solar forecasting. A UK company, global mission.</div>
   </div>
 </footer>
