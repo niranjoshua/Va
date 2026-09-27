@@ -73,8 +73,8 @@ def build_site(args: argparse.Namespace) -> tuple[pd.DataFrame, dict[str, object
         }
     )
     meta: dict[str, object] = {
-        "source_csv": str(args.csv),
-        "solar_csv": str(solar_path),
+        "source_csv": Path(args.csv).name,
+        "solar_csv": Path(solar_path).name,
         "columns": {"time": args.time_col, "load": args.load_col, "solar": args.solar_col},
         "period_utc": [str(grid[0]), str(grid[-1])],
         "hours": len(grid),

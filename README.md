@@ -58,6 +58,17 @@ Working end to end, with a real forecasting model, an API and a dashboard.
 Next: an LSTM and ensemble, and a real pilot data feed. LSTM, TIME-LLM and an
 ensemble remain stubbed against the interface.
 
+## Evidence
+
+[Research note 1](docs/research/value-study-2018.md) is a one-year held-out study
+on public ENTSO-E demand and solar data, shaped into a 120 kW solar mini-grid.
+Planning the generator on Vaticore's calibrated P90 forecast cut unserved
+energy by 82 to 84% and outage hours by 72% against planning on persistence,
+for 11 to 16% more diesel. That lowered total cost by 7 to 10% at $1 per
+unserved kWh and captured 61 to 63% of the value of a perfect forecast.
+Pinball loss fell 23%, and the calibrated P10 to P90 range held 80.7% of
+outcomes (target 80%).
+
 ## Layout
 
 ```
