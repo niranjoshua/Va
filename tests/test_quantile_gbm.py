@@ -65,3 +65,11 @@ def test_gbm_beats_persistence_on_pinball() -> None:
     gbm = summary.loc["quantile_gbm", "pinball"]
     persistence = summary.loc["persistence", "pinball"]
     assert gbm < persistence, f"GBM pinball {gbm:.3f} did not beat persistence {persistence:.3f}"
+
+
+def test_day_ahead_lags_need_no_recursion_within_a_day() -> None:
+    from vaticore.forecasting.quantile_gbm import DAY_AHEAD_LAGS
+
+    # Every lag reaches back at least a full day, so a 24 hour forecast issued
+    # at midnight only ever looks up values that were already observed.
+    assert min(DAY_AHEAD_LAGS) >= 24

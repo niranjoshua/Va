@@ -163,6 +163,7 @@ class _RecordingTracker(Tracker):
 
     def __init__(self) -> None:
         self.summary: BacktestSummary | None = None
+        self.logged: list[tuple[str, dict[str, Any], dict[str, float]]] = []
 
     @property
     def enabled(self) -> bool:
@@ -186,6 +187,17 @@ class _RecordingTracker(Tracker):
             extra_params=extra_params,
         )
         return "run-123"
+
+    def log_summary(
+        self,
+        *,
+        run_name: str,
+        params: Mapping[str, Any],
+        metrics: Mapping[str, float],
+        tags: Mapping[str, str] | None = None,
+    ) -> str | None:
+        self.logged.append((run_name, dict(params), dict(metrics)))
+        return "run-456"
 
 
 def test_run_backtest_logs_to_supplied_tracker(single_site: pd.DataFrame) -> None:

@@ -18,6 +18,7 @@ from vaticore.tracking.mlflow_tracker import (
     NoOpTracker,
     Tracker,
     get_tracker,
+    metric_key,
     summarize_backtest,
 )
 
@@ -27,5 +28,6 @@ __all__ = [
     "NoOpTracker",
     "Tracker",
     "get_tracker",
+    "metric_key",
     "summarize_backtest",
 ]

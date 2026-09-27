@@ -18,7 +18,9 @@ Working end to end, with a real forecasting model, an API and a dashboard.
 - **Ingestion and schema**: CSV/API intake, timezone normalisation, gap
   detection, and strict validation against the internal schema.
 - **Models**: a probabilistic persistence baseline and a quantile gradient
-  boosting model (`quantile_gbm`), both behind one interface. The GBM can take
+  boosting model, both behind one interface. `quantile_gbm_day_ahead` uses only
+  lags known when a day ahead forecast is issued, so its range stays honest over
+  24 hours; it is the default for planning. The GBM can take
   exogenous weather covariates (forecast radiation, cloud cover, temperature),
   which sharply improve the solar generation forecast (see
   `examples/weather_lift.py`).
@@ -26,7 +28,16 @@ Working end to end, with a real forecasting model, an API and a dashboard.
   always scores the candidate against persistence. On synthetic demo data the
   quantile GBM cuts pinball loss by roughly **40% on load** and **18% on solar
   generation** versus the baseline.
-- **Decisions**: battery reserve and genset advisory from the quantile forecast.
+- **Calibration**: conformal calibration (CQR) so the P10 to P90 range holds
+  about 80% of outcomes, as a wrapper for any model
+  (`ConformalQuantileForecaster`) and fold by fold inside backtests. Coverage is
+  reported with every run.
+- **Decisions**: an hour by hour generator plan ("run 18:00 to midnight") from
+  a battery and generator model with a HOMER-standard fuel curve, served at
+  `POST /plan` and on the dashboard. Advisory only.
+- **Value backtest**: replays each forecast's plans against what actually
+  happened and reports litres, outage hours and money against persistence and
+  a perfect forecast (`run_value_backtest`, `examples/value_study.py`).
 - **Experiment tracking**: every backtest can be logged to MLflow (site, model,
   config and metrics, plus the pinball skill over persistence), so model
   comparisons are reproducible. Off by default; enable it by setting
@@ -46,6 +57,17 @@ Working end to end, with a real forecasting model, an API and a dashboard.
 
 Next: an LSTM and ensemble, and a real pilot data feed. LSTM, TIME-LLM and an
 ensemble remain stubbed against the interface.
+
+## Evidence
+
+[Research note 1](docs/research/value-study-2018.md) is a one-year held-out study
+on public ENTSO-E demand and solar data, shaped into a 120 kW solar mini-grid.
+Planning the generator on Vaticore's calibrated P90 forecast cut unserved
+energy by 82 to 84% and outage hours by 72% against planning on persistence,
+for 11 to 16% more diesel. That lowered total cost by 7 to 10% at $1 per
+unserved kWh and captured 61 to 63% of the value of a perfect forecast.
+Pinball loss fell 23%, and the calibrated P10 to P90 range held 80.7% of
+outcomes (target 80%).
 
 ## Layout
 
@@ -95,6 +117,21 @@ curl -X POST localhost:8000/forecast -H 'content-type: application/json' -d '{
   "operator_id": "lagos-energy", "site_id": "ikeja-minigrid",
   "target": "load_kw", "horizon": 24, "model": "quantile_gbm"
 }'
+
+# Today's generator schedule for a 600 kWh battery at half charge
+curl -X POST localhost:8000/plan -H 'content-type: application/json' -d '{
+  "operator_id": "lagos-energy", "site_id": "ikeja-minigrid",
+  "battery_kwh": 600, "battery_power_kw": 150, "genset_kw": 100, "soc_kwh": 300
+}'
+```
+
+Run the value study on real data (public ENTSO-E Spain data, not committed):
+
+```bash
+curl -L -o energy_dataset.csv \
+  https://raw.githubusercontent.com/unit8co/darts/master/datasets/energy_dataset.csv
+uv run python examples/value_study.py energy_dataset.csv \
+  --start 2017-01-01 --end 2018-12-31T23:00 --initial-days 365 --out results/
 ```
 
 Optional extras, installed only when needed:

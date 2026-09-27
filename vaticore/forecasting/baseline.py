@@ -33,11 +33,21 @@ class PersistenceForecaster(Forecaster):
     seasonal_period:
         Number of steps in one seasonal cycle. If None, it is inferred as the
         number of steps per day from the median timestamp spacing.
+    nonnegative:
+        Clip forecasts at zero. True for load and generation. Set False for a
+        signed target such as net load, which goes negative when solar exceeds
+        demand.
     """
 
-    def __init__(self, target: str, seasonal_period: int | None = None) -> None:
+    def __init__(
+        self,
+        target: str,
+        seasonal_period: int | None = None,
+        nonnegative: bool = True,
+    ) -> None:
         self.target = target
         self.seasonal_period = seasonal_period
+        self.nonnegative = nonnegative
 
         self._freq: pd.Timedelta | None = None
         self._last_timestamp: pd.Timestamp | None = None
@@ -106,7 +116,8 @@ class PersistenceForecaster(Forecaster):
         columns: dict[str, np.ndarray] = {}
         for q in quantiles:
             offset = self._residual_offset(q)
-            columns[quantile_column(q)] = np.clip(point + offset, a_min=0.0, a_max=None)
+            values = point + offset
+            columns[quantile_column(q)] = np.clip(values, 0.0, None) if self.nonnegative else values
 
         forecast = pd.DataFrame(columns, index=index)
         # Enforce non crossing quantiles row by row.
