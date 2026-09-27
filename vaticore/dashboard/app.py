@@ -28,11 +28,11 @@ from vaticore.schemas import GENERATION_KW, LOAD_KW, OPERATOR_ID, SITE_ID, TIMES
 QUANTILES = (0.1, 0.5, 0.9)
 HISTORY_TAIL = 24 * 7  # show one week of context behind the forecast
 
-# Brand palette, matching the logo sheet and docs/landing/brand.
-NAVY = "#102A43"
-TEAL = "#00B8A9"
-TEAL_BAND = "rgba(0,184,169,0.22)"
-HISTORY_GREY = "#829AB1"
+# Brand palette, matching docs/landing/brand. Teal marks the forecast only.
+INK = "#1D1A1E"
+TEAL = "#0E8F82"
+TEAL_BAND = "rgba(14,143,130,0.18)"
+HISTORY_GREY = "#98949A"
 ASSETS = Path(__file__).parent / "assets"
 
 
@@ -86,12 +86,12 @@ def _forecast_figure(history: pd.DataFrame, target: str, forecast: pd.DataFrame)
         legend={"orientation": "h"},
         yaxis_title="kW",
         height=420,
-        font={"color": NAVY},
+        font={"color": INK},
         plot_bgcolor="#FFFFFF",
         paper_bgcolor="#FFFFFF",
     )
-    fig.update_xaxes(gridcolor="rgba(16,42,67,0.08)")
-    fig.update_yaxes(gridcolor="rgba(16,42,67,0.08)")
+    fig.update_xaxes(gridcolor="rgba(29,26,30,0.08)")
+    fig.update_yaxes(gridcolor="rgba(29,26,30,0.08)")
     return fig
 
 
@@ -138,8 +138,8 @@ def main() -> None:
     explanation = explain_advisory(advisory)
     st.subheader(f"Site today: {site_id}")
     banner = (
-        f"background:{NAVY};border-left:4px solid {TEAL};border-radius:10px;"
-        "padding:14px 18px;margin-bottom:8px;color:#F4F7FA"
+        f"background:{INK};border-left:4px solid {TEAL};border-radius:12px;"
+        "padding:14px 18px;margin-bottom:8px;color:#F5F5F7"
     )
     st.markdown(
         f"<div style='{banner}'><b>Today's plan.</b> {explanation.text}</div>",
