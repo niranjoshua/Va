@@ -95,3 +95,41 @@ def test_advisory(client: TestClient) -> None:
     body = resp.json()
     assert body["horizon_hours"] == 24
     assert "genset_recommended" in body
+
+
+def test_plan_returns_an_hourly_advisory_schedule(client: TestClient) -> None:
+    resp = client.post(
+        "/plan",
+        json={
+            "operator_id": "lagos-energy",
+            "site_id": "ikeja-minigrid",
+            "battery_kwh": 600,
+            "battery_power_kw": 150,
+            "genset_kw": 100,
+            "soc_kwh": 300,
+            "model": "persistence",
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["advisory_only"] is True
+    assert len(body["hours"]) == 24
+    assert isinstance(body["summary"], str) and body["summary"]
+    on_hours = sum(h["genset_on"] for h in body["hours"])
+    assert body["expected_genset_hours"] <= on_hours
+
+
+def test_plan_rejects_a_battery_charge_outside_its_capacity(client: TestClient) -> None:
+    resp = client.post(
+        "/plan",
+        json={
+            "operator_id": "lagos-energy",
+            "site_id": "ikeja-minigrid",
+            "battery_kwh": 100,
+            "battery_power_kw": 50,
+            "genset_kw": 50,
+            "soc_kwh": 500,
+            "model": "persistence",
+        },
+    )
+    assert resp.status_code == 400
