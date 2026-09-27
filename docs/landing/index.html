@@ -3,305 +3,614 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Vaticore: probabilistic energy forecasting</title>
-<meta name="description" content="Vaticore forecasts electricity demand and on-site solar as a calibrated range, and turns it into a clear operating decision: how much battery to hold, when to run backup. A UK company." />
+<title>Vaticore: tomorrow's grid, planned today</title>
+<meta name="description" content="Vaticore forecasts demand and solar for every site as a calibrated range, then tells operators how much battery to hold and when to run backup." />
 <meta name="color-scheme" content="light" />
-<meta name="theme-color" content="#102A43" />
+<meta name="theme-color" content="#FFFFFF" />
 <link rel="icon" href="brand/favicon.svg" type="image/svg+xml" />
 <link rel="icon" href="brand/favicon-32.png" sizes="32x32" type="image/png" />
 <link rel="apple-touch-icon" href="brand/apple-touch-icon.png" />
-<meta property="og:title" content="Vaticore: probabilistic energy forecasting" />
-<meta property="og:description" content="Forecast demand and solar as a calibrated range, and turn it into a clear operating decision." />
+<meta property="og:title" content="Vaticore: tomorrow's grid, planned today" />
+<meta property="og:description" content="Calibrated demand and solar forecasts, turned into a clear plan for your battery and backup." />
 <meta property="og:image" content="brand/og-image.png" />
 <meta name="twitter:card" content="summary_large_image" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..700&family=JetBrains+Mono:wght@400;500&display=swap" />
+<style>
+:root{
+  /* Brand */
+  --ink:#1D1A1E; --ink-2:#6B676D; --ink-3:#98949A; --paper:#FCF9E8;
+  --bg:#FFFFFF; --tile:#F5F4F0; --hair:rgba(29,26,30,.10); --hair-2:rgba(29,26,30,.16);
+  --link:#0B7F74;
+  /* Product surfaces */
+  --app:#121014; --app-2:#1A181D; --app-3:#232026; --app-line:rgba(255,255,255,.08);
+  --app-ink:#F4F2EE; --app-ink-2:#A8A3AA; --app-ink-3:#77727A;
+  /* Data colours (validated for CVD and contrast on each surface) */
+  --fc-dark:#1FA898; --act-dark:#C2811A; --hist-dark:#8A858C;
+  --fc-light:#0E8F82; --act-light:#B86F05;
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","Inter","Helvetica Neue",Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,"JetBrains Mono",Menlo,Consolas,monospace;
+  --maxw:1180px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:17px;line-height:1.47;
+  letter-spacing:-.011em;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;font-optical-sizing:auto;
+  text-rendering:optimizeLegibility;overflow-x:hidden}
+a{color:inherit;text-decoration:none}
+img{display:block}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 22px}
+@media(min-width:760px){.wrap{padding:0 32px}}
+h1,h2,h3{margin:0;font-weight:600;text-wrap:balance}
+p{margin:0}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* ---------- nav ---------- */
+.nav{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.78);
+  -webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);
+  border-bottom:1px solid transparent;transition:border-color .3s}
+.nav.scrolled{border-bottom-color:var(--hair)}
+.nav .wrap{height:52px;display:flex;align-items:center;justify-content:space-between;gap:24px}
+.brand img{height:22px;width:auto}
+.links{display:none;gap:30px;font-size:13px;color:var(--ink-2);letter-spacing:-.005em}
+.links a{transition:color .2s}.links a:hover{color:var(--ink)}
+@media(min-width:860px){.links{display:flex}}
+.pill{display:inline-flex;align-items:center;justify-content:center;gap:6px;border-radius:980px;font-weight:500;
+  background:var(--ink);color:#fff;border:0;cursor:pointer;font-family:inherit;transition:background .2s,transform .2s}
+.pill:hover{background:#000}
+.pill:active{transform:scale(.98)}
+.pill.sm{font-size:12.5px;padding:7px 14px}
+.pill.lg{font-size:17px;padding:12px 24px}
+.pill.light{background:#fff;color:var(--ink)}.pill.light:hover{background:var(--paper)}
+.more{color:var(--link);font-size:17px;font-weight:400;display:inline-flex;align-items:center;gap:4px}
+.more:hover{text-decoration:underline}
+.more::after{content:"";width:7px;height:7px;border-right:1.6px solid currentColor;border-top:1.6px solid currentColor;transform:rotate(45deg);margin-left:2px}
+a:focus-visible,button:focus-visible{outline:2px solid var(--link);outline-offset:3px;border-radius:6px}
+
+/* ---------- hero ---------- */
+.hero{padding:76px 0 0;text-align:center}
+@media(min-width:760px){.hero{padding-top:104px}}
+.kicker{font-size:19px;font-weight:600;letter-spacing:-.01em;color:var(--ink);display:inline-flex;align-items:center;gap:8px}
+.kicker img{height:20px;width:20px}
+.h1{font-size:clamp(46px,8.2vw,96px);line-height:1.02;letter-spacing:-.038em;margin:14px auto 0;max-width:12ch}
+.sub{font-size:clamp(19px,2.1vw,24px);line-height:1.35;color:var(--ink-2);max-width:32em;margin:22px auto 0;letter-spacing:-.018em}
+.ctas{display:flex;flex-wrap:wrap;gap:14px 28px;justify-content:center;align-items:center;margin-top:34px}
+
+/* ---------- product console ---------- */
+.stage{margin:64px auto 0;max-width:1240px;padding:0 12px}
+@media(min-width:760px){.stage{padding:0 24px;margin-top:80px}}
+.app{background:var(--app);color:var(--app-ink);border-radius:18px;text-align:left;overflow:hidden;
+  box-shadow:0 0 0 1px rgba(0,0,0,.6),0 50px 100px -30px rgba(18,16,20,.45),0 30px 60px -40px rgba(18,16,20,.5);
+  font-size:13px;letter-spacing:-.005em}
+.bar{height:48px;display:flex;align-items:center;gap:14px;padding:0 16px;border-bottom:1px solid var(--app-line);background:var(--app-2)}
+.bar .crumb{display:flex;align-items:center;gap:9px;color:var(--app-ink-2);white-space:nowrap;min-width:0;overflow:hidden}
+.bar .crumb b:last-child{overflow:hidden;text-overflow:ellipsis}
+.bar .crumb img{width:18px;height:18px}
+.bar .crumb b{color:var(--app-ink);font-weight:600}
+.bar .crumb .sep{color:var(--app-ink-3)}
+.bar .sp{flex:1}
+.live{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--app-ink-2);white-space:nowrap}
+.live i{width:7px;height:7px;border-radius:50%;background:#3DDC84;box-shadow:0 0 0 0 rgba(61,220,132,.6);animation:pulse 2s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(61,220,132,.5)}70%{box-shadow:0 0 0 7px rgba(61,220,132,0)}100%{box-shadow:0 0 0 0 rgba(61,220,132,0)}}
+.clock{font-family:var(--mono);font-size:12px;color:var(--app-ink);background:var(--app-3);padding:4px 9px;border-radius:7px;white-space:nowrap}
+.hide-sm{display:none}@media(min-width:700px){.hide-sm{display:inline-flex}}
+.body{display:grid;grid-template-columns:1fr}
+@media(min-width:980px){.body{grid-template-columns:1fr 300px}}
+.main{padding:18px 18px 10px;min-width:0;display:flex;flex-direction:column}
+@media(min-width:760px){.main{padding:22px 24px 12px}}
+.main-h{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:10px 20px;margin-bottom:6px}
+.main-h h3{font-size:15px;font-weight:600;color:var(--app-ink);letter-spacing:-.01em}
+.main-h p{font-size:12px;color:var(--app-ink-3);margin-top:2px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--app-ink-2)}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.sw{width:14px;height:2px;border-radius:2px;display:inline-block}
+.sw.band{height:10px;width:14px;border-radius:3px;background:rgba(31,168,152,.32)}
+.sw.dash{background:repeating-linear-gradient(90deg,var(--fc-dark) 0 4px,transparent 4px 7px)}
+.chart{position:relative;height:300px;margin:0 -4px;flex:1 1 auto}
+@media(min-width:980px){.chart{min-height:340px}}
+@media(max-width:600px){.chart{height:240px}}
+.chart svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.tip{position:absolute;pointer-events:none;background:rgba(35,32,38,.96);border:1px solid rgba(255,255,255,.1);border-radius:10px;
+  padding:9px 11px;font-size:12px;line-height:1.5;color:var(--app-ink);min-width:150px;opacity:0;transition:opacity .12s;
+  box-shadow:0 12px 30px -10px rgba(0,0,0,.6);z-index:3}
+.tip b{font-weight:600}
+.tip .r{display:flex;justify-content:space-between;gap:14px;color:var(--app-ink-2)}
+.tip .r span:last-child{font-family:var(--mono);color:var(--app-ink)}
+.days{display:flex;align-items:center;gap:6px;padding:12px 0 8px;overflow-x:auto;scrollbar-width:none}
+.days::-webkit-scrollbar{display:none}
+.days button{font-family:inherit;flex:0 0 auto;border:0;background:transparent;color:var(--app-ink-3);font-size:12px;
+  width:40px;padding:6px 0;border-radius:9px;cursor:pointer;line-height:1.25;transition:background .15s,color .15s}
+.days button small{display:block;font-size:10px;letter-spacing:.02em;opacity:.8}
+.days button:hover{color:var(--app-ink);background:var(--app-3)}
+.days button[aria-pressed="true"]{background:var(--app-ink);color:var(--app)}
+.days .play{width:32px;height:32px;border-radius:50%;background:var(--app-3);color:var(--app-ink);display:grid;place-items:center;margin-right:6px}
+.days .play svg{width:12px;height:12px}
+.side{border-top:1px solid var(--app-line);padding:18px;display:grid;gap:12px;align-content:start;background:linear-gradient(180deg,rgba(255,255,255,.015),transparent)}
+@media(min-width:620px) and (max-width:979px){.side{grid-template-columns:1fr 1fr}}
+@media(min-width:980px){.side{border-top:0;border-left:1px solid var(--app-line);padding:22px 20px}}
+.side h4{margin:0 0 2px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--app-ink-3)}
+.card{background:var(--app-2);border:1px solid var(--app-line);border-radius:12px;padding:14px}
+.card .lab{font-size:12px;color:var(--app-ink-2)}
+.card .val{font-size:30px;font-weight:600;letter-spacing:-.03em;line-height:1.1;margin-top:4px;font-variant-numeric:tabular-nums}
+.card .val small{font-size:15px;font-weight:500;color:var(--app-ink-2);letter-spacing:-.01em;margin-left:3px}
+.meter{height:6px;border-radius:6px;background:var(--app-3);margin-top:11px;overflow:hidden}
+.meter i{display:block;height:100%;border-radius:6px;background:var(--app-ink);transition:width .6s cubic-bezier(.2,.8,.2,1)}
+.meta{display:flex;justify-content:space-between;font-size:11.5px;color:var(--app-ink-3);margin-top:7px}
+.status{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;margin-top:6px;padding:5px 10px 5px 8px;border-radius:8px}
+.status.on{background:rgba(194,129,26,.16);color:#E7B25E}
+.status.off{background:rgba(31,168,152,.16);color:#5FD1C2}
+.status svg{width:14px;height:14px}
+.say{font-size:13.5px;line-height:1.5;color:var(--app-ink);background:transparent;border:1px dashed rgba(255,255,255,.14)}
+.say .lab{display:flex;align-items:center;gap:7px;margin-bottom:6px}
+.say .lab img{width:14px;height:14px;opacity:.9}
+
+.cap{font-size:12.5px;color:var(--ink-3);text-align:center;margin-top:18px}
+.cap sup{font-size:.8em}
+/* ---------- stat row ---------- */
+.stats{padding:96px 0 40px}
+.stats .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:40px 24px}
+@media(min-width:900px){.stats .grid{grid-template-columns:repeat(4,1fr)}}
+.stat .n{font-size:clamp(40px,4.6vw,56px);font-weight:600;letter-spacing:-.04em;line-height:1;font-variant-numeric:tabular-nums}
+.stat .n sup{font-size:.34em;font-weight:500;color:var(--ink-3);vertical-align:super;margin-left:3px;letter-spacing:0}
+.stat p{color:var(--ink-2);font-size:15px;margin-top:10px;max-width:22ch;line-height:1.4}
+
+/* ---------- sections ---------- */
+.sec{padding:110px 0}
+@media(min-width:760px){.sec{padding:150px 0}}
+.eyebrow{font-size:17px;font-weight:600;color:var(--ink-2);letter-spacing:-.01em;margin-bottom:12px}
+.h2{font-size:clamp(38px,5.6vw,68px);line-height:1.04;letter-spacing:-.036em;max-width:15ch}
+.lead{font-size:clamp(19px,1.9vw,22px);line-height:1.4;color:var(--ink-2);max-width:34em;margin-top:22px;letter-spacing:-.016em}
+.lead b{color:var(--ink);font-weight:600}
+
+/* dark accuracy */
+.dark{background:#000;color:#F5F5F7}
+.dark .eyebrow{color:#86868B}
+.dark .lead{color:#A1A1A6}
+.dark .lead b{color:#F5F5F7}
+.acc{display:grid;grid-template-columns:1fr;gap:56px;margin-top:72px}
+@media(min-width:900px){.acc{grid-template-columns:1fr 1fr;gap:28px}}
+.metric{background:#141316;border-radius:28px;padding:34px 30px 30px}
+@media(min-width:760px){.metric{padding:42px 40px 36px}}
+.metric h3{font-size:21px;letter-spacing:-.02em}
+.metric .d{font-size:15px;color:#86868B;margin-top:4px}
+.big{font-size:clamp(64px,8vw,96px);font-weight:600;letter-spacing:-.05em;line-height:1;margin:28px 0 30px;
+  background:linear-gradient(90deg,#5FD1C2,#1FA898);-webkit-background-clip:text;background-clip:text;color:transparent}
+.bars{display:grid;gap:16px}
+.brow{display:grid;grid-template-columns:96px 1fr;align-items:center;gap:14px;font-size:14px;color:#A1A1A6}
+.brow .t{position:relative;height:30px}
+.brow .f{height:100%;border-radius:0 6px 6px 0;display:flex;align-items:center;justify-content:flex-end;padding-right:10px;
+  font-family:var(--mono);font-size:12.5px;color:#fff;transform-origin:left;transition:transform 1.2s cubic-bezier(.2,.8,.2,1)}
+.brow .f.base{background:#3A383D}
+.brow .f.vc{background:var(--fc-dark)}
+.js .metric:not(.in) .f{transform:scaleX(0)}
+.brow b{color:#F5F5F7;font-weight:600}
+.fine{font-size:12.5px;line-height:1.55;color:#86868B;margin-top:40px;max-width:74em}
+
+/* bento */
+.bento{display:grid;grid-template-columns:1fr;gap:20px;margin-top:64px}
+@media(min-width:900px){.bento{grid-template-columns:repeat(3,1fr)}}
+.tile{background:var(--tile);border-radius:28px;padding:34px 30px;overflow:hidden;position:relative;min-height:380px;display:flex;flex-direction:column}
+@media(min-width:900px){.tile.w2{grid-column:span 2}}
+.tile h3{font-size:clamp(24px,2.3vw,30px);line-height:1.12;letter-spacing:-.028em;max-width:16ch}
+.tile p{color:var(--ink-2);margin-top:10px;max-width:30em;font-size:16.5px}
+.tile .vis{margin-top:auto;padding-top:28px}
+.tile.ink{background:var(--ink);color:#F5F5F7}
+.tile.ink p{color:#A1A1A6}
+.tile.paper{background:var(--paper)}
+.fan{width:100%;height:240px;display:block;overflow:visible}
+.notif{background:rgba(255,255,255,.82);border-radius:20px;padding:14px 16px;box-shadow:0 1px 0 rgba(0,0,0,.04),0 18px 40px -22px rgba(0,0,0,.35);
+  display:grid;grid-template-columns:36px 1fr;gap:12px;align-items:start;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.notif img{width:36px;height:36px;border-radius:9px}
+.notif .top{display:flex;justify-content:space-between;font-size:13px;color:var(--ink-2)}
+.notif .top b{color:var(--ink);font-weight:600}
+.notif p{margin:3px 0 0;font-size:15px;color:var(--ink);line-height:1.38}
+.gaps{display:flex;align-items:flex-end;gap:3px;height:120px}
+.gaps i{flex:1;background:var(--ink);border-radius:3px 3px 1px 1px;opacity:.86}
+.gaps i.g{background:rgba(184,111,5,.10);border:1.5px dashed var(--act-light);opacity:1}
+.gapnote{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-2);margin-top:12px}
+.gapnote i{width:12px;height:12px;border:1.5px dashed var(--act-light);border-radius:3px}
+.switch{display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.06);border-radius:16px;padding:16px 18px;font-size:15px}
+.switch + .switch{margin-top:10px}
+.tog{width:51px;height:31px;border-radius:31px;background:#3A383D;position:relative;flex:0 0 auto}
+.tog::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.3)}
+.tog.on{background:#30D158}.tog.on::after{left:22px}
+.code{background:#121014;color:#E8E6E3;border-radius:18px;padding:20px 22px;font-family:var(--mono);font-size:12.5px;line-height:1.7;overflow-x:auto;white-space:pre}
+.code .k{color:#7FD6CB}.code .s{color:#E7B25E}.code .c{color:#77727A}.code .m{color:#fff;font-weight:500}
+
+/* how */
+.steps{display:grid;grid-template-columns:1fr;gap:0;margin-top:72px;border-top:1px solid var(--hair-2)}
+@media(min-width:900px){.steps{grid-template-columns:repeat(3,1fr)}}
+.step{padding:30px 0 10px;position:relative}
+@media(min-width:900px){.step{padding:34px 36px 10px 0}}
+.step .num{font-family:var(--mono);font-size:13px;color:var(--ink-3)}
+.step h3{font-size:28px;letter-spacing:-.03em;margin-top:14px}
+.step p{color:var(--ink-2);margin-top:10px;max-width:24em}
+.step .prog{position:absolute;top:-1px;left:0;height:2px;background:var(--ink);width:0;transition:width 1s cubic-bezier(.2,.8,.2,1)}
+.steps.in .step .prog{width:100%}
+.steps.in .step:nth-child(2) .prog{transition-delay:.35s}
+.steps.in .step:nth-child(3) .prog{transition-delay:.7s}
+
+/* who */
+.who{display:grid;grid-template-columns:1fr;gap:20px;margin-top:64px}
+@media(min-width:900px){.who{grid-template-columns:repeat(3,1fr)}}
+.who .tile{min-height:300px}
+.who .tag{font-size:14px;font-weight:600;color:var(--ink-2)}
+.who h3{margin-top:10px}
+
+/* cta */
+.cta{background:var(--paper);text-align:center;padding:130px 0;position:relative;overflow:hidden}
+.cta .mk{width:88px;height:88px;margin:0 auto 34px}
+.cta .h2{margin:0 auto;max-width:14ch}
+.cta .lead{margin:22px auto 0}
+.cta .ctas{margin-top:38px}
+
+/* footer */
+footer{background:#F5F5F7;color:var(--ink-2);font-size:12px;line-height:1.5;padding:22px 0 30px}
+.notes{border-bottom:1px solid #D2D2D7;padding-bottom:16px}
+.notes p{margin:0 0 9px}
+.fcols{display:flex;flex-wrap:wrap;justify-content:space-between;gap:14px 40px;padding-top:16px}
+.fcols .l{display:flex;flex-wrap:wrap;gap:6px 22px}
+.fcols a:hover{color:var(--ink);text-decoration:underline}
+
+/* motion */
+.js .rv{opacity:0;transform:translateY(28px);transition:opacity .9s cubic-bezier(.2,.8,.2,1),transform .9s cubic-bezier(.2,.8,.2,1)}
+.js .rv.in{opacity:1;transform:none}
+.js .stage.rv{transform:translateY(40px) scale(.97)}
+.js .stage.rv.in{transform:none}
+@media (prefers-reduced-motion: reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{animation:none!important;transition:none!important}
+  .js .rv{opacity:1;transform:none}
+  .js .metric:not(.in) .f{transform:none}
+}
+</style>
 </head>
 <body>
-<style>
-  :root{
-    /* Vaticore brand: white page, navy ink and navy surfaces, teal accent. */
-    --bg:#FFFFFF; --tint:#F4F7FA; --ink:#102A43; --soft:#486581; --faint:#829AB1;
-    --line:rgba(16,42,67,.20); --hair:rgba(16,42,67,.10);
-    --teal:#00B8A9; --teal-ink:#00897E; --cyan:#22D3EE;
-    /* Navy inverted surfaces */
-    --navy:#102A43; --ink-on:#F4F7FA; --soft-on:#9FB3C8; --hair-on:rgba(255,255,255,.10);
-    /* Forecast chart palette (on the navy panel) */
-    --fc-hist:#D9E2EC; --fc-med:#22D3EE; --fc-band:rgba(0,184,169,.30);
-    --fc-dot:#F5A524; --fc-grid:rgba(255,255,255,.08); --fc-now:#829AB1;
-    --sans:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
-    --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
-    --maxw:1140px;
-  }
-  *{box-sizing:border-box}
-  html{scroll-behavior:smooth}
-  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
-    line-height:1.55;-webkit-font-smoothing:antialiased;letter-spacing:-0.003em;}
-  a{color:inherit;text-decoration:none}
-  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 28px}
-  .eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--faint)}
-  h1,h2,h3,h4{margin:0;font-weight:700;letter-spacing:-0.025em;text-wrap:balance}
+<script>document.documentElement.classList.add("js")</script>
 
-  /* nav */
-  nav{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.86);backdrop-filter:blur(8px);border-bottom:1px solid var(--hair)}
-  .nav{display:flex;align-items:center;justify-content:space-between;height:66px}
-  .brand{display:flex;align-items:center}
-  .brand img{height:30px;width:auto;display:block}
-  .nav-links{display:none;gap:34px;font-size:14px;color:var(--soft)}
-  .nav-links a:hover{color:var(--ink)}
-  @media(min-width:820px){.nav-links{display:flex;align-items:center}}
-  .btn{font-family:var(--sans);font-size:13.5px;font-weight:600;padding:9px 16px;border:1px solid var(--line);color:var(--ink);background:transparent;cursor:pointer;transition:background .15s,color .15s}
-  .btn:hover{background:var(--ink);color:#fff;border-color:var(--ink)}
-  .btn-solid{background:var(--ink);color:#fff;border-color:var(--ink)}
-  .btn-solid:hover{background:var(--teal);color:var(--ink);border-color:var(--teal)}
-
-  /* hero */
-  .hero{padding:96px 0 64px;border-bottom:1px solid var(--hair)}
-  .hero-grid{display:grid;grid-template-columns:1fr;gap:56px;align-items:center}
-  @media(min-width:940px){.hero-grid{grid-template-columns:1.05fr .95fr;gap:64px}}
-  h1{font-size:clamp(2.4rem,5.6vw,4rem);line-height:1.02}
-  .lede{color:var(--soft);font-size:clamp(1.05rem,1.5vw,1.2rem);margin:26px 0 32px;max-width:44ch}
-  .hero-cta{display:flex;flex-wrap:wrap;gap:12px}
-  .hero-meta{margin-top:26px;font-family:var(--mono);font-size:12px;color:var(--faint);letter-spacing:.02em}
-
-  /* black forecast panel */
-  .panel{background:var(--navy);border:1px solid var(--navy);color:var(--ink-on);box-shadow:0 30px 60px -40px rgba(16,42,67,.6)}
-  .panel-h{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--hair-on);font-family:var(--mono);font-size:11.5px;letter-spacing:.08em;color:var(--soft-on);text-transform:uppercase}
-  .dot{width:7px;height:7px;border-radius:50%;background:var(--fc-dot);display:inline-block;margin-right:7px;vertical-align:middle}
-  canvas{width:100%;height:300px;display:block}
-
-  /* stat strip */
-  .stats{border-bottom:1px solid var(--hair);background:var(--tint)}
-  .stats-grid{display:grid;grid-template-columns:repeat(2,1fr)}
-  @media(min-width:780px){.stats-grid{grid-template-columns:repeat(4,1fr)}}
-  .stat{padding:34px 0;border-right:1px solid var(--hair)}
-  .stat:last-child{border-right:0}
-  @media(max-width:779px){.stat:nth-child(2n){border-right:0}}
-  .stat .n{font-family:var(--mono);font-size:clamp(1.9rem,3vw,2.5rem);font-weight:500;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
-  .stat .l{color:var(--soft);font-size:13px;margin-top:8px;max-width:22ch;padding-right:14px}
-
-  /* sections */
-  section{padding:92px 0;border-bottom:1px solid var(--hair)}
-  .sec-head{max-width:62ch;margin-bottom:52px}
-  h2{font-size:clamp(1.7rem,3vw,2.4rem);line-height:1.08}
-  .sec-head p{color:var(--soft);font-size:1.05rem;margin:18px 0 0}
-  .sec-eyebrow{margin-bottom:20px}
-
-  .rows{display:grid;grid-template-columns:1fr;gap:0}
-  .row{display:grid;grid-template-columns:1fr;gap:8px;padding:30px 0;border-top:1px solid var(--hair)}
-  @media(min-width:820px){.row{grid-template-columns:0.5fr 1.5fr;gap:40px;align-items:baseline}}
-  .row h3{font-size:1.2rem;font-weight:600}
-  .row .k{font-family:var(--mono);font-size:12px;color:var(--teal-ink);letter-spacing:.06em}
-  .row p{color:var(--soft);margin:0;max-width:60ch}
-
-  /* inverted (black) section */
-  .invert{background:var(--navy);color:var(--ink-on);border-bottom:1px solid var(--navy)}
-  .invert .eyebrow{color:var(--soft-on)}
-  .invert h2{color:#fff}
-  .who{display:grid;grid-template-columns:1fr;gap:1px;background:var(--hair-on);border:1px solid var(--hair-on)}
-  @media(min-width:820px){.who{grid-template-columns:repeat(3,1fr)}}
-  .who .cell{background:var(--navy);padding:30px 26px}
-  .who .tag{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--teal)}
-  .who h3{font-size:1.12rem;margin:12px 0 10px;color:#fff}
-  .who p{color:var(--soft-on);font-size:.96rem;margin:0}
-
-  .evi{display:grid;grid-template-columns:1fr;gap:26px}
-  @media(min-width:820px){.evi{grid-template-columns:1.1fr .9fr;gap:56px;align-items:start}}
-  .evi ul{list-style:none;padding:0;margin:0}
-  .evi li{padding:16px 0;border-top:1px solid var(--hair);color:var(--soft)}
-  .evi li b{color:var(--ink);font-weight:600}
-  .evi .note{font-family:var(--mono);font-size:11.5px;color:var(--faint);margin-top:18px;line-height:1.7}
-
-  /* cta (black) */
-  .cta{padding:110px 0;text-align:center}
-  .cta h2{max-width:20ch;margin:0 auto 18px}
-  .cta p{color:var(--soft-on);max-width:52ch;margin:0 auto 32px}
-  .cta .hero-cta{justify-content:center}
-  .cta .btn{border-color:rgba(255,255,255,.4);color:#fff}
-  .cta .btn:hover{background:#fff;color:var(--ink);border-color:#fff}
-  .cta .btn-solid{background:var(--teal);color:var(--ink);border-color:var(--teal)}
-  .cta .btn-solid:hover{background:#fff;color:var(--ink);border-color:#fff}
-
-  footer{padding:40px 0 64px;color:var(--faint);font-size:13px}
-  .foot{display:flex;flex-wrap:wrap;gap:14px 28px;align-items:center;justify-content:space-between}
-  .foot .mono{font-family:var(--mono);font-size:11.5px;letter-spacing:.04em}
-  ::selection{background:var(--teal);color:var(--ink)}
-  .foot .brand img{height:24px}
-  a.btn:focus-visible,.nav-links a:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
-  .invert a:focus-visible{outline-color:#fff}
-  @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}html{scroll-behavior:auto}}
-</style>
-
-<nav>
-  <div class="wrap nav">
-    <a class="brand" href="#"><img src="brand/vaticore-lockup.svg" alt="Vaticore" width="154" height="30" /></a>
-    <div class="nav-links">
+<header class="nav" id="nav">
+  <div class="wrap">
+    <a class="brand" href="#top" aria-label="Vaticore home"><img src="brand/vaticore-lockup.svg" alt="Vaticore" width="106" height="22" /></a>
+    <nav class="links" aria-label="Primary">
       <a href="#product">Product</a>
+      <a href="#accuracy">Accuracy</a>
       <a href="#how">How it works</a>
-      <a href="#who">Who it is for</a>
-      <a href="#evidence">Evidence</a>
-      <a class="btn" href="#contact">Request a pilot</a>
-    </div>
-  </div>
-</nav>
-
-<header class="hero">
-  <div class="wrap hero-grid">
-    <div>
-      <p class="eyebrow">Vaticore / Energy forecasting</p>
-      <h1 style="margin-top:20px">Forecast the grid you actually run.</h1>
-      <p class="lede">
-        Vaticore forecasts electricity demand and on-site solar as a calibrated
-        range, not a single guess, and turns it into one clear decision: how much
-        battery to hold, and when to run backup. Software only. Built in the UK,
-        deployed where power is hardest.
-      </p>
-      <div class="hero-cta">
-        <a class="btn btn-solid" href="#contact">Request a pilot</a>
-        <a class="btn" href="#how">How it works</a>
-      </div>
-      <p class="hero-meta">Probabilistic by default. Advisory only, never closed-loop control.</p>
-    </div>
-
-    <div class="panel">
-      <div class="panel-h"><span><span class="dot"></span>Load forecast</span><span>P10 / P50 / P90</span></div>
-      <canvas id="fc" aria-label="A probabilistic load forecast with a P10 to P90 uncertainty band"></canvas>
-    </div>
+      <a href="#who">Who it's for</a>
+    </nav>
+    <a class="pill sm" href="#pilot">Request a pilot</a>
   </div>
 </header>
 
-<div class="stats">
-  <div class="wrap stats-grid">
-    <div class="stat"><div class="n">25%</div><div class="l">lower forecast error than the standard baseline, in backtests</div></div>
-    <div class="stat"><div class="n">P10&#8202;/&#8202;P90</div><div class="l">calibrated uncertainty on every forecast</div></div>
-    <div class="stat"><div class="n">24h</div><div class="l">ahead, refreshed as the day fills in</div></div>
-    <div class="stat"><div class="n">2</div><div class="l">targets per site: demand and solar generation</div></div>
-  </div>
-</div>
-
-<section id="product">
+<main id="top">
+<section class="hero">
   <div class="wrap">
-    <div class="sec-head">
-      <p class="eyebrow sec-eyebrow">The product</p>
-      <h2>A forecast is only useful if you can trust it and act on it.</h2>
-      <p>So Vaticore is built on three commitments: honest uncertainty, honest evaluation, and a decision at the end.</p>
+    <p class="kicker rv"><img src="brand/vaticore-mark.svg" alt="" />Vaticore Forecast</p>
+    <h1 class="h1 rv">Tomorrow's grid, planned today.</h1>
+    <p class="sub rv">Vaticore forecasts demand and solar for every site as a calibrated range, then tells you how much battery to hold and when to run backup.</p>
+    <div class="ctas rv">
+      <a class="pill lg" href="#pilot">Request a pilot</a>
+      <a class="more" href="#product">Watch it run</a>
     </div>
-    <div class="rows">
-      <div class="row"><div><div class="k">01</div><h3>Probabilistic by default</h3></div><p>Every forecast is a range, not a single number. You see the expected case and the bad case, because a battery sized for the average day fails on the worst one. Ranges are what let you size reserve and decide on backup.</p></div>
-      <div class="row"><div><div class="k">02</div><h3>Measured against a baseline</h3></div><p>Every model is backtested on held-out history and scored against a naive baseline. If it cannot beat "same as before", it does not ship. No cherry-picked numbers, defensible under due diligence.</p></div>
-      <div class="row"><div><div class="k">03</div><h3>Answers, not charts</h3></div><p>The forecast becomes an operating call: the battery reserve to hold and whether to plan backup over the next window, expressed in the terms operators already use. Advisory only. A human always decides.</p></div>
+  </div>
+
+  <div class="stage rv" id="product">
+    <div class="app" role="region" aria-label="Vaticore product console, replaying real grid data">
+      <div class="bar">
+        <div class="crumb"><img src="brand/vaticore-mark-light.svg" alt="" /><b>Vaticore</b><span class="sep">/</span><span class="hide-sm">Sites</span><span class="sep hide-sm">/</span><b style="font-weight:500">Solar mini-grid, 120 kW</b></div>
+        <div class="sp"></div>
+        <span class="live hide-sm"><i></i>Live replay</span>
+        <span class="clock" id="clock">Tue 17 Mar, 00:00</span>
+      </div>
+      <div class="body">
+        <div class="main">
+          <div class="main-h">
+            <div>
+              <h3>Net load, yesterday and next 24 hours</h3>
+              <p>Demand minus solar, % of peak. Forecast issued at midnight.</p>
+            </div>
+            <div class="legend" aria-hidden="true">
+              <span><i class="sw" style="background:var(--hist-dark)"></i>Yesterday</span>
+              <span><i class="sw dash"></i>Forecast</span>
+              <span><i class="sw band"></i>Likely range</span>
+              <span><i class="sw" style="background:var(--act-dark)"></i>What happened</span>
+            </div>
+          </div>
+          <div class="chart" id="chart">
+            <svg id="svg" role="img" aria-label="Net load chart: yesterday's actuals, today's forecast with its P10 to P90 range, and actuals filling in hour by hour"></svg>
+            <div class="tip" id="tip"></div>
+          </div>
+          <div class="days" id="days" role="group" aria-label="Replay day"></div>
+        </div>
+        <aside class="side" aria-live="polite">
+          <h4 style="grid-column:1/-1">Today's plan</h4>
+          <div class="card">
+            <div class="lab">Battery reserve to hold tonight</div>
+            <div class="val"><span id="reserve">600</span><small>kWh</small></div>
+            <div class="meter"><i id="meter" style="width:100%"></i></div>
+            <div class="meta"><span>of 600 kWh usable</span><span id="pct">100%</span></div>
+          </div>
+          <div class="card">
+            <div class="lab">Backup generator</div>
+            <div id="gen"></div>
+          </div>
+          <div class="card">
+            <div class="lab">Diesel budget on a bad day</div>
+            <div class="val">~<span id="diesel">511</span><small>litres</small></div>
+          </div>
+          <div class="card say">
+            <div class="lab"><img src="brand/vaticore-mark-light.svg" alt="" />In plain words</div>
+            <div id="say"></div>
+          </div>
+        </aside>
+      </div>
     </div>
+    <p class="cap">Real Elia grid data, replayed hour by hour. Hover the chart for values.<sup>2</sup></p>
   </div>
 </section>
 
-<section id="how">
-  <div class="wrap">
-    <div class="sec-head">
-      <p class="eyebrow sec-eyebrow">How it works</p>
-      <h2>From messy meter data to a decision, on a loop.</h2>
-    </div>
-    <div class="rows">
-      <div class="row"><div><div class="k">Step 01</div><h3>Ingest</h3></div><p>Validated schema, timezone normalisation, and explicit gap handling. Built for the sparse, irregular, low-frequency data real operators actually have, not the clean data most models assume.</p></div>
-      <div class="row"><div><div class="k">Step 02</div><h3>Forecast</h3></div><p>Calendar, lag, and weather features drive a probabilistic gradient-boosting model for demand and solar. New sites start from similar sites and sharpen as their own history arrives.</p></div>
-      <div class="row"><div><div class="k">Step 03</div><h3>Decide</h3></div><p>The forecast becomes a battery-reserve and backup advisory with an uncertainty range, refreshed through the day as new readings land. The plan updates; you stay ahead of it.</p></div>
-    </div>
+<section class="stats" aria-label="Key figures">
+  <div class="wrap grid">
+    <div class="stat rv"><div class="n">18%<sup>1</sup></div><p>lower forecast error than the persistence baseline (pinball loss)</p></div>
+    <div class="stat rv"><div class="n">25%<sup>1</sup></div><p>lower mean absolute error over five months of backtests</p></div>
+    <div class="stat rv"><div class="n">24&#8202;h</div><p>ahead, with a likely range on every hour, refreshed as readings land</p></div>
+    <div class="stat rv"><div class="n">0</div><p>control actions. Advisory only, a person always decides</p></div>
   </div>
 </section>
 
-<section id="who" class="invert">
+<section class="sec dark" id="accuracy">
   <div class="wrap">
-    <div class="sec-head">
-      <p class="eyebrow sec-eyebrow">Who it is for</p>
-      <h2>Operators running power where every kilowatt is decided, not assumed.</h2>
+    <p class="eyebrow rv">Accuracy</p>
+    <h2 class="h2 rv">Measured, not promised.</h2>
+    <p class="lead rv">Every model is backtested on months of held-out history and scored against <b>persistence</b>, the forecast that assumes tomorrow looks like today. If a model can't beat it, it doesn't ship.</p>
+    <div class="acc">
+      <div class="metric rv">
+        <h3>Pinball loss</h3>
+        <p class="d">Rewards a range that is both tight and honest. Lower is better.</p>
+        <div class="big">&minus;18%</div>
+        <div class="bars">
+          <div class="brow"><span>Persistence</span><div class="t"><div class="f base" style="width:100%"><span>160.0 MW</span></div></div></div>
+          <div class="brow"><b>Vaticore</b><div class="t"><div class="f vc" style="width:81.8%"><span>130.9 MW</span></div></div></div>
+        </div>
+      </div>
+      <div class="metric rv">
+        <h3>Mean absolute error</h3>
+        <p class="d">How far the expected forecast lands from what happened.</p>
+        <div class="big">&minus;25%</div>
+        <div class="bars">
+          <div class="brow"><span>Persistence</span><div class="t"><div class="f base" style="width:100%"><span>430.2 MW</span></div></div></div>
+          <div class="brow"><b>Vaticore</b><div class="t"><div class="f vc" style="width:74.6%"><span>321.0 MW</span></div></div></div>
+        </div>
+      </div>
     </div>
-    <div class="who">
-      <div class="cell"><div class="tag">C&amp;I solar-plus-storage</div><h3>Turn on-site solar into a plan</h3><p>Forecast building demand against on-site generation, so commercial and industrial sites hold the right reserve and plan around cloud cover instead of being surprised by it.</p></div>
-      <div class="cell"><div class="tag">Storage &amp; flexibility</div><h3>Optimise against a better forecast</h3><p>Battery operators live on forecasting net load. Sharper, calibrated demand and generation forecasts feed better dispatch and market decisions.</p></div>
-      <div class="cell"><div class="tag">Mini-grids</div><h3>Serve demand without over-burning diesel</h3><p>Know tomorrow's load and solar so you schedule the generator deliberately, not reactively. Fewer litres, fewer blackouts. The largest impact per forecast.</p></div>
-    </div>
+    <p class="fine rv">Five-month backtest on Belgian grid load, calendar and lag features only.<sup>1</sup> Elia's own weather-driven operational forecast still scores better (pinball 92.4 MW). Adding weather is how we close that gap. Single days swing both ways; the long-run average is what we stand behind.</p>
   </div>
 </section>
 
-<section id="evidence">
+<section class="sec" id="features">
   <div class="wrap">
-    <div class="sec-head">
-      <p class="eyebrow sec-eyebrow">Evidence</p>
-      <h2>Built to survive due diligence.</h2>
-    </div>
-    <div class="evi">
-      <ul>
-        <li><b>Probabilistic gradient boosting</b>, evaluated with rolling-origin backtests and scored on pinball loss, the metric that rewards a calibrated range rather than a lucky average.</li>
-        <li><b>Every run reports the baseline</b> alongside the model. A model that does not beat persistence is reported as such, honestly.</li>
-        <li><b>Weather-aware.</b> Live and forecast weather feed the demand and solar models, so a cloudy tomorrow shows up in today's plan.</li>
-        <li><b>Multi-tenant and multi-site</b> from the first commit. One engine, many operators, many sites.</li>
-      </ul>
-      <div>
-        <p style="color:var(--soft);margin:0">Current figures are from backtests on benchmark and real grid data. Pilot data replaces them, site by site, and the model sharpens the longer it runs.</p>
-        <p class="note">// probabilistic short-term load and solar forecasting<br/>// advisory, never closed-loop control<br/>// a UK company, global mission</p>
+    <p class="eyebrow rv">Why Vaticore</p>
+    <h2 class="h2 rv">Built for the grid you actually run.</h2>
+    <div class="bento">
+      <div class="tile w2 rv">
+        <h3>A range, not a guess.</h3>
+        <p>A battery sized for the average day fails on the worst one. Every forecast carries its likely range, so you plan for the top of it.</p>
+        <div class="vis"><svg class="fan" id="fan" role="img" aria-label="Forecast range for one day: the P10 to P90 band around the expected P50 line"></svg></div>
+      </div>
+      <div class="tile paper rv">
+        <h3>Answers in plain words.</h3>
+        <p>No chart reading required. The plan arrives as one clear call your team can act on.</p>
+        <div class="vis">
+          <div class="notif"><img src="brand/vaticore-icon.svg" alt="" /><div><div class="top"><b>Today's plan</b><span>Solar mini-grid</span></div><p>Hold 600 kWh tonight. Evening demand runs past what the battery can cover, so plan the generator for the peak.</p></div></div>
+        </div>
+      </div>
+      <div class="tile rv">
+        <h3>Made for messy meters.</h3>
+        <p>Real feeds drop readings. Vaticore detects every gap, logs it and handles it explicitly. Never silently.</p>
+        <div class="vis"><div class="gaps" id="gaps" aria-hidden="true"></div><div class="gapnote"><i></i>3 missing readings flagged and handled</div></div>
+      </div>
+      <div class="tile ink rv">
+        <h3>It advises. You decide.</h3>
+        <p>Vaticore never touches dispatch. Every recommendation goes to a person first. That's a line we don't cross.</p>
+        <div class="vis">
+          <div class="switch"><span>Forecast and advise</span><span class="tog on" aria-label="On"></span></div>
+          <div class="switch"><span>Control your equipment</span><span class="tog" aria-label="Off"></span></div>
+        </div>
+      </div>
+      <div class="tile rv">
+        <h3>An API your team can build on.</h3>
+        <p>Every operator and site is scoped from the first call. The same engine drives the dashboard.</p>
+        <div class="vis"><div class="code" aria-label="Example API request and response"><span class="m">POST</span> /advisory
+{ <span class="k">"site_id"</span>: <span class="s">"ikeja-minigrid"</span>,
+  <span class="k">"usable_battery_kwh"</span>: 600 }
+
+<span class="c">// 200 OK</span>
+{ <span class="k">"recommended_reserve_kwh"</span>: 600.0,
+  <span class="k">"genset_recommended"</span>: true,
+  <span class="k">"expected_net_load_kwh"</span>: 1762.2 }</div></div>
       </div>
     </div>
   </div>
 </section>
 
-<section class="cta invert" id="contact">
+<section class="sec" id="how" style="padding-top:40px">
   <div class="wrap">
-    <p class="eyebrow sec-eyebrow">Design partners</p>
-    <h2>Run a free pilot on one of your sites.</h2>
-    <p>Share six to twelve months of history, and we will forecast your demand and solar and show you the advisory, measured against your own baseline. You keep your data. We touch nothing.</p>
-    <div class="hero-cta">
-      <a class="btn btn-solid" href="mailto:hello@vaticore.com?subject=Vaticore%20pilot">Start a pilot conversation</a>
-      <a class="btn" href="mailto:hello@vaticore.com">hello@vaticore.com</a>
+    <p class="eyebrow rv">How it works</p>
+    <h2 class="h2 rv">From meter data to a decision, every hour.</h2>
+    <div class="steps" id="steps">
+      <div class="step"><i class="prog"></i><div class="num">01</div><h3>Connect</h3><p>Send a CSV or stream readings over the API. Any resolution, any timezone, gaps expected. Everything is validated on the way in.</p></div>
+      <div class="step"><i class="prog"></i><div class="num">02</div><h3>Forecast</h3><p>A quantile model learns each site's demand and solar from calendar, recent history and weather, and sharpens as more data arrives.</p></div>
+      <div class="step"><i class="prog"></i><div class="num">03</div><h3>Plan</h3><p>The forecast becomes a reserve and backup recommendation with its range, refreshed as each new reading lands.</p></div>
     </div>
   </div>
 </section>
 
+<section class="sec" id="who" style="padding-top:40px">
+  <div class="wrap">
+    <p class="eyebrow rv">Who it's for</p>
+    <h2 class="h2 rv">For operators who can't afford a surprise.</h2>
+    <div class="who">
+      <div class="tile rv"><div class="tag">C&amp;I solar and storage</div><h3>Hold the right reserve before the clouds arrive.</h3><p>Forecast building demand against on-site solar and stop being surprised by the afternoon.</p></div>
+      <div class="tile rv"><div class="tag">Batteries and flexibility</div><h3>A sharper net load is a better dispatch plan.</h3><p>Calibrated demand and generation ranges feed straight into your optimiser and market bids.</p></div>
+      <div class="tile rv"><div class="tag">Solar mini-grids</div><h3>Run the generator on purpose.</h3><p>Know tonight's shortfall this morning. Fewer litres burned, fewer outages for the people you serve.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="cta" id="pilot">
+  <div class="wrap">
+    <img class="mk rv" src="brand/vaticore-mark.svg" alt="" />
+    <h2 class="h2 rv">Run a pilot on one of your sites.</h2>
+    <p class="lead rv">Send six to twelve months of meter history. We forecast it, score it against your own baseline and show you the plan. Free, and your data stays yours.</p>
+    <div class="ctas rv">
+      <a class="pill lg" href="mailto:hello@vaticore.com?subject=Vaticore%20pilot">Start a pilot conversation</a>
+      <a class="more" href="mailto:hello@vaticore.com">hello@vaticore.com</a>
+    </div>
+  </div>
+</section>
+</main>
+
 <footer>
-  <div class="wrap foot">
-    <div class="brand"><img src="brand/vaticore-lockup.svg" alt="Vaticore" width="123" height="24" /></div>
-    <div class="mono">Probabilistic load and solar forecasting. A UK company, global mission.</div>
+  <div class="wrap">
+    <div class="notes">
+      <p>1. Rolling-origin backtest, 24 hours ahead, five months of Belgian grid load from Elia open data. Scored with pinball loss and mean absolute error against seasonal persistence.</p>
+      <p>2. The console replays real Elia grid data for 17 to 28 March 2026. Net load shapes are real. Reserve, generator and diesel figures come from the Vaticore advisory engine applied to those shapes, scaled to a representative 120 kW solar mini-grid with a 600 kWh battery.</p>
+    </div>
+    <div class="fcols">
+      <span>Copyright &copy; 2026 Vaticore. Built in the UK.</span>
+      <div class="l"><a href="#product">Product</a><a href="#accuracy">Accuracy</a><a href="#how">How it works</a><a href="mailto:hello@vaticore.com">Contact</a><a href="https://github.com/niranjoshua/Vaticore">GitHub</a></div>
+    </div>
   </div>
 </footer>
 
+<script id="data" type="application/json">{"days":[{"date":"2026-03-17","net_hist":[8286,8090,8074,8292,8750,9666,10008,9596,8490,7630,7082,6944,7238,7608,8241,9093,10189,10884,10876,10409,9773,9362,9244,8633],"p10":[8175,8029,7975,7955,8286,8828,9368,8996,7936,6811,5622,4733,4810,5319,6970,8165,9141,10243,10303,10023,9562,9205,8886,8406],"p50":[8310,8077,7979,8001,8392,9245,9852,9504,8492,7193,6045,5121,5410,5939,7188,8351,9490,10562,10508,10091,9588,9329,9037,8659],"p90":[8416,8145,8120,8163,8554,9294,10057,10313,9580,8335,7283,6882,6549,6477,7303,8553,9910,10835,10668,10362,9796,9476,9226,8758],"act":[8176,7936,7909,7966,8287,9248,10119,10254,9514,8066,6901,5670,5128,4990,5676,7050,8711,10224,10730,10248,9708,9581,9196,8458],"reserve":600,"genset":true,"diesel":511},{"date":"2026-03-18","net_hist":[8176,7936,7909,7966,8287,9248,10119,10254,9514,8066,6901,5670,5128,4990,5676,7050,8711,10224,10730,10248,9708,9581,9196,8458],"p10":[8124,7897,7851,7923,8416,9173,9603,9427,9174,8214,6617,6275,5712,6010,6669,8052,9044,10403,10465,10083,9614,9310,9085,8462],"p50":[8171,7929,7878,8059,8630,9456,10105,10062,9475,8324,7253,6454,5956,6098,6888,8318,9760,10710,10583,10177,9686,9474,9150,8700],"p90":[8284,8123,8079,8206,8810,9728,10354,10512,10215,9448,8355,7475,6876,6615,7386,9005,9828,10867,10768,10385,9833,9613,9311,8821],"act":[8109,7874,7859,7966,8408,9416,9651,8828,7511,5326,4288,3750,3550,3844,4776,6461,8535,10355,10819,10459,9897,9621,9147,8410],"reserve":600,"genset":true,"diesel":509},{"date":"2026-03-19","net_hist":[8109,7874,7859,7966,8408,9416,9651,8828,7511,5326,4288,3750,3550,3844,4776,6461,8535,10355,10819,10459,9897,9621,9147,8410],"p10":[8076,7867,7794,7958,8319,8832,9475,8917,8003,6520,5749,5082,5354,6034,6671,7879,9078,10248,10380,10184,9582,9362,9196,8615],"p50":[8150,7944,7884,7973,8400,9238,9801,9374,8236,6947,6030,5690,6227,6821,7410,8151,9563,10526,10594,10192,9724,9556,9314,8818],"p90":[8250,8055,8026,8105,8557,9360,10063,10214,9436,8262,7387,6955,7048,7192,7929,8772,9704,10705,10713,10378,9870,9632,9417,8969],"act":[7992,7833,7803,7940,8399,9262,9517,8695,7003,5255,4509,3904,3740,3909,4661,6475,8727,10284,10559,10139,9627,9424,9150,8492],"reserve":600,"genset":true,"diesel":518},{"date":"2026-03-20","net_hist":[7992,7833,7803,7940,8399,9262,9517,8695,7003,5255,4509,3904,3740,3909,4661,6475,8727,10284,10559,10139,9627,9424,9150,8492],"p10":[8006,7895,7820,7912,8290,8853,8884,8575,7620,6547,5936,5387,5162,5736,7433,8197,9270,9711,10284,9912,9520,9201,8882,8414],"p50":[8152,7936,7902,7934,8345,9166,9593,9049,8208,7166,6427,5830,5833,6582,7726,8726,9705,10447,10364,9986,9522,9326,9053,8581],"p90":[8353,8101,8046,8157,8472,9318,9981,9983,9139,8218,7124,7221,7060,6977,8298,9135,9958,10685,10604,10228,9700,9489,9200,8772],"act":[8211,8028,7954,8076,8611,9474,9891,9320,8309,6816,5519,4647,4224,4381,5421,7002,8746,10097,10261,9829,9409,9147,8745,8450],"reserve":600,"genset":true,"diesel":515},{"date":"2026-03-21","net_hist":[8211,8028,7954,8076,8611,9474,9891,9320,8309,6816,5519,4647,4224,4381,5421,7002,8746,10097,10261,9829,9409,9147,8745,8450],"p10":[8047,7851,7699,7665,7662,7978,7538,7675,6903,6384,5409,4677,4261,4679,5296,6911,7987,8981,9269,9149,8854,8662,8349,7960],"p50":[8131,7878,7725,7682,7767,8016,8121,7923,7574,6750,5770,5046,4721,5203,6085,7115,8226,9361,9640,9359,9004,8703,8368,8006],"p90":[8246,8014,7860,7823,7935,8248,8482,8288,7854,7670,6548,6360,6061,5869,6619,7801,8601,9500,9738,9525,9183,8874,8538,8224],"act":[8244,7941,7879,7938,8037,8284,8079,7162,5769,4345,3458,2900,2806,3055,4010,5644,7638,9229,9706,9441,9288,9090,8850,8470],"reserve":600,"genset":true,"diesel":497},{"date":"2026-03-22","net_hist":[8244,7941,7879,7938,8037,8284,8079,7162,5769,4345,3458,2900,2806,3055,4010,5644,7638,9229,9706,9441,9288,9090,8850,8470],"p10":[8101,7838,7717,7817,7964,8151,7783,7234,6105,5241,4498,3765,3840,3992,4517,6299,7745,9107,9257,9234,8981,8773,8494,8198],"p50":[8135,7895,7821,7871,7984,8177,7981,7371,6655,5740,5041,4618,4343,4650,5352,6785,8289,9445,9611,9374,9073,8828,8566,8212],"p90":[8266,7997,7860,7955,8034,8346,8470,8104,7343,6624,6002,5675,5329,5292,5924,7279,8550,9549,9803,9605,9253,8987,8686,8373],"act":[8107,7912,7861,7890,8031,8269,7966,7341,6166,4881,3751,2879,2607,2710,3605,5230,7287,8925,9635,9378,8979,8766,8330,7810],"reserve":600,"genset":true,"diesel":500},{"date":"2026-03-23","net_hist":[8107,7912,7861,7890,8031,8269,7966,7341,6166,4881,3751,2879,2607,2710,3605,5230,7287,8925,9635,9378,8979,8766,8330,7810],"p10":[7532,7465,7541,7828,8230,8835,9196,8874,8744,7376,6376,5140,5194,5121,5700,7856,8806,10148,10357,10172,9562,9267,8835,8429],"p50":[7606,7552,7705,7887,8366,9271,9666,9732,9145,7763,6785,5926,5599,5839,6617,8045,9455,10558,10674,10206,9694,9392,9170,8657],"p90":[7859,7676,7778,8194,8592,9410,9995,10094,9834,9071,7756,7193,6793,6634,6958,8740,9759,10700,10803,10362,9788,9552,9225,8813],"act":[7604,7500,7431,7618,8166,9217,9651,8791,7534,6435,5670,5367,5240,5342,6015,7304,9010,10273,10586,10186,9631,9372,8876,8293],"reserve":600,"genset":true,"diesel":511},{"date":"2026-03-24","net_hist":[7604,7500,7431,7618,8166,9217,9651,8791,7534,6435,5670,5367,5240,5342,6015,7304,9010,10273,10586,10186,9631,9372,8876,8293],"p10":[7930,7747,7680,7893,8173,8650,8980,8911,7625,6209,5174,4481,3997,4202,5038,6622,8386,9640,10234,9945,9554,9226,8829,8201],"p50":[7993,7798,7768,7917,8181,9019,9488,9063,8160,6786,5654,4945,4707,4734,5641,6826,8700,10254,10414,10008,9578,9312,8859,8383],"p90":[8121,7833,7860,8070,8316,9201,9822,9713,9155,8053,6879,6179,5626,5349,6114,7303,8938,10321,10633,10277,9752,9446,9128,8552],"act":[8054,7985,7932,8165,8652,9686,10089,10056,9308,8162,6701,5213,5213,6222,7866,9059,10294,10970,11154,10831,10348,10063,9568,9040],"reserve":600,"genset":true,"diesel":449},{"date":"2026-03-25","net_hist":[8054,7985,7932,8165,8652,9686,10089,10056,9308,8162,6701,5213,5213,6222,7866,9059,10294,10970,11154,10831,10348,10063,9568,9040],"p10":[8309,8191,8202,8287,8511,9071,9612,9800,9381,8348,7274,6033,5323,4983,6130,7681,8833,10022,10406,10053,9693,9480,9153,8530],"p50":[8685,8422,8348,8361,8701,9483,10052,10163,9751,8760,7609,6130,5518,5818,6709,8134,9461,10490,10487,10177,9777,9604,9273,8715],"p90":[8833,8551,8423,8490,8789,9561,10242,10518,10325,9799,8707,7328,6632,6790,7455,8566,9745,10491,10755,10411,9878,9705,9492,8903],"act":[8777,8495,8518,8623,9106,10110,10550,10394,9995,9313,9143,8414,7880,7694,8668,9538,10582,11433,11473,10686,10223,10033,9479,8894],"reserve":600,"genset":true,"diesel":491},{"date":"2026-03-26","net_hist":[8777,8495,8518,8623,9106,10110,10550,10394,9995,9313,9143,8414,7880,7694,8668,9538,10582,11433,11473,10686,10223,10033,9479,8894],"p10":[8473,8172,8095,8152,8353,8854,9084,9600,8867,8283,7593,6876,6525,7034,8004,8698,9612,10296,10569,10091,9692,9478,9105,8615],"p50":[8524,8325,8216,8201,8473,9198,9798,9883,9497,8823,8035,7462,7326,7674,8354,9204,10110,10795,10649,10199,9748,9532,9291,8801],"p90":[8645,8371,8302,8349,8677,9267,10099,10275,10040,9677,8886,8304,7990,8238,8798,9530,10308,11019,10837,10412,9895,9717,9475,8913],"act":[8625,8451,8460,8754,9260,10027,10308,9544,8546,7652,7232,6578,6232,6510,7360,8005,9526,11038,11369,10771,10297,10043,9551,9044],"reserve":600,"genset":true,"diesel":474},{"date":"2026-03-27","net_hist":[8625,8451,8460,8754,9260,10027,10308,9544,8546,7652,7232,6578,6232,6510,7360,8005,9526,11038,11369,10771,10297,10043,9551,9044],"p10":[8490,8347,8284,8288,8682,9162,9479,9355,8705,7328,6769,5648,5881,6269,7364,8428,9673,10242,10610,10287,9902,9580,9267,8568],"p50":[8721,8482,8341,8467,8796,9616,9944,9768,9004,7861,7054,6408,6268,6811,7776,8948,10190,10800,10823,10349,9942,9651,9398,8956],"p90":[8801,8548,8463,8558,8905,9704,10302,10140,9802,8873,8239,7718,7280,7245,8268,9494,10453,11079,11026,10578,10029,9829,9476,9042],"act":[8763,8567,8559,8752,9178,10117,10301,9655,8779,7705,7286,6810,6574,6809,7640,8840,10065,10654,10768,10461,10107,9895,9447,8996],"reserve":600,"genset":true,"diesel":500},{"date":"2026-03-28","net_hist":[8763,8567,8559,8752,9178,10117,10301,9655,8779,7705,7286,6810,6574,6809,7640,8840,10065,10654,10768,10461,10107,9895,9447,8996],"p10":[8590,8277,8259,8234,8335,8491,8100,8143,7958,6723,5822,5393,5283,5635,6618,7489,8610,9436,9755,9646,9312,9087,8934,8408],"p50":[8653,8429,8318,8284,8339,8601,8602,8518,8055,7361,6503,5845,5566,5994,6963,7916,8882,9655,9969,9779,9437,9262,9057,8615],"p90":[8795,8470,8386,8353,8402,8756,8942,8891,8620,8137,7346,6538,6585,6814,7441,8223,9391,10010,10029,9851,9546,9368,9133,8768],"act":[8887,8621,8411,8512,8648,8762,8775,8327,7647,6512,5851,5292,4839,4620,5401,6744,8308,9357,9928,9975,9704,9325,9061,8654],"reserve":600,"genset":true,"diesel":495}],"ymax":12359.6}</script>
 <script>
-  (function(){
-    var c=document.getElementById("fc"); if(!c) return; var x=c.getContext("2d");
-    var reduce=window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    function cv(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim();}
-    var N=96, split=64, hist=[], med=[], lo=[], hi=[], seed=9;
-    function rnd(){seed=(seed*1103515245+12345)&0x7fffffff;return seed/0x7fffffff;}
-    for(var i=0;i<N;i++){var h=i%24;var base=0.52+0.30*Math.sin((h-7)/24*Math.PI*2);
-      hist.push(base+(rnd()-0.5)*0.05);
-      var sp=0.03+0.12*Math.max(0,(i-split)/(N-split));
-      med.push(base);lo.push(base-sp);hi.push(base+sp);}
-    var W,H,dpr,padL=10,padR=10,padT=16,padB=22;
-    function rs(){dpr=window.devicePixelRatio||1;W=c.clientWidth;H=c.clientHeight;c.width=W*dpr;c.height=H*dpr;x.setTransform(dpr,0,0,dpr,0,0);}
-    function X(i){return padL+i/(N-1)*(W-padL-padR);}
-    function Y(v){return padT+(1-(v-0.12)/0.82)*(H-padT-padB);}
-    function draw(p){
-      var histc=cv("--fc-hist")||"#ededed", med_c=cv("--fc-med")||"#4bd6c9", band=cv("--fc-band")||"rgba(23,179,163,.22)",
-          dot=cv("--fc-dot")||"#f5a524", grid=cv("--fc-grid")||"rgba(255,255,255,.08)", now=cv("--fc-now")||"#8a8a8a";
-      x.clearRect(0,0,W,H);
-      x.strokeStyle=grid;x.lineWidth=1;
-      for(var g=0;g<=3;g++){var gy=padT+g/3*(H-padT-padB);x.beginPath();x.moveTo(padL,gy);x.lineTo(W-padR,gy);x.stroke();}
-      var shown=Math.floor(split+(N-split)*p);
-      x.beginPath();
-      for(var a=split;a<=shown;a++)x.lineTo(X(a),Y(hi[a]));
-      for(var b=shown;b>=split;b--)x.lineTo(X(b),Y(lo[b]));
-      x.closePath();x.fillStyle=band;x.fill();
-      x.strokeStyle=histc;x.lineWidth=1.8;x.lineJoin="round";x.beginPath();
-      for(var d=0;d<=split;d++){var px=X(d),py=Y(hist[d]);d?x.lineTo(px,py):x.moveTo(px,py);}x.stroke();
-      x.strokeStyle=med_c;x.setLineDash([5,4]);x.lineWidth=1.8;x.beginPath();
-      for(var e=split;e<=shown;e++){var qx=X(e),qy=Y(med[e]);e===split?x.moveTo(qx,qy):x.lineTo(qx,qy);}x.stroke();x.setLineDash([]);
-      x.strokeStyle=now;x.setLineDash([2,4]);x.lineWidth=1;x.beginPath();x.moveTo(X(split),padT);x.lineTo(X(split),H-padB);x.stroke();x.setLineDash([]);
-      x.fillStyle=now;x.font='11px "IBM Plex Mono",monospace';x.textAlign="center";x.fillText("now",X(split),H-6);
-      if(shown>=split){x.fillStyle=dot;x.beginPath();x.arc(X(shown),Y(med[shown]),3.2,0,Math.PI*2);x.fill();}
-    }
-    var t0=null,DUR=1500;
-    function fr(t){if(t0===null)t0=t;var p=Math.min(1,(t-t0)/DUR);draw(1-Math.pow(1-p,3));if(p<1)requestAnimationFrame(fr);}
-    function run(){rs();if(reduce){draw(1);}else{t0=null;requestAnimationFrame(fr);}}
-    run();var rt;window.addEventListener("resize",function(){clearTimeout(rt);rt=setTimeout(function(){rs();draw(1);},120);});
-  })();
+(function(){
+  var D=JSON.parse(document.getElementById("data").textContent);
+  var days=D.days, PEAK=D.ymax, NS="http://www.w3.org/2000/svg";
+  var reduce=window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var css=getComputedStyle(document.documentElement);
+  function v(n){return css.getPropertyValue(n).trim();}
+  function el(t,a,p){var e=document.createElementNS(NS,t);for(var k in a)e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e;}
+  function pct(x){return Math.round(x/PEAK*100);}
+  function hh(h){return (h<10?"0":"")+h+":00";}
+  var WD=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"],MO=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  function dparts(s){var d=new Date(s+"T00:00:00Z");return {wd:WD[d.getUTCDay()],d:d.getUTCDate(),m:MO[d.getUTCMonth()]};}
+
+  /* nav hairline */
+  var nav=document.getElementById("nav");
+  function onScroll(){nav.classList.toggle("scrolled",window.scrollY>8);}
+  window.addEventListener("scroll",onScroll,{passive:true});onScroll();
+
+  /* reveal on scroll */
+  var revealEls=document.querySelectorAll(".rv,#steps");
+  if("IntersectionObserver" in window){
+    var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add("in");io.unobserve(e.target);}});},{threshold:.15,rootMargin:"0px 0px -40px 0px"});
+    revealEls.forEach(function(n){io.observe(n);});
+  }else{revealEls.forEach(function(n){n.classList.add("in");});}
+
+  /* ---------- console ---------- */
+  var svg=document.getElementById("svg"),box=document.getElementById("chart"),tip=document.getElementById("tip");
+  var dayIdx=0,hour=0,playing=!reduce,timer=null;
+  var P={l:40,r:10,t:14,b:26};
+  function geom(){var W=box.clientWidth,H=box.clientHeight;return{W:W,H:H,
+    X:function(i){return P.l+i/47*(W-P.l-P.r);},
+    Y:function(val){return P.t+(1-val/(PEAK*1.04))*(H-P.t-P.b);}};}
+  function line(arr,off,g,upto){var d="";for(var i=0;i<arr.length&&i<=upto;i++){d+=(i?"L":"M")+g.X(i+off).toFixed(1)+" "+g.Y(arr[i]).toFixed(1);}return d;}
+  function draw(){
+    var g=geom(),day=days[dayIdx];while(svg.firstChild)svg.removeChild(svg.firstChild);
+    var grid=el("g",{},svg);
+    [0,25,50,75,100].forEach(function(p){var y=g.Y(PEAK*p/100);
+      el("line",{x1:P.l,x2:g.W-P.r,y1:y,y2:y,stroke:"rgba(255,255,255,"+(p?".06":".14")+")","stroke-width":1},grid);
+      var t=el("text",{x:P.l-10,y:y+4,"text-anchor":"end",fill:v("--app-ink-3"),"font-size":11,"font-family":v("--mono")},grid);t.textContent=p+"%";});
+    (g.W<600?[0,12,24,36,47]:[0,6,12,18,24,30,36,42,47]).forEach(function(i){var t=el("text",{x:g.X(i),y:g.H-6,"text-anchor":i===0?"start":(i===47?"end":"middle"),fill:v("--app-ink-3"),"font-size":11,"font-family":v("--mono")},grid);t.textContent=i===47?"23:00":hh(i%24);});
+    // today shading
+    el("rect",{x:g.X(24),y:P.t,width:g.X(47)-g.X(24),height:g.H-P.t-P.b,fill:"rgba(255,255,255,.025)"},svg);
+    // band
+    var bd="";for(var i=0;i<24;i++)bd+=(i?"L":"M")+g.X(24+i).toFixed(1)+" "+g.Y(day.p90[i]).toFixed(1);
+    for(var j=23;j>=0;j--)bd+="L"+g.X(24+j).toFixed(1)+" "+g.Y(day.p10[j]).toFixed(1);
+    el("path",{d:bd+"Z",fill:"rgba(31,168,152,.28)"},svg);
+    el("path",{d:line(day.net_hist,0,g,23),fill:"none",stroke:v("--hist-dark"),"stroke-width":2,"stroke-linejoin":"round","stroke-linecap":"round"},svg);
+    el("path",{d:line(day.p50,24,g,23),fill:"none",stroke:v("--fc-dark"),"stroke-width":2,"stroke-dasharray":"5 4","stroke-linecap":"round"},svg);
+    // divider
+    el("line",{x1:g.X(24),x2:g.X(24),y1:P.t,y2:g.H-P.b,stroke:"rgba(255,255,255,.22)","stroke-dasharray":"2 4"},svg);
+    var lbY=el("text",{x:g.X(12),y:P.t+12,"text-anchor":"middle",fill:v("--app-ink-3"),"font-size":11.5},svg);lbY.textContent="Yesterday";
+    var lbT=el("text",{x:g.X(35.5),y:P.t+12,"text-anchor":"middle",fill:v("--app-ink-2"),"font-size":11.5,"font-weight":600},svg);lbT.textContent="Today";
+    // actual so far
+    el("path",{d:line(day.act,24,g,hour),fill:"none",stroke:v("--act-dark"),"stroke-width":2.2,"stroke-linejoin":"round","stroke-linecap":"round"},svg);
+    var nx=g.X(24+hour);
+    el("line",{x1:nx,x2:nx,y1:P.t,y2:g.H-P.b,stroke:"rgba(255,255,255,.35)"},svg);
+    el("circle",{cx:nx,cy:g.Y(day.act[hour]),r:5,fill:v("--act-dark"),stroke:v("--app"),"stroke-width":2},svg);
+    // hover layer
+    var hov=el("g",{style:"display:none"},svg),hl=el("line",{y1:P.t,y2:g.H-P.b,stroke:"rgba(255,255,255,.5)"},hov);
+    var hit=el("rect",{x:P.l,y:0,width:g.W-P.l-P.r,height:g.H,fill:"transparent",style:"cursor:crosshair"},svg);
+    function show(ev){var r=svg.getBoundingClientRect(),x=ev.clientX-r.left;var i=Math.max(0,Math.min(47,Math.round((x-P.l)/(g.W-P.l-P.r)*47)));
+      var X=g.X(i);hov.style.display="";hl.setAttribute("x1",X);hl.setAttribute("x2",X);
+      var h=i%24,rows;
+      if(i<24){rows=[["Actual",pct(day.net_hist[h])+"%"]];}
+      else{rows=[["Top of range (P90)",pct(day.p90[h])+"%"],["Expected (P50)",pct(day.p50[h])+"%"],["Bottom (P10)",pct(day.p10[h])+"%"]];if(h<=hour)rows.push(["What happened",pct(day.act[h])+"%"]);}
+      tip.innerHTML="<b>"+(i<24?"Yesterday":"Today")+" "+hh(h)+"</b>"+rows.map(function(r){return '<div class="r"><span>'+r[0]+"</span><span>"+r[1]+"</span></div>";}).join("");
+      tip.style.opacity=1;var tw=tip.offsetWidth,left=X+14;if(left+tw>g.W-4)left=X-14-tw;tip.style.left=Math.max(0,left)+"px";tip.style.top="18px";}
+    hit.addEventListener("pointermove",show);hit.addEventListener("pointerdown",show);
+    hit.addEventListener("pointerleave",function(){hov.style.display="none";tip.style.opacity=0;});
+  }
+  function plan(){
+    var day=days[dayIdx],p=dparts(day.date);
+    document.getElementById("clock").textContent=p.wd+" "+p.d+" "+p.m+", "+hh(hour);
+    document.getElementById("reserve").textContent=day.reserve;
+    var f=Math.round(day.reserve/600*100);document.getElementById("meter").style.width=f+"%";document.getElementById("pct").textContent=f+"%";
+    document.getElementById("diesel").textContent=day.diesel;
+    var peakH=0;for(var i=1;i<24;i++)if(day.p90[i]>day.p90[peakH])peakH=i;
+    var on=day.genset;
+    document.getElementById("gen").innerHTML=on?
+      '<span class="status on"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 1.5 14.5 13H1.5L8 1.5Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M8 6v3.4M8 11.2v.3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>Plan to run</span>':
+      '<span class="status off"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m3 8.5 3 3 7-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Not needed</span>';
+    document.getElementById("say").textContent=on?
+      "Solar carries the middle of the day. After sunset, net load runs past what a full battery can cover. Hold "+day.reserve+" kWh and plan the generator around the "+hh(peakH)+" peak.":
+      "The battery covers tonight. Hold "+day.reserve+" kWh; no generator needed.";
+  }
+  var dayBox=document.getElementById("days");
+  var play=document.createElement("button");play.className="play";play.setAttribute("aria-label","Pause replay");dayBox.appendChild(play);
+  function playIcon(){play.innerHTML=playing?'<svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1.5" width="2.6" height="9" rx="1" fill="currentColor"/><rect x="7.4" y="1.5" width="2.6" height="9" rx="1" fill="currentColor"/></svg>':'<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 1.8v8.4L10.2 6 3 1.8Z" fill="currentColor"/></svg>';play.setAttribute("aria-label",playing?"Pause replay":"Play replay");}
+  var btns=days.map(function(d,i){var p=dparts(d.date),b=document.createElement("button");b.innerHTML="<small>"+p.wd+"</small>"+p.d;b.setAttribute("aria-label",p.wd+" "+p.d+" "+p.m);
+    b.addEventListener("click",function(){dayIdx=i;hour=playing?0:23;sync();});dayBox.appendChild(b);return b;});
+  function sync(){btns.forEach(function(b,i){b.setAttribute("aria-pressed",i===dayIdx?"true":"false");});plan();draw();}
+  function tick(){if(!playing)return;hour++;if(hour>23){hour=23;sync();clearTimeout(timer);timer=setTimeout(function(){dayIdx=(dayIdx+1)%days.length;hour=0;sync();timer=setTimeout(tick,420);},1600);return;}
+    sync();timer=setTimeout(tick,210);}
+  play.addEventListener("click",function(){playing=!playing;playIcon();clearTimeout(timer);if(playing){if(hour>=23){dayIdx=(dayIdx+1)%days.length;hour=0;sync();}timer=setTimeout(tick,210);}});
+  // Start the replay when the console scrolls into view.
+  if(reduce){hour=23;}
+  playIcon();sync();
+  var started=false;
+  if(!("IntersectionObserver" in window)){if(playing){started=true;timer=setTimeout(tick,500);}}
+  else new IntersectionObserver(function(es){if(es[0].isIntersecting&&!started&&playing){started=true;timer=setTimeout(tick,500);}},{threshold:.35}).observe(box);
+  var rt;window.addEventListener("resize",function(){clearTimeout(rt);rt=setTimeout(function(){draw();fan();},100);});
+
+  /* ---------- bento: fan chart (one real day) ---------- */
+  function fan(){
+    var s=document.getElementById("fan");while(s.firstChild)s.removeChild(s.firstChild);
+    var d=days[0],W=s.clientWidth,H=s.clientHeight,nar=W<520,L=4,R=nar?44:140,T=10,B=24;
+    var lo=Math.min.apply(null,d.p10)*0.92,hi=Math.max.apply(null,d.p90)*1.03;
+    function X(i){return L+i/23*(W-L-R);}function Y(x){return T+(1-(x-lo)/(hi-lo))*(H-T-B);}
+    var band="";for(var i=0;i<24;i++)band+=(i?"L":"M")+X(i)+" "+Y(d.p90[i]);for(var j=23;j>=0;j--)band+="L"+X(j)+" "+Y(d.p10[j]);
+    el("path",{d:band+"Z",fill:"rgba(14,143,130,.16)"},s);
+    function ln(a,c,w,dash){var p="";for(var i=0;i<24;i++)p+=(i?"L":"M")+X(i)+" "+Y(a[i]);el("path",{d:p,fill:"none",stroke:c,"stroke-width":w,"stroke-linejoin":"round","stroke-dasharray":dash||""},s);}
+    ln(d.p90,"rgba(14,143,130,.55)",1.2);ln(d.p10,"rgba(14,143,130,.55)",1.2);ln(d.p50,v("--fc-light"),2.2);
+    // Direct labels at the right edge, spread apart so they never collide.
+    var labs=[[nar?"P90":"P90, plan for this",d.p90[23],600,v("--ink")],[nar?"P50":"P50, expected",d.p50[23],400,v("--ink-2")],["P10",d.p10[23],400,v("--ink-2")]]
+      .map(function(r){return {t:r[0],y0:Y(r[1]),y:Y(r[1]),w:r[2],c:r[3]};}).sort(function(a,b){return a.y-b.y;});
+    for(var k=1;k<labs.length;k++)if(labs[k].y-labs[k-1].y<18)labs[k].y=labs[k-1].y+18;
+    labs.forEach(function(l){
+      el("path",{d:"M"+(X(23)+3)+" "+l.y0+"L"+(W-R+6)+" "+l.y,stroke:"rgba(29,26,30,.25)",fill:"none"},s);
+      var t=el("text",{x:W-R+10,y:l.y+4,"font-size":13,fill:l.c,"font-weight":l.w},s);t.textContent=l.t;});
+    (nar?[0,12,23]:[0,6,12,18,23]).forEach(function(i){var t=el("text",{x:X(i),y:H-4,"font-size":11,fill:v("--ink-3"),"font-family":v("--mono"),"text-anchor":i===0?"start":(i===23?"end":"middle")},s);t.textContent=hh(i);});
+  }
+  fan();
+
+  /* ---------- bento: gaps ---------- */
+  var gb=document.getElementById("gaps"),gd=days[3].net_hist.concat(days[4].net_hist).slice(0,40),gmax=Math.max.apply(null,gd),missing={9:1,10:1,27:1};
+  gd.forEach(function(x,i){var b=document.createElement("i");if(missing[i])b.className="g";b.style.height=(12+88*x/gmax)+"%";gb.appendChild(b);});
+})();
 </script>
 </body>
 </html>
