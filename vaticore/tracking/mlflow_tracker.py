@@ -9,6 +9,7 @@ configuration, so callers never branch on whether tracking is enabled.
 
 from __future__ import annotations
 
+import re
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -117,6 +118,22 @@ class Tracker(ABC):
         """Log one backtest comparison. Returns the run id, or None if disabled."""
         ...
 
+    @abstractmethod
+    def log_summary(
+        self,
+        *,
+        run_name: str,
+        params: Mapping[str, Any],
+        metrics: Mapping[str, float],
+        tags: Mapping[str, str] | None = None,
+    ) -> str | None:
+        """Log one run of already summarised params and metrics.
+
+        Used for results that are not a single BacktestResult, such as the
+        value backtest. Returns the run id, or None if disabled.
+        """
+        ...
+
     @property
     @abstractmethod
     def enabled(self) -> bool:
@@ -143,6 +160,16 @@ class NoOpTracker(Tracker):
         site_id: str | None = None,
         extra_params: Mapping[str, Any] | None = None,
         run_name: str | None = None,
+    ) -> str | None:
+        return None
+
+    def log_summary(
+        self,
+        *,
+        run_name: str,
+        params: Mapping[str, Any],
+        metrics: Mapping[str, float],
+        tags: Mapping[str, str] | None = None,
     ) -> str | None:
         return None
 
@@ -213,6 +240,27 @@ class MlflowTracker(Tracker):
                     step=row.fold,
                 )
             return str(run.info.run_id)
+
+    def log_summary(
+        self,
+        *,
+        run_name: str,
+        params: Mapping[str, Any],
+        metrics: Mapping[str, float],
+        tags: Mapping[str, str] | None = None,
+    ) -> str | None:
+        with self._mlflow.start_run(run_name=run_name) as run:
+            for key, value in (tags or {}).items():
+                self._mlflow.set_tag(metric_key(key), value)
+            clean = {metric_key(k): v for k, v in params.items() if v is not None}
+            self._mlflow.log_params(clean)
+            self._mlflow.log_metrics({metric_key(k): float(v) for k, v in metrics.items()})
+            return str(run.info.run_id)
+
+
+def metric_key(name: str) -> str:
+    """Make a name safe as an MLflow key (letters, digits, _ - . / and space)."""
+    return re.sub(r"[^A-Za-z0-9_\-./ ]", "_", name)
 
 
 def get_tracker(

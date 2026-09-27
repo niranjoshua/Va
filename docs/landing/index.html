@@ -187,6 +187,16 @@ a:focus-visible,button:focus-visible{outline:2px solid var(--link);outline-offse
 .brow b{color:#F5F5F7;font-weight:600}
 .fine{font-size:12.5px;line-height:1.55;color:#86868B;margin-top:40px;max-width:74em}
 
+/* value */
+.value{padding-bottom:40px}
+.vgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--hair-2);border:1px solid var(--hair-2);border-radius:28px;overflow:hidden;margin-top:64px}
+@media(min-width:900px){.vgrid{grid-template-columns:repeat(4,1fr)}}
+.vcell{background:var(--bg);padding:34px 28px 30px}
+.vn{font-size:clamp(44px,5vw,64px);font-weight:600;letter-spacing:-.045em;line-height:1;font-variant-numeric:tabular-nums}
+.vcell p{color:var(--ink-2);font-size:15px;margin-top:12px;max-width:20ch;line-height:1.4}
+.vnote{color:var(--ink-2);font-size:15px;max-width:52em;margin-top:26px;line-height:1.55}
+.vnote .more{font-size:15px;margin-left:6px}
+
 /* bento */
 .bento{display:grid;grid-template-columns:1fr;gap:20px;margin-top:64px}
 @media(min-width:900px){.bento{grid-template-columns:repeat(3,1fr)}}
@@ -353,7 +363,7 @@ footer{background:#F5F5F7;color:var(--ink-2);font-size:12px;line-height:1.5;padd
   <div class="wrap grid">
     <div class="stat rv"><div class="n">18%<sup>1</sup></div><p>lower forecast error than the persistence baseline (pinball loss)</p></div>
     <div class="stat rv"><div class="n">25%<sup>1</sup></div><p>lower mean absolute error over five months of backtests</p></div>
-    <div class="stat rv"><div class="n">24&#8202;h</div><p>ahead, with a likely range on every hour, refreshed as readings land</p></div>
+    <div class="stat rv"><div class="n">72%<sup>3</sup></div><p>fewer hours with an outage over a year of real data the model never saw</p></div>
     <div class="stat rv"><div class="n">0</div><p>control actions. Advisory only, a person always decides</p></div>
   </div>
 </section>
@@ -384,6 +394,21 @@ footer{background:#F5F5F7;color:var(--ink-2);font-size:12px;line-height:1.5;padd
       </div>
     </div>
     <p class="fine rv">Five-month backtest on Belgian grid load, calendar and lag features only.<sup>1</sup> Elia's own weather-driven operational forecast still scores better (pinball 92.4 MW). Adding weather is how we close that gap. Single days swing both ways; the long-run average is what we stand behind.</p>
+  </div>
+</section>
+
+<section class="sec value" id="value">
+  <div class="wrap">
+    <p class="eyebrow rv">What it's worth</p>
+    <h2 class="h2 rv">Fewer blackouts, for a little more diesel in the right hours.</h2>
+    <p class="lead rv">We replayed a full year the model had never seen. Every morning, each forecast planned the generator for the day ahead. Then the day ran on what actually happened, and we counted <b>litres, outages and cost</b>.</p>
+    <div class="vgrid">
+      <div class="vcell rv"><div class="vn">&minus;82%</div><p>energy left unserved, against planning on yesterday</p></div>
+      <div class="vcell rv"><div class="vn">&minus;72%</div><p>hours with an outage</p></div>
+      <div class="vcell rv"><div class="vn">&minus;10%</div><p>total cost, pricing an unserved kWh at $1</p></div>
+      <div class="vcell rv"><div class="vn">61%</div><p>of the value of a perfect forecast, captured</p></div>
+    </div>
+    <p class="vnote rv">It works by burning about 16% more diesel, in the hours where the calibrated range says the battery will fall short. If an outage is worth less than about $0.55 per kWh to you, running it less is cheaper, and the plan will say so.<sup>3</sup> <a class="more" href="https://github.com/niranjoshua/Vaticore/blob/main/docs/research/value-study-2018.md">Read the study</a></p>
   </div>
 </section>
 
@@ -475,6 +500,7 @@ footer{background:#F5F5F7;color:var(--ink-2);font-size:12px;line-height:1.5;padd
     <div class="notes">
       <p>1. Rolling-origin backtest, 24 hours ahead, five months of Belgian grid load from Elia open data. Scored with pinball loss and mean absolute error against seasonal persistence.</p>
       <p>2. The console replays real Elia grid data for 17 to 28 March 2026. Net load shapes are real. Reserve, generator and diesel figures come from the Vaticore advisory engine applied to those shapes, scaled to a representative 120 kW solar mini-grid with a 600 kWh battery.</p>
+      <p>3. One-year held-out value study (all 365 days of 2018) on public ENTSO-E demand and solar data for Spain, scaled to a representative 120 kW solar mini-grid with a 600 kWh battery and a 100 kW generator. Each forecast planned the generator day ahead; each day then ran on the actual outcome. Compared with planning on persistence; the 2017 data was used for training only. Calibrated Vaticore forecast, P90 plan. A second site with a 300 kWh battery gave the same picture (84% less unserved energy, 72% fewer outage hours). Full method, limitations and code: docs/research/value-study-2018.md on GitHub.</p>
     </div>
     <div class="fcols">
       <span>Copyright &copy; 2026 Vaticore. Built in the UK.</span>

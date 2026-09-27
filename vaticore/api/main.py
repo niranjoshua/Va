@@ -24,10 +24,15 @@ from vaticore.api.schemas import (
     ForecastPoint,
     ForecastRequest,
     ForecastResponse,
+    PlanHour,
+    PlanRequest,
+    PlanResponse,
+    RunWindow,
     SiteInfo,
 )
 from vaticore.datasets import make_synthetic_fleet
-from vaticore.forecasting.base import quantile_column
+from vaticore.decisions.dispatch import SiteAssets
+from vaticore.forecasting.base import ForecasterError, quantile_column
 from vaticore.schemas import GENERATION_KW, LOAD_KW, OPERATOR_ID, SITE_ID, TIMESTAMP
 
 if TYPE_CHECKING:
@@ -161,6 +166,59 @@ def create_app() -> FastAPI:
             recommended_reserve_kwh=result.recommended_reserve_kwh,
             genset_recommended=result.genset_recommended,
             note=result.note,
+        )
+
+    @app.post("/plan", response_model=PlanResponse)
+    def plan(
+        request: PlanRequest,
+        fleet: pd.DataFrame = Depends(get_fleet),
+    ) -> PlanResponse:
+        """Hour by hour generator schedule. Advisory only: a person approves it."""
+        history = _site_history(fleet, request.operator_id, request.site_id)
+        try:
+            assets = SiteAssets(
+                battery_kwh=request.battery_kwh,
+                battery_power_kw=request.battery_power_kw,
+                genset_kw=request.genset_kw,
+                min_soc_kwh=request.min_soc_kwh,
+                diesel_price_per_l=request.diesel_price_per_l,
+            )
+            result = engine.dispatch_plan_for_site(
+                history,
+                assets=assets,
+                soc_kwh=request.soc_kwh,
+                horizon=request.horizon,
+                model=request.model,
+                plan_quantile=request.plan_quantile,
+                calibrate=request.calibrate,
+            )
+        except (ValueError, ForecasterError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        expected = result.expected
+        hours = [
+            PlanHour(
+                timestamp=ts.to_pydatetime(),
+                planned_net_load_kw=float(result.planned_net_load_kw[i]),
+                genset_on=bool(result.genset_on[i]),
+                planned_genset_kw=float(expected.genset_kw[i]),
+                planned_soc_kwh=float(expected.soc_kwh[i]),
+            )
+            for i, ts in enumerate(result.timestamps)
+        ]
+        return PlanResponse(
+            operator_id=request.operator_id,
+            site_id=request.site_id,
+            plan_quantile=request.plan_quantile,
+            summary=result.summary(),
+            run_windows=[
+                RunWindow(start=a.to_pydatetime(), end=b.to_pydatetime())
+                for a, b in result.run_windows
+            ],
+            expected_fuel_l=expected.fuel_l,
+            expected_genset_hours=expected.genset_hours,
+            expected_unserved_kwh=expected.unserved_kwh,
+            hours=hours,
         )
 
     return app
