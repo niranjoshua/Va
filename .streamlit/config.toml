@@ -1,0 +1,8 @@
+# Vaticore brand theme for the Streamlit dashboard.
+[theme]
+base = "light"
+primaryColor = "#00B8A9"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F4F7FA"
+textColor = "#102A43"
+font = "sans serif"
