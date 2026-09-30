@@ -46,6 +46,11 @@ Working end to end, with a real forecasting model, an API and a dashboard.
   the plan counts on grid power 06:00 to 14:00") from a merit order model:
   grid, then generator, then battery, with a HOMER-standard fuel curve. Served
   at `POST /plan` and on the dashboard. Advisory only.
+- **Sizing studies**: sweeps solar and battery sizes for a site through the same
+  hour by hour model, with a real year of weather at its location, and reports
+  diesel, outages, payback and CO2 for each (`size_site`,
+  `examples/sizing_study.py`). This is the business case behind a hybrid
+  retrofit: Vaticore sizes it, partners build it, Vaticore runs it.
 - **Value backtest**: replays each forecast's plans against what actually
   happened and reports litres, outage hours and money against persistence and
   a perfect forecast (`run_value_backtest`, `examples/value_study.py`).
