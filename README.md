@@ -1,14 +1,18 @@
 # Vaticore
 
-Probabilistic energy forecasting for mini-grid and C&I solar operators.
+Probabilistic energy forecasting and planning for distributed energy sites:
+telecom towers, bank branches, commercial and industrial sites, institutions
+and mini-grids.
 
 The name comes from the Latin *vaticinari*, to foretell, and *core*: the
 forecasting core that operators build their dispatch decisions on.
 
-Vaticore predicts electricity **load** and **solar generation** for distributed
-energy operators, and turns those forecasts into operational decisions: how much
-battery reserve to hold, when to run a generator, and how much demand may go
-unserved. Forecasts are probabilistic, the pipeline tolerates messy and sparse
+Vaticore predicts electricity **load**, **solar generation** and **whether the
+grid will be on** for each site an operator runs, and turns those forecasts
+into an hourly plan: when to run the generator, when to lean on the grid, and
+how much battery to hold. Built first for Nigerian operators who spend heavily
+on diesel. See [`docs/architecture.md`](docs/architecture.md) for how it fits
+together and [`docs/research/`](docs/research/README.md) for the evidence. Forecasts are probabilistic, the pipeline tolerates messy and sparse
 data, and evaluation is a first-class concern.
 
 ## Status
@@ -32,9 +36,16 @@ Working end to end, with a real forecasting model, an API and a dashboard.
   about 80% of outcomes, as a wrapper for any model
   (`ConformalQuantileForecaster`) and fold by fold inside backtests. Coverage is
   reported with every run.
-- **Decisions**: an hour by hour generator plan ("run 18:00 to midnight") from
-  a battery and generator model with a HOMER-standard fuel curve, served at
-  `POST /plan` and on the dashboard. Advisory only.
+- **Sites**: a typed registry of sites and their assets (solar, battery,
+  generator, grid connection), loaded from TOML. `examples/sites/` has a
+  Nigerian portfolio with one site of each type.
+- **Grid**: intermittent grid supply in the planner, and a grid availability
+  forecaster (hour-of-week, recency weighted) so a plan counts on the grid only
+  in its reliable hours.
+- **Decisions**: an hour by hour plan ("run the generator 18:00 to midnight;
+  the plan counts on grid power 06:00 to 14:00") from a merit order model:
+  grid, then generator, then battery, with a HOMER-standard fuel curve. Served
+  at `POST /plan` and on the dashboard. Advisory only.
 - **Value backtest**: replays each forecast's plans against what actually
   happened and reports litres, outage hours and money against persistence and
   a perfect forecast (`run_value_backtest`, `examples/value_study.py`).
@@ -69,16 +80,24 @@ unserved kWh and captured 61 to 63% of the value of a perfect forecast.
 Pinball loss fell 23%, and the calibrated P10 to P90 range held 80.7% of
 outcomes (target 80%).
 
+[Research note 2](docs/research/elia-benchmark.md) scores Vaticore against the
+Belgian grid operator's own published forecasts. Over 453 held-out days of
+national load it matched Elia's day-ahead forecast on pinball loss (95.2 MW
+each) and MAE (287.8 against 292.4 MW), without weather data. Its range was
+better calibrated: 80.4% of outcomes against Elia's 74.9%, target 80%. On
+solar, where Elia uses weather, Elia is far ahead; weather is the next study.
+
 ## Layout
 
 ```
 vaticore/
-  ingestion/     # CSV/API intake, validation, timestamp normalisation, gap handling
+  ingestion/     # CSV/API intake, adapters (Elia), validation, UTC, gap handling
   features/      # calendar, lags, weather enrichment
   forecasting/   # baselines, quantile GBM, (later) LSTM, TIME-LLM, ensemble
   evaluation/    # backtesting harness, pinball loss, calibration, baseline comparison
   tracking/      # MLflow experiment tracking, with a no-op fallback
-  decisions/     # forecast -> battery reserve / genset advisory / unserved energy
+  sites/         # site and asset registry (towers, banks, C&I, institutions, mini-grids)
+  decisions/     # forecast -> hourly plan: grid, generator, battery (advisory only)
   api/           # FastAPI service (thin handlers over the engine)
   dashboard/     # Streamlit app
   copilot/       # LLM explanations grounded on the engine's numbers
@@ -86,7 +105,9 @@ vaticore/
   engine.py      # orchestration facade used by api and dashboard
   datasets.py    # synthetic demo data
   config.py      # typed settings (pydantic-settings), env-driven
-examples/        # runnable quickstart + real solar-data forecast
+examples/        # quickstart, research studies, example site portfolios
+docs/architecture.md  # how the system fits together
+docs/research/   # research programme, protocol and study notes
 docs/landing/    # static marketing landing page (index.html)
 tests/           # mirrors the package layout
 Dockerfile, docker-compose.yml, render.yaml, DEPLOY.md   # deployment

@@ -10,11 +10,12 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
 
+import numpy as np
 import pandas as pd
 
 from vaticore.decisions import Advisory, battery_and_genset_advisory
 from vaticore.decisions.dispatch import DispatchPlan, SiteAssets, plan_dispatch
-from vaticore.evaluation.backtest import BacktestResult, backtest_site
+from vaticore.evaluation.backtest import BacktestResult, FoldForecast, backtest_site
 from vaticore.evaluation.calibration import (
     CalibrationReport,
     calibration_report,
@@ -24,9 +25,11 @@ from vaticore.evaluation.value import PolicySource, ValueReport, value_backtest
 from vaticore.forecasting import Forecaster, PersistenceForecaster, QuantileGBMForecaster
 from vaticore.forecasting.base import DEFAULT_QUANTILES, quantile_column
 from vaticore.forecasting.conformal import ConformalQuantileForecaster
+from vaticore.forecasting.grid_availability import GridAvailabilityForecaster
 from vaticore.forecasting.quantile_gbm import DAY_AHEAD_LAGS
 from vaticore.schemas import (
     GENERATION_KW,
+    GRID_AVAILABLE,
     LOAD_KW,
     NET_LOAD_KW,
     OPERATOR_ID,
@@ -34,6 +37,7 @@ from vaticore.schemas import (
     TIMESTAMP,
     with_net_load,
 )
+from vaticore.sites.model import Site
 from vaticore.tracking import Tracker
 
 # Registry of model builders keyed by public name. Add new models here once
@@ -220,6 +224,7 @@ def run_value_backtest(
     tracker: Tracker | None = None,
     operator_id: str | None = None,
     site_id: str | None = None,
+    grid_plan_quantile: float = 0.1,
 ) -> ValueBacktest:
     """Measure what forecasts are worth to one site in fuel, outages and money.
 
@@ -229,6 +234,12 @@ def run_value_backtest(
     the site on each policy's forecasts. The baseline is persistence planned
     on its median: roughly what an operator does today by assuming tomorrow
     looks like yesterday.
+
+    For a site with a grid connection (assets.grid_kw > 0) the history must
+    carry grid_available. Every policy then shares one grid plan, forecast
+    before each day from the grid record up to that moment
+    (GridAvailabilityForecaster at grid_plan_quantile), so differences between
+    policies still come from the net load forecast alone.
     """
     if model == "persistence":
         raise ValueError("the candidate model must differ from the persistence baseline")
@@ -272,7 +283,14 @@ def run_value_backtest(
             if abs(q - 0.5) > 1e-9:  # calibration leaves the median unchanged
                 policies[policy_label(conf_name, q)] = PolicySource(conf.forecasts, q)
 
-    value = value_backtest(policies, assets=assets, baseline=baseline)
+    grid_actual = None
+    if assets.grid_kw > 0:
+        grid_plan, grid_actual = _grid_plan_for_folds(data, cand_fc, grid_plan_quantile)
+        policies = {
+            name: PolicySource(src.forecasts, src.plan_quantile, grid_plan)
+            for name, src in policies.items()
+        }
+    value = value_backtest(policies, assets=assets, baseline=baseline, grid_actual=grid_actual)
     outcome = ValueBacktest(
         backtest=result, calibration=calibration, value=value, baseline_policy=baseline
     )
@@ -288,6 +306,26 @@ def run_value_backtest(
             site_id=site_id,
         )
     return outcome
+
+
+def _grid_plan_for_folds(
+    data: pd.DataFrame, folds: list[FoldForecast], quantile: float
+) -> tuple[pd.Series, pd.Series]:
+    """Grid plan per fold from data strictly before it, plus the actual record."""
+    if GRID_AVAILABLE not in data.columns:
+        raise ValueError(
+            f"this site has a grid connection but no {GRID_AVAILABLE!r} history; "
+            "record grid on/off per hour or set grid_kw=0"
+        )
+    stamps = pd.DatetimeIndex(data[TIMESTAMP])
+    parts = []
+    for fold in folds:
+        before = data[stamps < fold.timestamps[0]]
+        forecaster = GridAvailabilityForecaster().fit(before)
+        fc = forecaster.predict_quantiles(len(fold.timestamps), (quantile,))
+        parts.append(fc[quantile_column(quantile)].reindex(fold.timestamps))
+    actual = data.set_index(TIMESTAMP)[GRID_AVAILABLE].astype(float)
+    return pd.concat(parts), actual
 
 
 def _log_value_backtest(
@@ -341,12 +379,17 @@ def dispatch_plan_for_site(
     plan_quantile: float = 0.9,
     quantiles: tuple[float, ...] = DEFAULT_QUANTILES,
     calibrate: bool = True,
+    grid_plan_quantile: float = 0.1,
+    assume_grid_always_on: bool = False,
 ) -> DispatchPlan:
     """Today's hour by hour generator schedule for one site. Advisory only.
 
     Forecasts net load (calibrated on the site's own last week when
     calibrate=True), then schedules the generator for the hours the chosen
-    quantile needs it, starting from the battery's current charge.
+    quantile needs it, starting from the battery's current charge. For a site
+    with a grid, the plan counts on grid power only in hours the availability
+    forecast's grid_plan_quantile (P10 by default, the cautious choice) says it
+    will be on.
     """
     if not any(abs(plan_quantile - q) < 1e-9 for q in quantiles):
         raise ValueError(f"plan_quantile {plan_quantile} is not among quantiles {quantiles}")
@@ -364,4 +407,49 @@ def dispatch_plan_for_site(
     else:
         forecaster = make()
     forecast = forecaster.fit(data).predict_quantiles(horizon=horizon, quantiles=quantiles)
-    return plan_dispatch(forecast[quantile_column(plan_quantile)], soc_kwh=soc_kwh, assets=assets)
+
+    planned_grid = None
+    if assets.grid_kw > 0:
+        if GRID_AVAILABLE in data.columns:
+            grid_fc = GridAvailabilityForecaster().fit(data)
+            planned_grid = (
+                grid_fc.predict_quantiles(horizon, (grid_plan_quantile,))[
+                    quantile_column(grid_plan_quantile)
+                ]
+                .reindex(forecast.index)
+                .to_numpy(dtype=float)
+            )
+        elif assume_grid_always_on:
+            planned_grid = np.ones(horizon)
+        else:
+            raise ValueError(
+                f"this site has a grid connection but no {GRID_AVAILABLE!r} history; record "
+                "grid on/off per hour, or pass assume_grid_always_on=True for a reliable grid"
+            )
+    return plan_dispatch(
+        forecast[quantile_column(plan_quantile)],
+        soc_kwh=soc_kwh,
+        assets=assets,
+        planned_grid_available=planned_grid,
+    )
+
+
+def plan_for_site(
+    site: Site,
+    history: pd.DataFrame,
+    *,
+    soc_kwh: float,
+    horizon: int = 24,
+    plan_quantile: float = 0.9,
+) -> DispatchPlan:
+    """Today's plan for a registered site, using its own assets and prices."""
+    if history.empty:
+        raise ValueError(f"no history for site {site.site_id!r}")
+    return dispatch_plan_for_site(
+        history,
+        assets=site.dispatch_assets(),
+        soc_kwh=soc_kwh,
+        horizon=horizon,
+        plan_quantile=plan_quantile,
+        assume_grid_always_on=bool(site.grid and site.grid.reliable),
+    )

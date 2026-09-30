@@ -1,0 +1,158 @@
+{
+  "scores": [
+    {
+      "model": "persistence",
+      "pinball": 178.81938160012626,
+      "mae": 429.3900306060607,
+      "rmse": 933.4345667939137,
+      "coverage_80": 0.795,
+      "hours": 6600
+    },
+    {
+      "model": "quantile_gbm_day_ahead",
+      "pinball": 138.54615769643564,
+      "mae": 422.00247515995125,
+      "rmse": 874.759461159716,
+      "coverage_80": 0.7827272727272727,
+      "hours": 6600
+    },
+    {
+      "model": "quantile_gbm_day_ahead+conformal",
+      "pinball": 138.27753118964665,
+      "mae": 422.00247515995125,
+      "rmse": 874.759461159716,
+      "coverage_80": 0.8078787878787879,
+      "hours": 6600
+    },
+    {
+      "model": "Elia day-ahead (professional)",
+      "pinball": 57.72672977777777,
+      "mae": 172.02989712121212,
+      "rmse": 367.17811089026213,
+      "coverage_80": 0.858030303030303,
+      "hours": 6600
+    }
+  ],
+  "calibration": {
+    "persistence": [
+      {
+        "model": "persistence",
+        "kind": "quantile",
+        "nominal": 0.1,
+        "observed": 0.5348484848,
+        "mean_width": null
+      },
+      {
+        "model": "persistence",
+        "kind": "quantile",
+        "nominal": 0.5,
+        "observed": 0.7228787879,
+        "mean_width": null
+      },
+      {
+        "model": "persistence",
+        "kind": "quantile",
+        "nominal": 0.9,
+        "observed": 0.8924242424,
+        "mean_width": null
+      },
+      {
+        "model": "persistence",
+        "kind": "band 0.1-0.9",
+        "nominal": 0.8,
+        "observed": 0.795,
+        "mean_width": 943.9213855417
+      }
+    ],
+    "quantile_gbm_day_ahead": [
+      {
+        "model": "quantile_gbm_day_ahead",
+        "kind": "quantile",
+        "nominal": 0.1,
+        "observed": 0.5334848485,
+        "mean_width": null
+      },
+      {
+        "model": "quantile_gbm_day_ahead",
+        "kind": "quantile",
+        "nominal": 0.5,
+        "observed": 0.6983333333,
+        "mean_width": null
+      },
+      {
+        "model": "quantile_gbm_day_ahead",
+        "kind": "quantile",
+        "nominal": 0.9,
+        "observed": 0.8801515152,
+        "mean_width": null
+      },
+      {
+        "model": "quantile_gbm_day_ahead",
+        "kind": "band 0.1-0.9",
+        "nominal": 0.8,
+        "observed": 0.7827272727,
+        "mean_width": 851.3474723699
+      }
+    ],
+    "quantile_gbm_day_ahead+conformal": [
+      {
+        "model": "quantile_gbm_day_ahead+conformal",
+        "kind": "quantile",
+        "nominal": 0.1,
+        "observed": 0.5210606061,
+        "mean_width": null
+      },
+      {
+        "model": "quantile_gbm_day_ahead+conformal",
+        "kind": "quantile",
+        "nominal": 0.5,
+        "observed": 0.6983333333,
+        "mean_width": null
+      },
+      {
+        "model": "quantile_gbm_day_ahead+conformal",
+        "kind": "quantile",
+        "nominal": 0.9,
+        "observed": 0.8918181818,
+        "mean_width": null
+      },
+      {
+        "model": "quantile_gbm_day_ahead+conformal",
+        "kind": "band 0.1-0.9",
+        "nominal": 0.8,
+        "observed": 0.8078787879,
+        "mean_width": 896.4250812686
+      }
+    ],
+    "Elia day-ahead (professional)": [
+      {
+        "model": "Elia day-ahead (professional)",
+        "kind": "quantile",
+        "nominal": 0.1,
+        "observed": 0.5083333333,
+        "mean_width": null
+      },
+      {
+        "model": "Elia day-ahead (professional)",
+        "kind": "quantile",
+        "nominal": 0.5,
+        "observed": 0.7113636364,
+        "mean_width": null
+      },
+      {
+        "model": "Elia day-ahead (professional)",
+        "kind": "quantile",
+        "nominal": 0.9,
+        "observed": 0.9378787879,
+        "mean_width": null
+      },
+      {
+        "model": "Elia day-ahead (professional)",
+        "kind": "band 0.1-0.9",
+        "nominal": 0.8,
+        "observed": 0.858030303,
+        "mean_width": 735.3313645455
+      }
+    ]
+  }
+}
