@@ -182,6 +182,8 @@ def create_app() -> FastAPI:
                 genset_kw=request.genset_kw,
                 min_soc_kwh=request.min_soc_kwh,
                 diesel_price_per_l=request.diesel_price_per_l,
+                grid_kw=request.grid_kw,
+                grid_price_per_kwh=request.grid_price_per_kwh,
             )
             result = engine.dispatch_plan_for_site(
                 history,
@@ -191,6 +193,7 @@ def create_app() -> FastAPI:
                 model=request.model,
                 plan_quantile=request.plan_quantile,
                 calibrate=request.calibrate,
+                assume_grid_always_on=request.assume_grid_always_on,
             )
         except (ValueError, ForecasterError) as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -203,6 +206,8 @@ def create_app() -> FastAPI:
                 genset_on=bool(result.genset_on[i]),
                 planned_genset_kw=float(expected.genset_kw[i]),
                 planned_soc_kwh=float(expected.soc_kwh[i]),
+                planned_grid_on=bool(result.planned_grid_on[i]),
+                planned_grid_kw=float(expected.grid_kw[i]),
             )
             for i, ts in enumerate(result.timestamps)
         ]
@@ -215,6 +220,7 @@ def create_app() -> FastAPI:
                 RunWindow(start=a.to_pydatetime(), end=b.to_pydatetime())
                 for a, b in result.run_windows
             ],
+            grid_windows=result.grid_window_labels,
             expected_fuel_l=expected.fuel_l,
             expected_genset_hours=expected.genset_hours,
             expected_unserved_kwh=expected.unserved_kwh,

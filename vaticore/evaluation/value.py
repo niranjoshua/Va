@@ -43,10 +43,16 @@ PERFECT_FORECAST = "perfect forecast"
 
 @dataclass(frozen=True)
 class PolicySource:
-    """A policy: the forecasts it plans from and the quantile it plans on."""
+    """A policy: the forecasts it plans from and the quantile it plans on.
+
+    For a site with a grid connection, grid_plan says which hours the policy
+    counts on grid power (1 or 0, indexed by timestamp), as forecast at each
+    origin. It must never be built from the actual grid record.
+    """
 
     forecasts: Sequence[FoldForecast]
     plan_quantile: float
+    grid_plan: pd.Series | None = None
 
 
 @dataclass(frozen=True)
@@ -64,15 +70,17 @@ class PolicyResult:
     unserved_cost: float
     curtailed_kwh: float
     missing_steps: int
+    grid_kwh: float = 0.0
+    grid_cost: float = 0.0
 
     @property
     def total_cost(self) -> float:
-        """Fuel plus the priced cost of energy not served."""
-        return self.fuel_cost + self.unserved_cost
+        """Fuel, grid energy, and the priced cost of energy not served."""
+        return self.fuel_cost + self.grid_cost + self.unserved_cost
 
     def cost_at(self, value_of_lost_load_per_kwh: float) -> float:
         """Total cost if an unserved kWh were priced differently."""
-        return self.fuel_cost + self.unserved_kwh * value_of_lost_load_per_kwh
+        return self.fuel_cost + self.grid_cost + self.unserved_kwh * value_of_lost_load_per_kwh
 
 
 @dataclass(frozen=True)
@@ -123,6 +131,7 @@ class ValueReport:
                 {
                     "policy": name,
                     "fuel_l": r.fuel_l,
+                    "grid_kwh": r.grid_kwh,
                     "genset_hours": r.genset_hours,
                     "genset_starts": r.genset_starts,
                     "unserved_kwh": r.unserved_kwh,
@@ -153,19 +162,39 @@ def simulate_policy(
     *,
     assets: SiteAssets,
     initial_soc_kwh: float,
+    grid_plan: pd.Series | None = None,
+    grid_actual: pd.Series | None = None,
 ) -> PolicyResult:
     """Plan then operate each window in turn, carrying the battery forward.
 
-    Each window is (timestamps, planned net load, actual net load).
+    Each window is (timestamps, planned net load, actual net load). For a site
+    with a grid, grid_plan and grid_actual (1 on, 0 off, indexed by timestamp)
+    give the hours the plan counted on and the hours the grid was really on.
     """
+    has_grid = assets.grid_kw > 0
+    if has_grid and (grid_plan is None or grid_actual is None):
+        raise ValueError(f"policy {name!r}: a grid site needs both a grid plan and the grid record")
     soc = initial_soc_kwh
-    fuel = gen_h = unserved = unserved_h = curtailed = 0.0
+    fuel = gen_h = unserved = unserved_h = curtailed = grid_kwh = 0.0
     starts = missing = 0
     steps = 0
     for stamps, planned, actual in windows:
-        plan = plan_dispatch(pd.Series(planned, index=stamps), soc_kwh=soc, assets=assets)
-        outcome = simulate_dispatch(actual, plan.genset_on, soc_kwh=soc, assets=assets)
+        planned_grid = actual_grid = None
+        if has_grid:
+            assert grid_plan is not None and grid_actual is not None
+            planned_grid = grid_plan.reindex(stamps).to_numpy(dtype=float)
+            actual_grid = grid_actual.reindex(stamps).to_numpy(dtype=float)
+        plan = plan_dispatch(
+            pd.Series(planned, index=stamps),
+            soc_kwh=soc,
+            assets=assets,
+            planned_grid_available=planned_grid,
+        )
+        outcome = simulate_dispatch(
+            actual, plan.genset_on, soc_kwh=soc, assets=assets, grid_available=actual_grid
+        )
         soc = outcome.soc_end_kwh
+        grid_kwh += outcome.grid_kwh
         fuel += outcome.fuel_l
         gen_h += outcome.genset_hours
         starts += outcome.genset_starts
@@ -186,6 +215,8 @@ def simulate_policy(
         unserved_cost=unserved * assets.value_of_lost_load_per_kwh,
         curtailed_kwh=curtailed,
         missing_steps=missing,
+        grid_kwh=grid_kwh,
+        grid_cost=grid_kwh * assets.grid_price_per_kwh,
     )
 
 
@@ -195,13 +226,16 @@ def value_backtest(
     assets: SiteAssets,
     baseline: str,
     initial_soc_frac: float = 0.5,
-    include_perfect_foresight: bool = True,
+    include_perfect_forecast: bool = True,
+    grid_actual: pd.Series | None = None,
 ) -> ValueReport:
     """Price each policy's plans against what actually happened.
 
     All policies must cover exactly the same back to back windows. Missing
     forecast values cannot be planned on and raise; missing actuals are
     simulated as zero net load and counted in each result's missing_steps.
+    For a grid site, pass grid_actual (1 on, 0 off, NaN unknown, by timestamp)
+    and give every policy a grid_plan; unknown grid hours count as off.
     """
     if baseline not in policies:
         raise ValueError(f"baseline policy {baseline!r} is not among the policies")
@@ -224,11 +258,24 @@ def value_backtest(
     results: dict[str, PolicyResult] = {}
     for name, src in policies.items():
         windows = [(f.timestamps, f.quantiles[src.plan_quantile], f.actual) for f in ordered[name]]
-        results[name] = simulate_policy(name, windows, assets=assets, initial_soc_kwh=soc0)
+        results[name] = simulate_policy(
+            name,
+            windows,
+            assets=assets,
+            initial_soc_kwh=soc0,
+            grid_plan=src.grid_plan,
+            grid_actual=grid_actual,
+        )
 
-    if include_perfect_foresight:
+    if include_perfect_forecast:
         oracle = [(f.timestamps, np.nan_to_num(f.actual, nan=0.0), f.actual) for f in reference]
+        perfect_grid = None if grid_actual is None else grid_actual.fillna(0.0)
         results[PERFECT_FORECAST] = simulate_policy(
-            PERFECT_FORECAST, oracle, assets=assets, initial_soc_kwh=soc0
+            PERFECT_FORECAST,
+            oracle,
+            assets=assets,
+            initial_soc_kwh=soc0,
+            grid_plan=perfect_grid,
+            grid_actual=grid_actual,
         )
     return ValueReport(assets=assets, results=results, baseline=baseline)

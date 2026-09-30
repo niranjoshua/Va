@@ -83,6 +83,11 @@ class PlanRequest(BaseModel):
     )
     calibrate: bool = Field(default=True, description="Conformal calibration on the last week")
     model: str = Field(default="quantile_gbm_day_ahead")
+    grid_kw: float = Field(default=0.0, ge=0.0, description="Grid connection size; 0 for none")
+    grid_price_per_kwh: float = Field(default=0.0, ge=0.0)
+    assume_grid_always_on: bool = Field(
+        default=False, description="For a reliable grid with no on/off record"
+    )
 
 
 class PlanHour(BaseModel):
@@ -91,6 +96,8 @@ class PlanHour(BaseModel):
     genset_on: bool
     planned_genset_kw: float
     planned_soc_kwh: float
+    planned_grid_on: bool
+    planned_grid_kw: float
 
 
 class RunWindow(BaseModel):
@@ -104,6 +111,7 @@ class PlanResponse(BaseModel):
     plan_quantile: float
     summary: str
     run_windows: list[RunWindow]
+    grid_windows: list[str]
     expected_fuel_l: float
     expected_genset_hours: float
     expected_unserved_kwh: float

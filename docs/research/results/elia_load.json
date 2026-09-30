@@ -1,0 +1,158 @@
+{
+  "scores": [
+    {
+      "model": "persistence",
+      "pinball": 178.44041825462622,
+      "mae": 510.0219579802261,
+      "rmse": 735.1668835324825,
+      "coverage_80": 0.7884119380987472,
+      "hours": 10856
+    },
+    {
+      "model": "quantile_gbm_day_ahead",
+      "pinball": 96.19017403918697,
+      "mae": 287.8323731386635,
+      "rmse": 410.6653208690325,
+      "coverage_80": 0.6923360353721444,
+      "hours": 10856
+    },
+    {
+      "model": "quantile_gbm_day_ahead+conformal",
+      "pinball": 95.16467234958266,
+      "mae": 287.8323731386635,
+      "rmse": 410.6653208690325,
+      "coverage_80": 0.8039793662490788,
+      "hours": 10856
+    },
+    {
+      "model": "Elia day-ahead (professional)",
+      "pinball": 95.22641255475723,
+      "mae": 292.44133489928765,
+      "rmse": 398.5809508626967,
+      "coverage_80": 0.7489867354458364,
+      "hours": 10856
+    }
+  ],
+  "calibration": {
+    "persistence": [
+      {
+        "model": "persistence",
+        "kind": "quantile",
+        "nominal": 0.1,
+        "observed": 0.1066691231,
+        "mean_width": null
+      },
+      {
+        "model": "persistence",
+        "kind": "quantile",
+        "nominal": 0.5,
+        "observed": 0.4994473102,
+        "mean_width": null
+      },
+      {
+        "model": "persistence",
+        "kind": "quantile",
+        "nominal": 0.9,
+        "observed": 0.8950810612,
+        "mean_width": null
+      },
+      {
+        "model": "persistence",
+        "kind": "band 0.1-0.9",
+        "nominal": 0.8,
+        "observed": 0.7884119381,
+        "mean_width": 1585.9671866249
+      }
+    ],
+    "quantile_gbm_day_ahead": [
+      {
+        "model": "quantile_gbm_day_ahead",
+        "kind": "quantile",
+        "nominal": 0.1,
+        "observed": 0.1421333825,
+        "mean_width": null
+      },
+      {
+        "model": "quantile_gbm_day_ahead",
+        "kind": "quantile",
+        "nominal": 0.5,
+        "observed": 0.4858142962,
+        "mean_width": null
+      },
+      {
+        "model": "quantile_gbm_day_ahead",
+        "kind": "quantile",
+        "nominal": 0.9,
+        "observed": 0.8344694178,
+        "mean_width": null
+      },
+      {
+        "model": "quantile_gbm_day_ahead",
+        "kind": "band 0.1-0.9",
+        "nominal": 0.8,
+        "observed": 0.6923360354,
+        "mean_width": 719.1728354241
+      }
+    ],
+    "quantile_gbm_day_ahead+conformal": [
+      {
+        "model": "quantile_gbm_day_ahead+conformal",
+        "kind": "quantile",
+        "nominal": 0.1,
+        "observed": 0.0923913043,
+        "mean_width": null
+      },
+      {
+        "model": "quantile_gbm_day_ahead+conformal",
+        "kind": "quantile",
+        "nominal": 0.5,
+        "observed": 0.4858142962,
+        "mean_width": null
+      },
+      {
+        "model": "quantile_gbm_day_ahead+conformal",
+        "kind": "quantile",
+        "nominal": 0.9,
+        "observed": 0.8963706706,
+        "mean_width": null
+      },
+      {
+        "model": "quantile_gbm_day_ahead+conformal",
+        "kind": "band 0.1-0.9",
+        "nominal": 0.8,
+        "observed": 0.8039793662,
+        "mean_width": 950.0516198992
+      }
+    ],
+    "Elia day-ahead (professional)": [
+      {
+        "model": "Elia day-ahead (professional)",
+        "kind": "quantile",
+        "nominal": 0.1,
+        "observed": 0.0871407517,
+        "mean_width": null
+      },
+      {
+        "model": "Elia day-ahead (professional)",
+        "kind": "quantile",
+        "nominal": 0.5,
+        "observed": 0.411385409,
+        "mean_width": null
+      },
+      {
+        "model": "Elia day-ahead (professional)",
+        "kind": "quantile",
+        "nominal": 0.9,
+        "observed": 0.8361274871,
+        "mean_width": null
+      },
+      {
+        "model": "Elia day-ahead (professional)",
+        "kind": "band 0.1-0.9",
+        "nominal": 0.8,
+        "observed": 0.7489867354,
+        "mean_width": 851.0835650792
+      }
+    ]
+  }
+}
