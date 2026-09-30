@@ -15,6 +15,7 @@ import pandas as pd
 
 from vaticore.decisions import Advisory, battery_and_genset_advisory
 from vaticore.decisions.dispatch import DispatchPlan, SiteAssets, plan_dispatch
+from vaticore.decisions.sizing import SizingCosts, SizingReport, size_site
 from vaticore.evaluation.backtest import BacktestResult, FoldForecast, backtest_site
 from vaticore.evaluation.calibration import (
     CalibrationReport,
@@ -452,4 +453,47 @@ def plan_for_site(
         horizon=horizon,
         plan_quantile=plan_quantile,
         assume_grid_always_on=bool(site.grid and site.grid.reliable),
+    )
+
+
+def size_registered_site(
+    site: Site,
+    history: pd.DataFrame,
+    solar_per_kwp: pd.Series,
+    *,
+    pv_options_kwp: list[float],
+    battery_options_kwh: list[float],
+    costs: SizingCosts,
+    battery_c_rate: float = 0.5,
+    min_soc_fraction: float = 0.1,
+) -> SizingReport:
+    """Sizing study for a registered site, with its own assets and prices.
+
+    history carries the site's hourly load_kw (and grid_available for a site
+    on an unreliable grid); solar_per_kwp is measured or from
+    vaticore.features.solar.pv_output_per_kwp at the site's location.
+    """
+    frame = history.set_index(TIMESTAMP).sort_index()
+    grid = None
+    if site.grid is not None:
+        if site.grid.reliable:
+            grid = pd.Series(1.0, index=frame.index)
+        elif GRID_AVAILABLE in frame.columns:
+            grid = frame[GRID_AVAILABLE].astype(float)
+        else:
+            raise ValueError(
+                f"site {site.site_id!r} has an unreliable grid but no {GRID_AVAILABLE!r} history"
+            )
+    return size_site(
+        frame[LOAD_KW],
+        solar_per_kwp,
+        site.dispatch_assets(),
+        current_pv_kwp=site.solar.kwp if site.solar else 0.0,
+        pv_options_kwp=pv_options_kwp,
+        battery_options_kwh=battery_options_kwh,
+        costs=costs,
+        currency=site.currency,
+        battery_c_rate=battery_c_rate,
+        min_soc_fraction=min_soc_fraction,
+        grid_available=grid,
     )

@@ -33,7 +33,9 @@ def test_fuel_curve_matches_the_homer_default() -> None:
 
 def test_asset_validation() -> None:
     with pytest.raises(ValueError):
-        SiteAssets(battery_kwh=0.0, battery_power_kw=10.0, genset_kw=10.0)
+        SiteAssets(battery_kwh=-1.0, battery_power_kw=10.0, genset_kw=10.0)
+    with pytest.raises(ValueError):
+        SiteAssets(battery_kwh=0.0, battery_power_kw=10.0, genset_kw=10.0, min_soc_kwh=1.0)
     with pytest.raises(ValueError):
         SiteAssets(battery_kwh=10.0, battery_power_kw=10.0, genset_kw=10.0, min_soc_kwh=10.0)
     with pytest.raises(ValueError):
@@ -132,3 +134,15 @@ def test_plan_rejects_incomplete_or_unindexed_forecasts() -> None:
         plan_dispatch(_series([10.0, np.nan]), soc_kwh=50.0, assets=ASSETS)
     with pytest.raises(ValueError):
         plan_dispatch(pd.Series([10.0, 10.0]), soc_kwh=50.0, assets=ASSETS)
+
+
+def test_a_site_without_a_battery_runs_on_generator_and_solar() -> None:
+    no_battery = SiteAssets(battery_kwh=0.0, battery_power_kw=1.0, genset_kw=40.0)
+    out = simulate_dispatch(
+        np.array([-5.0, 20.0, 20.0]), np.array([False, True, False]), soc_kwh=0.0, assets=no_battery
+    )
+    assert out.curtailed_kwh == pytest.approx(5.0)  # nowhere to store the surplus
+    assert out.unserved_kwh == pytest.approx(20.0)  # the unscheduled hour goes dark
+    plan = plan_dispatch(_series([20.0, 20.0]), soc_kwh=0.0, assets=no_battery)
+    assert plan.genset_on.all()
+    assert "Run the generator" in plan.summary()
