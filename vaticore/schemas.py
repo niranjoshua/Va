@@ -27,6 +27,10 @@ TIMESTAMP = "timestamp"
 LOAD_KW = "load_kw"
 GENERATION_KW = "generation_kw"
 
+# Optional: whether the grid supplied the site in that interval (1 on, 0 off,
+# missing if unknown). Weak networks make this a quantity to forecast.
+GRID_AVAILABLE = "grid_available"
+
 # Derived, signed: load minus generation. Positive means the battery or genset
 # must serve it; negative means surplus solar. Never ingested, always computed.
 NET_LOAD_KW = "net_load_kw"
