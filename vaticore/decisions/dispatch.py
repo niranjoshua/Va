@@ -73,8 +73,11 @@ class SiteAssets:
     grid_charges_battery: bool = True
 
     def __post_init__(self) -> None:
+        # battery_kwh may be 0 (a site with no battery, or a sizing option
+        # without one); power and step must still be positive.
+        if self.battery_kwh < 0:
+            raise ValueError(f"battery_kwh must be zero or positive, got {self.battery_kwh}")
         positive = {
-            "battery_kwh": self.battery_kwh,
             "battery_power_kw": self.battery_power_kw,
             "step_hours": self.step_hours,
         }
@@ -91,8 +94,10 @@ class SiteAssets:
         ):
             if not 0.0 < eff <= 1.0:
                 raise ValueError(f"{name} must be in (0, 1], got {eff}")
-        if not 0.0 <= self.min_soc_kwh < self.battery_kwh:
+        if self.battery_kwh > 0 and not 0.0 <= self.min_soc_kwh < self.battery_kwh:
             raise ValueError("min_soc_kwh must be at least 0 and below battery_kwh")
+        if self.battery_kwh == 0 and self.min_soc_kwh != 0:
+            raise ValueError("a site without a battery must have min_soc_kwh 0")
         if not 0.0 <= self.genset_min_load <= 1.0:
             raise ValueError("genset_min_load must be a fraction between 0 and 1")
 
@@ -315,7 +320,8 @@ class DispatchPlan:
 
     def summary(self) -> str:
         """The plan in plain words, the way an operator would say it."""
-        end_pct = 100.0 * self.expected.soc_end_kwh / self.assets.battery_kwh
+        cap = self.assets.battery_kwh
+        end_pct = 100.0 * self.expected.soc_end_kwh / cap if cap > 0 else 0.0
         windows = self.run_windows
         if not windows:
             text = (

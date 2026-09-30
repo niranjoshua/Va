@@ -75,7 +75,7 @@ Data only moves left to right. Each layer has one job and one contract.
 | `storage/` | Multi-tenant persistence | DuckDB, Postgres/TimescaleDB repositories | Done |
 | `features/` | Calendar, lag and weather features | `OpenMeteoProvider`, `join_weather` | Weather client ready; needs the archive |
 | `forecasting/` | Every model behind one interface | `Forecaster`, `PersistenceForecaster`, `QuantileGBMForecaster`, `ConformalQuantileForecaster`, `GridAvailabilityForecaster` | Load, solar, net load, grid availability |
-| `decisions/` | Forecast to plan: merit order dispatch; the daily advisory | `SiteAssets`, `plan_dispatch`, `simulate_dispatch` | Grid, generator, battery |
+| `decisions/` | Forecast to plan: merit order dispatch; the daily advisory; sizing studies | `SiteAssets`, `plan_dispatch`, `simulate_dispatch`, `size_site` | Grid, generator, battery; sizing |
 | `evaluation/` | Accuracy, calibration, value and benchmarks | `backtest_site`, `calibration_report`, `value_backtest`, `external_forecasts` | Done |
 | `tracking/` | Experiment logging, with a no-op fallback | `Tracker`, `MlflowTracker` | Done |
 | `engine.py` | The one orchestration path the API and dashboard use | `plan_for_site`, `run_value_backtest` | Done |
@@ -194,10 +194,12 @@ In order of how much each unblocks the product:
    - Expected fuel use from generator runtime and load, reconciled against
      deliveries and tank levels.
    - Flags likely pilferage and plans refuelling runs.
-5. **Sizing studies.**
+5. **Sizing studies (built).**
    - The same simulator, swept over solar and battery sizes, answers "what
-     should this site add, and what will it save?". Useful before any
-     installation.
+     should this site add, and what will it save?".
+   - It uses a year of weather at the site (`features/solar.py`) and the
+     site's own prices, and reports payback and CO2.
+   - Next: ranges across weather years, and a partner-ready PDF.
 6. **Portfolio reporting.**
    - Diesel avoided, outages avoided, and CO2 avoided (2.68 kg per litre of
      diesel) across a fleet, for operations, finance and ESG.
