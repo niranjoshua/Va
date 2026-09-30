@@ -9,7 +9,7 @@ notebooks, and each can be rerun from one command.
 
 | # | Question | Why it matters | Status |
 |---|---|---|---|
-| RQ1 | Does a calibrated range beat a more accurate point forecast when a site plans its generator? | Decides what we sell: honest ranges, not just accuracy | **Supported on two datasets** (notes 1 and 2) |
+| RQ1 | Does a calibrated range beat a more accurate point forecast when a site plans its generator? | Decides what we sell: honest ranges, not just accuracy | **Supported on two independent datasets** (notes 1 and 2) |
 | RQ2 | What is a forecast worth in litres, outage hours and money, against today's practice? | The number a customer pays for | Measured on shaped sites (notes 1 and 2); pilot data next |
 | RQ3 | How much does weather add, for solar and for net load? | The largest accuracy gap left | Gap measured against Elia (note 2); weather study needs archived forecasts |
 | RQ4 | Can a site's grid supply hours be forecast well enough to plan on? | Core for towers, banks and factories on weak grids | Baseline built; needs real grid on/off records |
@@ -47,7 +47,7 @@ notebooks, and each can be rerun from one command.
 | Note | Question | Data | Headline |
 |---|---|---|---|
 | [1. What a forecast is worth to a solar mini-grid](value-study-2018.md) | RQ1, RQ2 | ENTSO-E Spain demand and solar, 2017 to 2018, one held-out year | Calibrated P90 plan: 82 to 84% less unserved energy, 72% fewer outage hours, 7 to 10% lower cost |
-| [2. Vaticore against a grid operator's own forecasts](elia-benchmark.md) | RQ1, RQ2, RQ3 | Elia (Belgium) load 2015 to 2026 and solar 2025 to 2026, with Elia's P10, P50 and P90 | See the note |
+| [2. Vaticore against a grid operator's own forecasts](elia-benchmark.md) | RQ1, RQ2, RQ3 | Elia (Belgium) load 2015 to 2026 and solar 2025 to 2026, with Elia's P10, P50 and P90 | Load: parity with Elia's forecast over 453 held-out days, with a better calibrated range (80.4% against 74.9%), no weather. Solar: weather is the gap (Elia 68% better than persistence, Vaticore 23%). Value: calibrated P90 captured 85% of possible savings, Elia's medians 84% |
 
 ## Data catalogue
 

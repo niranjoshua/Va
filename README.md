@@ -80,6 +80,13 @@ unserved kWh and captured 61 to 63% of the value of a perfect forecast.
 Pinball loss fell 23%, and the calibrated P10 to P90 range held 80.7% of
 outcomes (target 80%).
 
+[Research note 2](docs/research/elia-benchmark.md) scores Vaticore against the
+Belgian grid operator's own published forecasts. Over 453 held-out days of
+national load it matched Elia's day-ahead forecast on pinball loss (95.2 MW
+each) and MAE (287.8 against 292.4 MW), without weather data. Its range was
+better calibrated: 80.4% of outcomes against Elia's 74.9%, target 80%. On
+solar, where Elia uses weather, Elia is far ahead; weather is the next study.
+
 ## Layout
 
 ```

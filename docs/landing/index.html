@@ -177,12 +177,13 @@ a:focus-visible,button:focus-visible{outline:2px solid var(--link);outline-offse
 .big{font-size:clamp(64px,8vw,96px);font-weight:600;letter-spacing:-.05em;line-height:1;margin:28px 0 30px;
   background:linear-gradient(90deg,#5FD1C2,#1FA898);-webkit-background-clip:text;background-clip:text;color:transparent}
 .bars{display:grid;gap:16px}
-.brow{display:grid;grid-template-columns:96px 1fr;align-items:center;gap:14px;font-size:14px;color:#A1A1A6}
+.brow{display:grid;grid-template-columns:132px 1fr;align-items:center;gap:14px;font-size:14px;color:#A1A1A6}
 .brow .t{position:relative;height:30px}
 .brow .f{height:100%;border-radius:0 6px 6px 0;display:flex;align-items:center;justify-content:flex-end;padding-right:10px;
   font-family:var(--mono);font-size:12.5px;color:#fff;transform-origin:left;transition:transform 1.2s cubic-bezier(.2,.8,.2,1)}
 .brow .f.base{background:#3A383D}
 .brow .f.vc{background:var(--fc-dark)}
+.brow .f.elia{background:#5E5A61}
 .js .metric:not(.in) .f{transform:scaleX(0)}
 .brow b{color:#F5F5F7;font-weight:600}
 .fine{font-size:12.5px;line-height:1.55;color:#86868B;margin-top:40px;max-width:74em}
@@ -361,8 +362,8 @@ footer{background:#F5F5F7;color:var(--ink-2);font-size:12px;line-height:1.5;padd
 
 <section class="stats" aria-label="Key figures">
   <div class="wrap grid">
-    <div class="stat rv"><div class="n">18%<sup>1</sup></div><p>lower forecast error than the persistence baseline (pinball loss)</p></div>
-    <div class="stat rv"><div class="n">25%<sup>1</sup></div><p>lower mean absolute error over five months of backtests</p></div>
+    <div class="stat rv"><div class="n">47%<sup>1</sup></div><p>lower forecast error than persistence, level with a grid operator's own forecast</p></div>
+    <div class="stat rv"><div class="n">80.4%<sup>1</sup></div><p>of outcomes inside the 80% range. Calibrated, not guessed</p></div>
     <div class="stat rv"><div class="n">72%<sup>3</sup></div><p>fewer hours with an outage over a year of real data the model never saw</p></div>
     <div class="stat rv"><div class="n">0</div><p>control actions. Advisory only, a person always decides</p></div>
   </div>
@@ -372,28 +373,30 @@ footer{background:#F5F5F7;color:var(--ink-2);font-size:12px;line-height:1.5;padd
   <div class="wrap">
     <p class="eyebrow rv">Accuracy</p>
     <h2 class="h2 rv">Measured, not promised.</h2>
-    <p class="lead rv">Every model is backtested on months of held-out history and scored against <b>persistence</b>, the forecast that assumes tomorrow looks like today. If a model can't beat it, it doesn't ship.</p>
+    <p class="lead rv">Every model is scored on held-out history against <b>persistence</b>, the forecast that assumes tomorrow looks like today, and, where one is published, against a <b>grid operator's own forecast</b>. If a model can't beat persistence, it doesn't ship.</p>
     <div class="acc">
       <div class="metric rv">
         <h3>Pinball loss</h3>
         <p class="d">Rewards a range that is both tight and honest. Lower is better.</p>
-        <div class="big">&minus;18%</div>
+        <div class="big">&minus;47%</div>
         <div class="bars">
-          <div class="brow"><span>Persistence</span><div class="t"><div class="f base" style="width:100%"><span>160.0 MW</span></div></div></div>
-          <div class="brow"><b>Vaticore</b><div class="t"><div class="f vc" style="width:81.8%"><span>130.9 MW</span></div></div></div>
+          <div class="brow"><span>Persistence</span><div class="t"><div class="f base" style="width:100%"><span>178.4 MW</span></div></div></div>
+          <div class="brow"><span>Elia (grid operator)</span><div class="t"><div class="f elia" style="width:53.4%"><span>95.2 MW</span></div></div></div>
+          <div class="brow"><b>Vaticore</b><div class="t"><div class="f vc" style="width:53.4%"><span>95.2 MW</span></div></div></div>
         </div>
       </div>
       <div class="metric rv">
         <h3>Mean absolute error</h3>
         <p class="d">How far the expected forecast lands from what happened.</p>
-        <div class="big">&minus;25%</div>
+        <div class="big">&minus;44%</div>
         <div class="bars">
-          <div class="brow"><span>Persistence</span><div class="t"><div class="f base" style="width:100%"><span>430.2 MW</span></div></div></div>
-          <div class="brow"><b>Vaticore</b><div class="t"><div class="f vc" style="width:74.6%"><span>321.0 MW</span></div></div></div>
+          <div class="brow"><span>Persistence</span><div class="t"><div class="f base" style="width:100%"><span>510.0 MW</span></div></div></div>
+          <div class="brow"><span>Elia (grid operator)</span><div class="t"><div class="f elia" style="width:57.3%"><span>292.4 MW</span></div></div></div>
+          <div class="brow"><b>Vaticore</b><div class="t"><div class="f vc" style="width:56.4%"><span>287.8 MW</span></div></div></div>
         </div>
       </div>
     </div>
-    <p class="fine rv">Five-month backtest on Belgian grid load, calendar and lag features only.<sup>1</sup> Elia's own weather-driven operational forecast still scores better (pinball 92.4 MW). Adding weather is how we close that gap. Single days swing both ways; the long-run average is what we stand behind.</p>
+    <p class="fine rv">453 held-out days of Belgian national load.<sup>1</sup> Using calendar and past load only, no weather, Vaticore matched the day-ahead forecast Elia publishes, and its range was the better calibrated: 80.4% of outcomes inside the 80% band, against Elia's 74.9%. On solar, where tomorrow depends on the weather, Elia's weather-driven forecast is still far ahead. Weather is our next study.</p>
   </div>
 </section>
 
@@ -498,7 +501,7 @@ footer{background:#F5F5F7;color:var(--ink-2);font-size:12px;line-height:1.5;padd
 <footer>
   <div class="wrap">
     <div class="notes">
-      <p>1. Rolling-origin backtest, 24 hours ahead, five months of Belgian grid load from Elia open data. Scored with pinball loss and mean absolute error against seasonal persistence.</p>
+      <p>1. Rolling-origin backtest, one day-ahead forecast per day at 00:00 UTC, every hour of 453 days from January 2025 on Belgian national load (Elia open data), trained from 2022 on calendar and lag features only, with conformal calibration. Scored on the same hours against seasonal persistence and against Elia's published day-ahead (6 PM) P10, P50 and P90. Method, limitations and code: docs/research/elia-benchmark.md on GitHub.</p>
       <p>2. The console replays real Elia grid data for 17 to 28 March 2026. Net load shapes are real. Reserve, generator and diesel figures come from the Vaticore advisory engine applied to those shapes, scaled to a representative 120 kW solar mini-grid with a 600 kWh battery.</p>
       <p>3. One-year held-out value study (all 365 days of 2018) on public ENTSO-E demand and solar data for Spain, scaled to a representative 120 kW solar mini-grid with a 600 kWh battery and a 100 kW generator. Each forecast planned the generator day ahead; each day then ran on the actual outcome. Compared with planning on persistence; the 2017 data was used for training only. Calibrated Vaticore forecast, P90 plan. A second site with a 300 kWh battery gave the same picture (84% less unserved energy, 72% fewer outage hours). Full method, limitations and code: docs/research/value-study-2018.md on GitHub.</p>
     </div>
