@@ -2,7 +2,7 @@
 
 Working conventions for this repository. Read this before writing code. This file is about *how* we build, not *what* we are building; the product vision, target users and roadmap are kept in Vaticore's private strategy repo.
 
-Vaticore is a probabilistic forecasting engine for electricity load and solar generation, for mini-grid and C&I solar operators. Forecasts must be probabilistic, the code must tolerate messy and sparse data, and evaluation is a first-class concern.
+Vaticore is a probabilistic forecasting and planning engine for distributed energy sites: telecom towers, bank branches, commercial and industrial sites, institutions (hospitals, schools) and mini-grids, starting with operators in Nigeria who spend heavily on diesel. It forecasts load, solar and whether the grid will be on, and advises when to run the generator, lean on the grid or hold battery. Forecasts must be probabilistic, the code must tolerate messy and sparse data, and evaluation (accuracy, calibration and value in litres, outages and money) is a first-class concern. See `docs/architecture.md` and `docs/research/README.md`.
 
 ---
 
@@ -10,7 +10,7 @@ Vaticore is a probabilistic forecasting engine for electricity load and solar ge
 
 1. **Prove the pipeline end to end before adding model complexity.** Baseline plus one quantile model running through ingest, forecast, evaluate and display beats five half-wired models. Do not build LSTM or TIME-LLM until the skeleton works.
 2. **Every forecaster implements the same interface.** Models are swappable and ensemble-able. See the contract below. No model is allowed to break it.
-3. **All data is scoped by `operator_id` and `site_id`.** Multi-tenant, multi-site from the first commit. Never write a function that assumes a single site.
+3. **All data is scoped by `operator_id` and `site_id`.** Multi-tenant, multi-site from the first commit. Never write a function that assumes a single site. A site's physical assets and prices come from its `Site` record (`vaticore/sites/`), never from constants in code.
 4. **Probabilistic by default.** Models output quantiles, not point forecasts. Evaluation uses pinball loss and calibration, always against the persistence baseline.
 5. **No em dashes** in any generated document, comment or copy.
 
@@ -44,12 +44,16 @@ vaticore/
   features/      # calendar, lags, weather enrichment
   forecasting/   # baselines, quantile GBM, (later) LSTM, TIME-LLM, ensemble
   evaluation/    # backtesting harness, pinball loss, calibration, baseline comparison
-  decisions/     # forecast -> battery reserve / genset advisory / unserved energy
+  sites/         # site and asset registry: towers, banks, C&I, institutions, mini-grids
+  decisions/     # forecast -> hourly plan: grid, generator, battery (advisory only)
   api/           # FastAPI service
   dashboard/     # Streamlit app
   storage/       # multi-tenant, multi-site persistence
   config.py      # typed settings (pydantic-settings), env-driven
 tests/           # mirrors the package layout
+docs/architecture.md   # how the system fits together
+docs/research/         # research programme, protocol and study notes
+examples/              # runnable studies and example site portfolios
 ```
 
 ---
@@ -91,7 +95,7 @@ Rules:
 
 ## Data conventions
 
-- **Internal schema:** `operator_id`, `site_id`, `timestamp`, `load_kw`, `generation_kw`, plus weather join keys. Validate against this at every ingestion boundary with `pandera`.
+- **Internal schema:** `operator_id`, `site_id`, `timestamp`, `load_kw`, `generation_kw`, optional `grid_available` (1 on, 0 off, missing if unknown), plus weather join keys. Validate against this at every ingestion boundary with `pandera`. Outside formats (Elia, vendor exports) enter through adapters in `ingestion/`.
 - **Time is UTC internally**, always timezone-aware. Store the site's local timezone as metadata; convert only for display.
 - **Resolution is explicit.** Never assume hourly. Record each site's native resolution and resample deliberately.
 - **Gaps are expected.** Ingestion must detect, log and handle missing intervals. Document the gap-handling strategy in code.
@@ -105,6 +109,8 @@ Rules:
 - Every evaluation run **reports the persistence baseline alongside** the model. A model that does not beat persistence is reported as such, honestly.
 - The backtesting harness lives in `evaluation/` as real, tested code, not notebooks.
 - Log every run to MLflow with the site, model, config and metrics, so comparisons are reproducible for both pilots and the research paper.
+- Calibration is reported with every probabilistic result: does the P10 to P90 range hold about 80% of outcomes?
+- Decision value is measured with the value backtest (litres, outage hours, money against persistence and a perfect-forecast bound). Follow the protocol in `docs/research/README.md`: design and test periods separate, test run once, assumptions shown with a sensitivity table.
 
 ---
 
@@ -147,7 +153,7 @@ Run tests, lint and type check before every commit.
 - Do not write single-site code paths that ignore `operator_id` and `site_id`.
 - Do not return point forecasts where a quantile forecast is expected.
 - Do not let front-end polish precede a good forecast.
-- Do not expand scope beyond load and solar forecasting for mini-grid and C&I operators. Note the idea, keep building the wedge.
+- Do not expand scope beyond forecasting and advisory planning (load, solar, net load, grid availability, and the fuel they imply) for distributed sites: telecom towers, bank branches, C&I, institutions and mini-grids. Note other ideas, keep building the wedge.
 
 ---
 
