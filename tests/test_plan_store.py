@@ -217,3 +217,16 @@ def test_model_status_and_weather(store: PlanStore) -> None:
     store.save_issued_weather("op", "s1", DAY, weather.iloc[:24], END)  # a re-run replaces
     issued = store.issued_weather("op", "s1", DAY)
     assert len(issued) == 24 and issued["timestamp"].iloc[0] == hours[0]
+
+
+def test_fuel_deliveries(store: PlanStore) -> None:
+    store.add_delivery("op", "s1", START, 500.0, "INV-1", START)
+    store.add_delivery("op", "s1", START, 450.0, "INV-1 corrected", END)  # same time: replaced
+    store.add_delivery("op", "s2", START, 100.0, None, START)
+    rows = store.deliveries_for("op", "s1", START, END)
+    assert rows["litres"].tolist() == [450.0] and rows["reference"].iloc[0] == "INV-1 corrected"
+    assert str(rows["delivered_at"].iloc[0].tz) == "UTC"
+    with pytest.raises(ValueError, match="positive"):
+        store.add_delivery("op", "s1", END, 0.0, None, END)
+    with pytest.raises(ValueError, match="timezone"):
+        store.add_delivery("op", "s1", datetime(2026, 3, 10), 10.0, None, END)

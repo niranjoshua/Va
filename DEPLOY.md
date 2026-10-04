@@ -61,8 +61,9 @@ operator data. Nothing else about the handlers changes.
 ## The daily pipeline
 
 `render.yaml` also defines `vaticore-daily-plans`, a scheduled job that runs
-at 04:40 UTC (05:40 in Lagos): it scores finished plan days, then plans every
-site and sends the plans on WhatsApp. It needs, in the Render dashboard:
+at 17:00 UTC (18:00 in Lagos): it pulls new readings, scores finished plan
+days, then plans each site's next local day (midnight to midnight) and sends
+the plans on WhatsApp the evening before. It needs, in the Render dashboard:
 
 - `VATICORE_DATABASE_URL`: the same Postgres as the web service.
 - `VATICORE_WHATSAPP_TOKEN` and `VATICORE_WHATSAPP_PHONE_NUMBER_ID`.

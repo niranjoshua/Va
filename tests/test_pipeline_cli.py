@@ -128,3 +128,40 @@ def test_live_weather_needs_a_key_in_production(monkeypatch: pytest.MonkeyPatch)
     assert _weather(Settings(environment="production", weather_api_key="k")) is not None  # type: ignore[arg-type]
     assert _weather(Settings(environment="local")) is not None
     assert _weather(Settings(weather_provider="none")) is None
+
+
+def test_fuel_deliveries_are_recorded_and_reconciled(
+    env: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from vaticore.storage import DuckDBRepository
+
+    (env / "sites.toml").write_text(_SITES)
+    now = pd.Timestamp(datetime.now(tz=UTC)).floor("h")
+    hours = pd.date_range(now - timedelta(days=3), now, freq="h", inclusive="left")
+    level = [400.0] * len(hours)
+    level[30:] = [360.0] * (len(hours) - 30)  # 40 L gone overnight, generator off
+    repo = DuckDBRepository(f"{env / 'readings.duckdb'}")
+    repo.upsert(
+        pd.DataFrame({"operator_id": "op", "site_id": "s1", "timestamp": hours, "load_kw": 3.0,
+                      "generation_kw": 0.0, "genset_kw": 0.0, "fuel_level_l": level})
+    )  # fmt: skip
+    repo.close()
+
+    at = (now - timedelta(days=2)).tz_convert("Africa/Lagos").strftime("%Y-%m-%d %H:%M")
+    assert main(["fuel", "add", "--site", "op/s1", "--litres", "200", "--at", at,
+                 "--timezone", "Africa/Lagos", "--reference", "INV-9"]) == 0  # fmt: skip
+    with pytest.raises(SystemExit, match="offset"):
+        main(["fuel", "add", "--site", "op/s1", "--litres", "10", "--at", at])
+    (env / "deliveries.csv").write_text(
+        "operator_id,site_id,delivered_at,litres,reference\n"
+        f"op,s1,{(now - timedelta(days=1)).isoformat()},50,INV-10\n"
+    )
+    assert main(["fuel", "import", "--csv", str(env / "deliveries.csv")]) == 0
+    capsys.readouterr()
+
+    assert main(["fuel", "report", "--portfolio", str(env / "sites.toml"), "--days", "3"]) == 1
+    out = capsys.readouterr().out
+    assert "Delivered 250 L" in out and "drop_while_off" not in out  # codes stay internal
+    assert "while the generator was off" in out and "INV-9" in out

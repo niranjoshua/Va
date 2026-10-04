@@ -166,3 +166,15 @@ class IngestBatch(BaseModel):
         except (ZoneInfoNotFoundError, ValueError) as exc:
             raise ValueError(f"unknown timezone {value!r}") from exc
         return value
+
+
+class Delivery(BaseModel):
+    """One diesel delivery to a site."""
+
+    delivered_at: str = Field(description="ISO 8601 with a UTC offset, e.g. 2026-10-06T10:30+01:00")
+    litres: float = Field(gt=0, le=100_000)
+    reference: str | None = Field(default=None, max_length=200)
+
+
+class DeliveryBatch(BaseModel):
+    deliveries: list[Delivery] = Field(min_length=1, max_length=1_000)

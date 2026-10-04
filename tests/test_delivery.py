@@ -51,6 +51,8 @@ def test_day_label_and_windows_use_the_site_clock() -> None:
     assert day_label(START, START + pd.Timedelta(hours=24), LAGOS) == (
         "Tue 10 Mar, 06:00 to 06:00 Wed"
     )
+    midnight = pd.Timestamp("2026-03-09 23:00", tz="UTC")  # 00:00 in Lagos
+    assert day_label(midnight, midnight + pd.Timedelta(hours=24), LAGOS) == "Tue 10 Mar"
     on = [False] * 24
     for i in (13, 14, 18, 19, 20):  # 19:00, 20:00 and 00:00 to 03:00 local
         on[i] = True
