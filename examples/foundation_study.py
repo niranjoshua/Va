@@ -30,11 +30,9 @@ Four parts, run separately, each writing a markdown and JSON report:
         --solar-csv ods032.csv.gz --out results/
     uv run python examples/foundation_study.py short  --load-csv ods001.csv --out results/
 
-Chronos-2 and TimesFM 2.5 are Apache 2.0. TimesFM 3.0 runs only with
---with-timesfm3, for non-commercial research (an academic paper): its licence
-forbids commercial and production use, including using its results in
-commercial decisions or client material. Those runs write to files ending in
-_research and must not be published as Vaticore results. Weights download from Hugging Face on first use. Data files are
+Chronos-2 and TimesFM 2.5 are Apache 2.0. TimesFM 3.0 is not part of this
+study: its weights are under a non-commercial licence that also forbids using
+its results in commercial decisions. Weights download from Hugging Face on first use. Data files are
 never committed. Models run on the CPU unless --device says otherwise.
 """
 
@@ -63,7 +61,7 @@ from vaticore.forecasting import (
     TimesFMForecaster,
 )
 from vaticore.forecasting.base import DEFAULT_QUANTILES
-from vaticore.forecasting.foundation import TIMESFM_3_MODEL, TIMESFM_MODEL
+from vaticore.forecasting.foundation import TIMESFM_MODEL
 from vaticore.forecasting.quantile_gbm import DAY_AHEAD_LAGS
 from vaticore.ingestion.elia import read_elia_load, read_elia_solar, to_site_frame
 from vaticore.schemas import GENERATION_KW, LOAD_KW, NET_LOAD_KW, TIMESTAMP, with_net_load
@@ -72,15 +70,13 @@ QUANTILES = (0.1, 0.5, 0.9)
 GBM = "quantile_gbm_day_ahead"
 CHRONOS = "chronos-2"
 TIMESFM = "timesfm-2.5"
-TIMESFM_3 = "timesfm-3.0 (research only)"
 FOUNDATION: dict[str, Callable[..., Forecaster]] = {
     CHRONOS: ChronosForecaster,
     TIMESFM: lambda target, **kw: TimesFMForecaster(target, model_id=TIMESFM_MODEL, **kw),
 }
-# Non-commercial weights: added only by --with-timesfm3, for research.
-RESEARCH_ONLY: dict[str, Callable[..., Forecaster]] = {
-    TIMESFM_3: lambda target, **kw: TimesFMForecaster(target, model_id=TIMESFM_3_MODEL, **kw),
-}
+# Suffix for output file names; empty for the published study.
+OUTPUT_SUFFIX = ""
+DEFAULT_CONTEXT_HOURS = 24 * 7 * 48
 DESIGN_CONTEXTS = (24 * 7 * 4, 24 * 7 * 12, 24 * 7 * 48)
 SHORT_WEEKS = (2, 4, 8)
 
@@ -186,9 +182,8 @@ def run(
 
 def _contexts(args: argparse.Namespace) -> dict[str, int]:
     """History length per foundation model taking part in this run."""
-    hours = {CHRONOS: args.chronos_context, TIMESFM: args.timesfm_context,
-             TIMESFM_3: args.timesfm3_context}  # fmt: skip
-    return {name: hours[name] for name in FOUNDATION}
+    hours = {CHRONOS: args.chronos_context, TIMESFM: args.timesfm_context}
+    return {name: hours.get(name, DEFAULT_CONTEXT_HOURS) for name in FOUNDATION}
 
 
 def all_models(
@@ -413,7 +408,6 @@ def main() -> None:
     parser.add_argument("--solar-csv", type=Path)
     parser.add_argument("--chronos-context", type=int, default=24 * 7 * 48)
     parser.add_argument("--timesfm-context", type=int, default=24 * 7 * 48)
-    parser.add_argument("--timesfm3-context", type=int, default=24 * 7 * 48)
     parser.add_argument("--conformal-window", type=int, default=28)
     parser.add_argument("--value-initial-days", type=int, default=120)
     parser.add_argument("--peak-load-kw", type=float, default=120.0)
@@ -423,19 +417,11 @@ def main() -> None:
     parser.add_argument("--min-soc-kwh", type=float, default=60.0)
     parser.add_argument("--genset-kw", type=float, default=100.0)
     parser.add_argument("--device", default="cpu")
-    parser.add_argument(
-        "--with-timesfm3",
-        action="store_true",
-        help="also run TimesFM 3.0 (non-commercial licence: research use only)",
-    )
     parser.add_argument("--out", type=Path, default=Path("results"))
     args = parser.parse_args()
     warnings.filterwarnings("ignore", category=UserWarning)
 
-    suffix = ""
-    if args.with_timesfm3:
-        FOUNDATION.update(RESEARCH_ONLY)
-        suffix = "_research"
+    suffix = OUTPUT_SUFFIX
     t0 = time.time()
     parts = {"design": part_design, "load": part_load, "value": part_value, "short": part_short}
     markdown, payload = parts[args.part](args)
