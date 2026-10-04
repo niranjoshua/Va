@@ -164,11 +164,14 @@ def main() -> None:
         battery_kw = st.number_input("Battery power (kW)", min_value=1.0, value=150.0, step=10.0)
         soc = st.slider("Battery charge now (kWh)", 0.0, float(battery), float(battery) / 2)
         genset_kw = st.number_input("Generator size (kW)", min_value=0.0, value=100.0, step=10.0)
+        timezone = st.selectbox("Site clock", ["Africa/Lagos", "UTC", "Europe/London"])
         st.header("Forecast view")
         target_label = st.radio("Target", ["Load", "Solar generation"])
         target = LOAD_KW if target_label == "Load" else GENERATION_KW
         model = st.selectbox(
-            "Model", engine.available_models(), index=len(engine.available_models()) - 1
+            "Model",
+            engine.available_models(),
+            index=engine.available_models().index(engine.PLANNING_MODEL),
         )
         horizon = st.slider("Forecast horizon (hours)", 6, 48, 24, step=6)
 
@@ -180,7 +183,9 @@ def main() -> None:
     assets = SiteAssets(battery_kwh=battery, battery_power_kw=battery_kw, genset_kw=genset_kw)
     try:
         with st.spinner("Planning the next 24 hours..."):
-            plan = engine.dispatch_plan_for_site(history, assets=assets, soc_kwh=soc)
+            plan = engine.dispatch_plan_for_site(
+                history, assets=assets, soc_kwh=soc, display_timezone=timezone
+            )
     except (ValueError, ForecasterError) as exc:
         st.error(f"Could not build today's plan: {exc}")
         plan = None

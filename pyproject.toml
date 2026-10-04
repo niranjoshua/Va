@@ -21,6 +21,9 @@ dependencies = [
 [project.optional-dependencies]
 # Heavier or service-only extras, kept out of the core so the pipeline stays light.
 models = ["xgboost>=2.0", "torch>=2.2"]
+# Pretrained time series foundation models (Chronos-2, TimesFM). Weights download
+# from Hugging Face on first use.
+foundation = ["chronos-forecasting>=2.2", "timesfm[torch]>=3.0"]
 service = ["fastapi>=0.111", "uvicorn>=0.30"]
 dashboard = ["streamlit>=1.36", "plotly>=5.22"]
 tracking = ["mlflow>=2.14"]
@@ -87,6 +90,8 @@ module = [
     "plotly.*",
     "uvicorn.*",
     "anthropic.*",
+    "chronos.*",
+    "timesfm.*",
 ]
 ignore_missing_imports = true
 

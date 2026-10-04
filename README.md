@@ -71,8 +71,11 @@ Working end to end, with a real forecasting model, an API and a dashboard.
   and serves from the store. `examples/ingest_csv.py` loads a real operator CSV.
   The database is chosen by the `VATICORE_DATABASE_URL` scheme.
 
-Next: an LSTM and ensemble, and a real pilot data feed. LSTM, TIME-LLM and an
-ensemble remain stubbed against the interface.
+- **Foundation models**: Chronos-2 and TimesFM wrapped behind the same
+  interface (`foundation` extra). Chronos-2 is a planning model in the engine
+  (`chronos_2`); see [research note 3](docs/research/foundation-models.md).
+
+Next: weather covariates, fleet models and a real pilot data feed.
 
 ## Evidence
 
@@ -98,7 +101,7 @@ solar, where Elia uses weather, Elia is far ahead; weather is the next study.
 vaticore/
   ingestion/     # CSV/API intake, adapters (Elia), validation, UTC, gap handling
   features/      # calendar, lags, weather enrichment
-  forecasting/   # baselines, quantile GBM, (later) LSTM, TIME-LLM, ensemble
+  forecasting/   # baselines, quantile GBM, conformal, grid, foundation models
   evaluation/    # backtesting harness, pinball loss, calibration, baseline comparison
   tracking/      # MLflow experiment tracking, with a no-op fallback
   sites/         # site and asset registry (towers, banks, C&I, institutions, mini-grids)
@@ -165,7 +168,8 @@ Optional extras, installed only when needed:
 ```bash
 uv sync --extra service     # FastAPI service
 uv sync --extra dashboard   # Streamlit dashboard
-uv sync --extra models      # xgboost + torch (LSTM, TIME-LLM)
+uv sync --extra models      # xgboost + torch
+uv sync --extra foundation  # Chronos-2 and TimesFM (weights from Hugging Face)
 uv sync --extra tracking    # MLflow experiment tracking
 uv sync --all-extras        # everything
 ```

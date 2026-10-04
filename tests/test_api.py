@@ -135,6 +135,25 @@ def test_plan_rejects_a_battery_charge_outside_its_capacity(client: TestClient) 
     assert resp.status_code == 400
 
 
+def test_plan_speaks_the_site_clock_and_rejects_unknown_timezones(client: TestClient) -> None:
+    request = {
+        "operator_id": "lagos-energy",
+        "site_id": "ikeja-minigrid",
+        "battery_kwh": 600,
+        "battery_power_kw": 150,
+        "genset_kw": 100,
+        "soc_kwh": 300,
+        "model": "persistence",
+        "grid_kw": 200,
+        "assume_grid_always_on": True,
+        "timezone": "Africa/Lagos",
+    }
+    resp = client.post("/plan", json=request)
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["grid_windows"] == ["all day"]
+    assert client.post("/plan", json={**request, "timezone": "Mars/Olympus"}).status_code == 422
+
+
 def test_plan_for_a_site_on_a_reliable_grid(client: TestClient) -> None:
     resp = client.post(
         "/plan",
@@ -152,6 +171,6 @@ def test_plan_for_a_site_on_a_reliable_grid(client: TestClient) -> None:
     )
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["grid_windows"] == ["00:00 to midnight"]
+    assert body["grid_windows"] == ["all day"]
     assert body["expected_genset_hours"] == 0
     assert all(h["planned_grid_on"] for h in body["hours"])
