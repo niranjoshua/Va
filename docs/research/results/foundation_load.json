@@ -1,0 +1,90 @@
+{
+  "scores": [
+    {
+      "model": "persistence",
+      "pinball": 178.44041825462622,
+      "mae": 510.0219579802261,
+      "rmse": 735.1668835324825,
+      "coverage_80": 0.7884119380987472,
+      "hours": 10856
+    },
+    {
+      "model": "quantile_gbm_day_ahead",
+      "pinball": 96.19017403918697,
+      "mae": 287.8323731386635,
+      "rmse": 410.6653208690325,
+      "coverage_80": 0.6923360353721444,
+      "hours": 10856
+    },
+    {
+      "model": "quantile_gbm_day_ahead+conformal",
+      "pinball": 95.16467234958266,
+      "mae": 287.8323731386635,
+      "rmse": 410.6653208690325,
+      "coverage_80": 0.8039793662490788,
+      "hours": 10856
+    },
+    {
+      "model": "chronos-2",
+      "pinball": 75.01972902679506,
+      "mae": 230.2108898652915,
+      "rmse": 332.9053711969196,
+      "coverage_80": 0.778647752394989,
+      "hours": 10856
+    },
+    {
+      "model": "chronos-2+conformal",
+      "pinball": 75.19631592514524,
+      "mae": 230.2108898652915,
+      "rmse": 332.9053711969196,
+      "coverage_80": 0.8034266764922623,
+      "hours": 10856
+    },
+    {
+      "model": "timesfm-2.5",
+      "pinball": 83.02975539290308,
+      "mae": 252.71876623586132,
+      "rmse": 363.8733463584845,
+      "coverage_80": 0.8072033898305084,
+      "hours": 10856
+    },
+    {
+      "model": "timesfm-2.5+conformal",
+      "pinball": 83.30417269010145,
+      "mae": 252.71962425432463,
+      "rmse": 363.87366246466354,
+      "coverage_80": 0.8041635961680177,
+      "hours": 10856
+    },
+    {
+      "model": "timesfm-3.0 (research only)",
+      "pinball": 75.38326846525123,
+      "mae": 231.958930168105,
+      "rmse": 336.9805110145961,
+      "coverage_80": 0.7966101694915254,
+      "hours": 10856
+    },
+    {
+      "model": "timesfm-3.0 (research only)+conformal",
+      "pinball": 75.54348046867004,
+      "mae": 231.958930168105,
+      "rmse": 336.9805110145961,
+      "coverage_80": 0.7993736182756079,
+      "hours": 10856
+    },
+    {
+      "model": "Elia day-ahead (professional)",
+      "pinball": 95.22641255475723,
+      "mae": 292.44133489928765,
+      "rmse": 398.5809508626967,
+      "coverage_80": 0.7489867354458364,
+      "hours": 10856
+    }
+  ],
+  "seconds": {
+    "quantile_gbm_day_ahead": 1015.3793857097626,
+    "chronos-2": 5132.928802013397,
+    "timesfm-2.5": 440.34558057785034,
+    "timesfm-3.0 (research only)": 369.0361604690552
+  }
+}

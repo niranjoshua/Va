@@ -284,9 +284,14 @@ def _windows(
     return windows
 
 
-def _labels(windows: list[tuple[pd.Timestamp, pd.Timestamp]]) -> list[str]:
+def _labels(windows: list[tuple[pd.Timestamp, pd.Timestamp]], timezone: str = "UTC") -> list[str]:
+    """Windows as clock times in the site's own timezone (data stays UTC)."""
     labels = []
-    for start, end in windows:
+    for start_utc, end_utc in windows:
+        if end_utc - start_utc >= pd.Timedelta(days=1):
+            labels.append("all day")
+            continue
+        start, end = start_utc.tz_convert(timezone), end_utc.tz_convert(timezone)
         end_txt = "midnight" if (end.hour, end.minute) == (0, 0) else f"{end:%H:%M}"
         labels.append(f"{start:%H:%M} to {end_txt}")
     return labels
@@ -302,6 +307,7 @@ class DispatchPlan:
     expected: DispatchOutcome
     assets: SiteAssets
     planned_grid_on: np.ndarray  # hours the plan counts on grid power
+    display_timezone: str = "UTC"  # IANA name; labels and summary use the site's clock
 
     @property
     def run_windows(self) -> list[tuple[pd.Timestamp, pd.Timestamp]]:
@@ -311,12 +317,15 @@ class DispatchPlan:
     @property
     def run_window_labels(self) -> list[str]:
         """Run windows as operators say them, for example '18:00 to midnight'."""
-        return _labels(self.run_windows)
+        return _labels(self.run_windows, self.display_timezone)
 
     @property
     def grid_window_labels(self) -> list[str]:
         """Hours the plan counts on the grid, for example '06:00 to 14:00'."""
-        return _labels(_windows(self.timestamps, self.planned_grid_on, self.assets.step_hours))
+        return _labels(
+            _windows(self.timestamps, self.planned_grid_on, self.assets.step_hours),
+            self.display_timezone,
+        )
 
     def summary(self) -> str:
         """The plan in plain words, the way an operator would say it."""
@@ -356,6 +365,7 @@ def plan_dispatch(
     soc_kwh: float,
     assets: SiteAssets,
     planned_grid_available: npt.ArrayLike | None = None,
+    display_timezone: str = "UTC",
 ) -> DispatchPlan:
     """Schedule the generator for exactly the hours the forecast needs it.
 
@@ -396,4 +406,5 @@ def plan_dispatch(
         expected=expected,
         assets=assets,
         planned_grid_on=grid_on,
+        display_timezone=display_timezone,
     )

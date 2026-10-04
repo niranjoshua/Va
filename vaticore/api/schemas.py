@@ -8,8 +8,9 @@ while internals evolve.
 from __future__ import annotations
 
 from datetime import datetime
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from vaticore.schemas import GENERATION_KW, LOAD_KW
 
@@ -88,6 +89,20 @@ class PlanRequest(BaseModel):
     assume_grid_always_on: bool = Field(
         default=False, description="For a reliable grid with no on/off record"
     )
+    timezone: str = Field(
+        default="UTC",
+        description="Site's IANA timezone, for example Africa/Lagos; the summary and window "
+        "labels use the site's clock, timestamps stay UTC",
+    )
+
+    @field_validator("timezone")
+    @classmethod
+    def _known_timezone(cls, value: str) -> str:
+        try:
+            ZoneInfo(value)
+        except (ZoneInfoNotFoundError, ValueError) as exc:
+            raise ValueError(f"unknown timezone {value!r}") from exc
+        return value
 
 
 class PlanHour(BaseModel):

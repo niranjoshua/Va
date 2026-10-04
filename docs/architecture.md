@@ -74,7 +74,7 @@ Data only moves left to right. Each layer has one job and one contract.
 | `ingestion/` | Adapters from outside formats to the schema; gap reports | `load_csv`, `read_elia_load`, `to_site_frame` | CSV and Elia done; RMS vendors next |
 | `storage/` | Multi-tenant persistence | DuckDB, Postgres/TimescaleDB repositories | Done |
 | `features/` | Calendar, lag and weather features | `OpenMeteoProvider`, `join_weather` | Weather client ready; needs the archive |
-| `forecasting/` | Every model behind one interface | `Forecaster`, `PersistenceForecaster`, `QuantileGBMForecaster`, `ConformalQuantileForecaster`, `GridAvailabilityForecaster` | Load, solar, net load, grid availability |
+| `forecasting/` | Every model behind one interface | `Forecaster`, `PersistenceForecaster`, `QuantileGBMForecaster`, `ConformalQuantileForecaster`, `GridAvailabilityForecaster`, `ChronosForecaster`, `TimesFMForecaster` | Load, solar, net load, grid availability; pretrained challengers |
 | `decisions/` | Forecast to plan: merit order dispatch; the daily advisory; sizing studies | `SiteAssets`, `plan_dispatch`, `simulate_dispatch`, `size_site` | Grid, generator, battery; sizing |
 | `evaluation/` | Accuracy, calibration, value and benchmarks | `backtest_site`, `calibration_report`, `value_backtest`, `external_forecasts` | Done |
 | `tracking/` | Experiment logging, with a no-op fallback | `Tracker`, `MlflowTracker` | Done |
@@ -113,9 +113,9 @@ not a refactor.
 
 | Target | Why it matters | Baseline | Current model | Evidence |
 |---|---|---|---|---|
-| Load | What must be served | Seasonal persistence | Day-ahead quantile GBM | Research notes 1 and 2 |
+| Load | What must be served | Seasonal persistence | Day-ahead quantile GBM; Chronos-2 challenger | Notes 1 and 2; note 3: Chronos-2 21% more accurate on Belgian load |
 | Solar | Free energy, weather driven | Seasonal persistence | Quantile GBM; weather next | Note 2: weather is the gap to close |
-| Net load (load minus solar) | What the battery, grid and generator must cover | Seasonal persistence | Day-ahead quantile GBM plus conformal calibration | Notes 1 and 2 |
+| Net load (load minus solar) | What the battery, grid and generator must cover | Seasonal persistence | Day-ahead quantile GBM plus conformal calibration; Chronos-2 runs beside it on pilots | Notes 1 to 3 |
 | Grid availability | When grid power can be counted on | Hour-of-week history | Hierarchical hour-of-week, recency weighted | Needs real site data |
 
 Planning uses a high quantile of net load (P90) and a low quantile of grid

@@ -1,0 +1,192 @@
+{
+  "scores": [
+    {
+      "model": "persistence",
+      "pinball": 4.467398194476159,
+      "mae": 11.099220369107233,
+      "rmse": 20.88430439175339,
+      "coverage_80": 0.8310897435897436,
+      "hours": 3120
+    },
+    {
+      "model": "quantile_gbm_day_ahead",
+      "pinball": 3.4069857850502956,
+      "mae": 10.225911876964162,
+      "rmse": 19.347491394321093,
+      "coverage_80": 0.5692307692307692,
+      "hours": 3120
+    },
+    {
+      "model": "quantile_gbm_day_ahead+conformal",
+      "pinball": 3.324120877559834,
+      "mae": 10.225911876964162,
+      "rmse": 19.347491394321093,
+      "coverage_80": 0.8022435897435898,
+      "hours": 3120
+    },
+    {
+      "model": "chronos-2",
+      "pinball": 2.8676062989628677,
+      "mae": 9.209619397389735,
+      "rmse": 18.02644160467602,
+      "coverage_80": 0.7833333333333333,
+      "hours": 3120
+    },
+    {
+      "model": "chronos-2+conformal",
+      "pinball": 2.8731941166646635,
+      "mae": 9.209619397389735,
+      "rmse": 18.02644160467602,
+      "coverage_80": 0.8102564102564103,
+      "hours": 3120
+    },
+    {
+      "model": "timesfm-2.5",
+      "pinball": 3.2811143527433715,
+      "mae": 9.827190955382008,
+      "rmse": 18.53161170684153,
+      "coverage_80": 0.8426282051282051,
+      "hours": 3120
+    },
+    {
+      "model": "timesfm-2.5+conformal",
+      "pinball": 3.2745282320837688,
+      "mae": 9.827331297415698,
+      "rmse": 18.531617745628896,
+      "coverage_80": 0.8128205128205128,
+      "hours": 3120
+    },
+    {
+      "model": "timesfm-3.0 (research only)",
+      "pinball": 2.9758576130244077,
+      "mae": 9.429312375044233,
+      "rmse": 17.448163219963515,
+      "coverage_80": 0.8538461538461538,
+      "hours": 3120
+    },
+    {
+      "model": "timesfm-3.0 (research only)+conformal",
+      "pinball": 2.9696914166709143,
+      "mae": 9.429622416526778,
+      "rmse": 17.448185242047675,
+      "coverage_80": 0.8224358974358974,
+      "hours": 3120
+    }
+  ],
+  "value": {
+    "persistence P50": {
+      "fuel_l": 74670.3720252775,
+      "grid_kwh": 0.0,
+      "genset_hours": 2718.0,
+      "genset_starts": 188,
+      "unserved_kwh": 6218.3894894522,
+      "unserved_hours": 250.0,
+      "fuel_cost": 82137.4092278052,
+      "unserved_cost": 6218.3894894522,
+      "total_cost": 88355.7987172575,
+      "savings_vs_baseline": 0.0,
+      "share_of_possible": 0.0
+    },
+    "persistence P90": {
+      "fuel_l": 76071.7481046244,
+      "grid_kwh": 0.0,
+      "genset_hours": 2774.0,
+      "genset_starts": 188,
+      "unserved_kwh": 2674.610269859,
+      "unserved_hours": 180.0,
+      "fuel_cost": 83678.9229150869,
+      "unserved_cost": 2674.610269859,
+      "total_cost": 86353.5331849459,
+      "savings_vs_baseline": 2002.2655323115,
+      "share_of_possible": 0.5558889285
+    },
+    "quantile_gbm_day_ahead+conformal P90": {
+      "fuel_l": 76926.6810933021,
+      "grid_kwh": 0.0,
+      "genset_hours": 2820.0,
+      "genset_starts": 177,
+      "unserved_kwh": 669.1663917542,
+      "unserved_hours": 102.0,
+      "fuel_cost": 84619.3492026324,
+      "unserved_cost": 669.1663917542,
+      "total_cost": 85288.5155943866,
+      "savings_vs_baseline": 3067.2831228709,
+      "share_of_possible": 0.851569735
+    },
+    "chronos-2+conformal P90": {
+      "fuel_l": 76935.8848952696,
+      "grid_kwh": 0.0,
+      "genset_hours": 2822.0,
+      "genset_starts": 174,
+      "unserved_kwh": 602.2973858417,
+      "unserved_hours": 98.0,
+      "fuel_cost": 84629.4733847966,
+      "unserved_cost": 602.2973858417,
+      "total_cost": 85231.7707706383,
+      "savings_vs_baseline": 3124.0279466192,
+      "share_of_possible": 0.8673237989
+    },
+    "timesfm-2.5+conformal P90": {
+      "fuel_l": 76990.9949104963,
+      "grid_kwh": 0.0,
+      "genset_hours": 2824.0,
+      "genset_starts": 180,
+      "unserved_kwh": 550.7019885176,
+      "unserved_hours": 97.0,
+      "fuel_cost": 84690.0944015459,
+      "unserved_cost": 550.7019885176,
+      "total_cost": 85240.7963900635,
+      "savings_vs_baseline": 3115.0023271939,
+      "share_of_possible": 0.8648180164
+    },
+    "timesfm-3.0 (research only)+conformal P90": {
+      "fuel_l": 76991.4396256409,
+      "grid_kwh": 0.0,
+      "genset_hours": 2826.0,
+      "genset_starts": 175,
+      "unserved_kwh": 495.1961798334,
+      "unserved_hours": 94.0,
+      "fuel_cost": 84690.583588205,
+      "unserved_cost": 495.1961798334,
+      "total_cost": 85185.7797680385,
+      "savings_vs_baseline": 3170.018949219,
+      "share_of_possible": 0.8800922798
+    },
+    "perfect forecast": {
+      "fuel_l": 76585.9494514913,
+      "grid_kwh": 0.0,
+      "genset_hours": 2788.0,
+      "genset_starts": 185,
+      "unserved_kwh": 509.3377693886,
+      "unserved_hours": 120.0,
+      "fuel_cost": 84244.5443966404,
+      "unserved_cost": 509.3377693886,
+      "total_cost": 84753.882166029,
+      "savings_vs_baseline": 3601.9165512285,
+      "share_of_possible": 1.0
+    }
+  },
+  "assets": {
+    "battery_kwh": 600.0,
+    "battery_power_kw": 150.0,
+    "genset_kw": 100.0,
+    "charge_efficiency": 0.95,
+    "discharge_efficiency": 0.95,
+    "min_soc_kwh": 60.0,
+    "genset_min_load": 0.3,
+    "fuel_intercept_l_per_kw_h": 0.08145,
+    "fuel_slope_l_per_kwh": 0.246,
+    "diesel_price_per_l": 1.1,
+    "value_of_lost_load_per_kwh": 1.0,
+    "step_hours": 1.0,
+    "grid_kw": 0.0,
+    "grid_price_per_kwh": 0.0,
+    "grid_charges_battery": true
+  },
+  "seconds": {
+    "quantile_gbm_day_ahead": 83.18785834312439,
+    "chronos-2": 309.0372247695923,
+    "timesfm-2.5": 1895.5522727966309,
+    "timesfm-3.0 (research only)": 1485.868929386139
+  }
+}

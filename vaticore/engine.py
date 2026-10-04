@@ -26,6 +26,7 @@ from vaticore.evaluation.value import PolicySource, ValueReport, value_backtest
 from vaticore.forecasting import Forecaster, PersistenceForecaster, QuantileGBMForecaster
 from vaticore.forecasting.base import DEFAULT_QUANTILES, quantile_column
 from vaticore.forecasting.conformal import ConformalQuantileForecaster
+from vaticore.forecasting.foundation import ChronosForecaster
 from vaticore.forecasting.grid_availability import GridAvailabilityForecaster
 from vaticore.forecasting.quantile_gbm import DAY_AHEAD_LAGS
 from vaticore.schemas import (
@@ -45,6 +46,8 @@ from vaticore.tracking import Tracker
 # they conform to the Forecaster interface.
 ModelFactory = Callable[[str, tuple[float, ...]], Forecaster]
 
+CHRONOS_CONTEXT_HOURS = 24 * 7 * 48
+
 _MODELS: dict[str, ModelFactory] = {
     "persistence": lambda target, quantiles: PersistenceForecaster(target=target),
     "quantile_gbm": lambda target, quantiles: QuantileGBMForecaster(
@@ -54,6 +57,12 @@ _MODELS: dict[str, ModelFactory] = {
     # over a 24 hour horizon. The default for planning (see DAY_AHEAD_LAGS).
     "quantile_gbm_day_ahead": lambda target, quantiles: QuantileGBMForecaster(
         target=target, quantiles=quantiles, lags=DAY_AHEAD_LAGS
+    ),
+    # Pretrained, zero shot challenger (research note 3). Needs the foundation
+    # extra; weights download on first use. 48 weeks of context, as chosen on
+    # the note's design period.
+    "chronos_2": lambda target, quantiles: ChronosForecaster(
+        target=target, context_length=CHRONOS_CONTEXT_HOURS
     ),
 }
 
@@ -193,6 +202,10 @@ def _net_load_model(
         )
     if model == "persistence":
         return lambda: PersistenceForecaster(target=NET_LOAD_KW, nonnegative=False)
+    if model == "chronos_2":
+        return lambda: ChronosForecaster(
+            target=NET_LOAD_KW, context_length=CHRONOS_CONTEXT_HOURS, nonnegative=False
+        )
     raise ValueError(f"unknown model {model!r}; available: {available_models()}")
 
 
@@ -382,6 +395,7 @@ def dispatch_plan_for_site(
     calibrate: bool = True,
     grid_plan_quantile: float = 0.1,
     assume_grid_always_on: bool = False,
+    display_timezone: str = "UTC",
 ) -> DispatchPlan:
     """Today's hour by hour generator schedule for one site. Advisory only.
 
@@ -432,6 +446,7 @@ def dispatch_plan_for_site(
         soc_kwh=soc_kwh,
         assets=assets,
         planned_grid_available=planned_grid,
+        display_timezone=display_timezone,
     )
 
 
@@ -453,6 +468,7 @@ def plan_for_site(
         horizon=horizon,
         plan_quantile=plan_quantile,
         assume_grid_always_on=bool(site.grid and site.grid.reliable),
+        display_timezone=site.timezone,
     )
 
 
