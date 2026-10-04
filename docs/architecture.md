@@ -71,7 +71,7 @@ Data only moves left to right. Each layer has one job and one contract.
 |---|---|---|---|
 | `schemas.py` | The internal time series schema and its validation | `TimeSeriesSchema`, column names | Stable |
 | `sites/` | Sites, assets and portfolios (TOML) | `Site`, `SiteType`, `Portfolio` | New |
-| `ingestion/` | Adapters from outside formats to the schema; gap reports | `load_csv`, `read_elia_load`, `to_site_frame` | CSV and Elia done; RMS vendors next |
+| `ingestion/` | Adapters from outside formats to the schema; monitoring connectors (CSV exports, Victron VRM) and their sync | `load_csv`, `read_elia_load`, `sync_sources` | Done (`docs/data-connectors.md`); FusionSolar and Solarman APIs next |
 | `storage/` | Multi-tenant persistence | DuckDB, Postgres/TimescaleDB repositories | Done |
 | `features/` | Calendar, lag and weather features | `OpenMeteoProvider`, `join_weather` | Weather client ready; needs the archive |
 | `forecasting/` | Every model behind one interface | `Forecaster`, `PersistenceForecaster`, `QuantileGBMForecaster`, `ConformalQuantileForecaster`, `GridAvailabilityForecaster`, `ChronosForecaster`, `TimesFMForecaster` | Load, solar, net load, grid availability; pretrained challengers |
@@ -82,8 +82,8 @@ Data only moves left to right. Each layer has one job and one contract.
 | `api/` | FastAPI service | `/forecast`, `/advisory`, `/plan` | Done |
 | `dashboard/` | Streamlit operator view | Site today, track record | Done; to be hosted |
 | `copilot/` | Plain-language explanations grounded on engine numbers | `explain_advisory` | Optional |
-| `pipeline/` | The daily loop: data health, model choice and fallback, plan, store, score | `run_portfolio`, `PlanStore`, `score_due`, `scorecard` | Done (`docs/pipeline.md`) |
-| `delivery/` | Plans to people: the morning message, WhatsApp, replies and opt-outs | `WhatsAppChannel`, `plan_message`, `handle_webhook` | Done (`docs/whatsapp-setup.md`) |
+| `pipeline/` | The daily loop: data health, model choice and fallback, plan, store, score; the site health report | `run_portfolio`, `PlanStore`, `score_due`, `site_health_report` | Done (`docs/pipeline.md`) |
+| `delivery/` | Plans to people: the morning message on WhatsApp and email, replies and opt-outs | `WhatsAppChannel`, `EmailChannel`, `plan_message`, `handle_webhook` | Done (`docs/whatsapp-setup.md`) |
 
 ## Contracts
 
@@ -176,8 +176,10 @@ command. The protocol is in [`docs/research/README.md`](research/README.md).
 - TimescaleDB is the production store, shared by the API (which receives
   WhatsApp webhooks) and the scheduled pipeline.
 - A Render blueprint is in `render.yaml` (see `DEPLOY.md`): the web service and
-  a daily job that scores finished days, then plans every site and sends the
-  plans on WhatsApp (`docs/pipeline.md`).
+  a daily job that pulls new readings, scores finished days, then plans every
+  site and sends the plans on WhatsApp or email (`docs/pipeline.md`).
+- Operators reach only their own sites: each has its own API key, stored
+  hashed, and every site endpoint checks the key's operator against the path.
 
 ## What comes next architecturally
 
@@ -188,12 +190,12 @@ In order of how much each unblocks the product:
      WhatsApp delivery, and scoring against what happened, with Chronos-2 or
      the GBM in shadow. Pilots now produce evidence automatically.
    - Next: intraday re-planning when the grid or load departs from the plan.
-2. **Site data connectors.** (Most urgent now: they feed the pipeline.)
-   - The battery's state of charge first: plans assume 50% until it arrives.
-   - Remote monitoring (RMS) exports from tower and hybrid controller vendors.
-   - Battery management systems.
-   - Generator controllers and fuel-level sensors.
-   - Each is an adapter into the schema.
+2. **Site data connectors (built: CSV exports, Victron VRM, push API).**
+   - Battery charge now sets each plan's starting point where a site reports
+     it; a per-site health report catches wrong timezones, stuck meters and
+     gaps before they reach a forecast (`docs/data-connectors.md`).
+   - Next: FusionSolar and Solarman APIs, tower RMS vendors, generator
+     controllers and fuel-level sensors. Each is an adapter into the schema.
 3. **Weather service.**
    - Cached archived forecasts (not reanalysis) for backtests.
    - Live forecasts for plans.

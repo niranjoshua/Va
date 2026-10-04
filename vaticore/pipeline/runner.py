@@ -37,14 +37,21 @@ import pandas as pd
 
 from vaticore import engine
 from vaticore.decisions.dispatch import DispatchPlan, SiteAssets, plan_dispatch
-from vaticore.delivery.channels import Channel
+from vaticore.delivery.channels import Channel, address_hash, mask_address
 from vaticore.delivery.message import PlanMessage, no_plan_message, plan_message
 from vaticore.delivery.recipients import Recipient, recipients_for
 from vaticore.forecasting.base import quantile_column
 from vaticore.pipeline.health import HealthReport, check_health
 from vaticore.pipeline.scoring import value_phrase
 from vaticore.pipeline.store import SENT_STATES, PlanStore, RunRecord
-from vaticore.schemas import GENERATION_KW, GRID_AVAILABLE, LOAD_KW, TIMESTAMP
+from vaticore.schemas import (
+    BATTERY_SOC_PCT,
+    GENERATION_KW,
+    GRID_AVAILABLE,
+    LOAD_KW,
+    OPTIONAL_COLUMNS,
+    TIMESTAMP,
+)
 from vaticore.sites.model import Portfolio, Site
 from vaticore.storage import TimeSeriesRepository
 
@@ -60,8 +67,10 @@ QUANTILES = (0.1, 0.5, 0.9)
 class PipelineConfig:
     plan_quantile: float = 0.9
     grid_plan_quantile: float = 0.1
-    # Battery charge at the start of the plan when the site reports none.
+    # Battery charge at the start of the plan when the site reports none, and
+    # how old a reported charge may be before it is no longer trusted.
     assumed_soc_fraction: float = 0.5
+    soc_max_age_hours: float = 3.0
     # History read per site; Chronos-2 uses up to 48 weeks.
     history_days: int = 340
     # Below this much history, plan on Chronos-2 rather than the GBM.
@@ -156,7 +165,7 @@ def run_portfolio(
     *,
     plan_date: date | None = None,
     sites: Sequence[tuple[str, str]] | None = None,
-    channel: Channel | None = None,
+    channels: Sequence[Channel] = (),
     recipients: Sequence[Recipient] = (),
     force: bool = False,
     config: PipelineConfig | None = None,
@@ -169,20 +178,20 @@ def run_portfolio(
     runs = []
     for site in chosen:
         day = plan_date or site_today(site, now)
-        if not force and channel is not None:
+        if not force and channels:
             existing = store.get_run(site.operator_id, site.site_id, day)
             if existing is not None and existing.status == "planned":
                 # Re-planning after a plan was sent would contradict what the
                 # site already received. Resend the stored plan instead.
                 run = _from_record(existing)
                 run.deliveries = deliver(
-                    store, site, run, channel, list(recipients), force=False, now=now
+                    store, site, run, channels, list(recipients), force=False, now=now
                 )
                 runs.append(run)
                 continue
         run = run_site(site, repo, store, plan_date=day, config=config, now=now)
-        if channel is not None and run.message is not None:
-            run.deliveries = deliver(store, site, run, channel, list(recipients), force, now)
+        if channels and run.message is not None:
+            run.deliveries = deliver(store, site, run, channels, list(recipients), force, now)
         runs.append(run)
         log.info(
             "%s/%s %s: %s via %s%s",
@@ -200,40 +209,50 @@ def deliver(
     store: PlanStore,
     site: Site,
     run: SiteRun,
-    channel: Channel,
+    channels: Sequence[Channel],
     recipients: list[Recipient],
     force: bool,
     now: datetime,
 ) -> list[tuple[str, str]]:
-    """Send one site's message to its consenting recipients, at most once each."""
+    """Send one site's message to its consenting recipients, once per channel.
+
+    A person who opted out on any of their addresses (STOP on WhatsApp, an
+    unsubscribe by email) gets nothing on any channel.
+    """
     if run.message is None:
         return []
     outcomes: list[tuple[str, str]] = []
     for person in recipients_for(recipients, site.operator_id, site.site_id):
-        if store.is_opted_out(person.hash):
+        if any(store.is_opted_out(h) for h in person.hashes):
             outcomes.append((person.masked, "opted_out"))
             continue
-        previous = store.delivery_status(
-            site.operator_id, site.site_id, run.plan_date, channel.name, person.hash
-        )
-        if previous in SENT_STATES and not force:
-            outcomes.append((person.masked, "already_sent"))
-            continue
-        sent = channel.send(person.whatsapp, run.message)
-        store.record_delivery(
-            operator_id=site.operator_id,
-            site_id=site.site_id,
-            plan_date=run.plan_date,
-            channel=channel.name,
-            recipient_hash=person.hash,
-            recipient_masked=person.masked,
-            status=sent.status,
-            provider_message_id=sent.provider_message_id,
-            error=sent.error,
-            attempts=sent.attempts,
-            at=now,
-        )
-        outcomes.append((person.masked, sent.status if not sent.error else f"failed: {sent.error}"))
+        for channel in channels:
+            to = channel.address(person)
+            if to is None:
+                continue
+            who, masked = address_hash(to), mask_address(to)
+            previous = store.delivery_status(
+                site.operator_id, site.site_id, run.plan_date, channel.name, who
+            )
+            if previous in SENT_STATES and not force:
+                outcomes.append((masked, f"{channel.name} already_sent"))
+                continue
+            sent = channel.send(to, run.message)
+            store.record_delivery(
+                operator_id=site.operator_id,
+                site_id=site.site_id,
+                plan_date=run.plan_date,
+                channel=channel.name,
+                recipient_hash=who,
+                recipient_masked=masked,
+                status=sent.status,
+                provider_message_id=sent.provider_message_id,
+                error=sent.error,
+                attempts=sent.attempts,
+                at=now,
+            )
+            status = sent.status if not sent.error else f"failed: {sent.error}"
+            outcomes.append((masked, f"{channel.name} {status}"))
     return outcomes
 
 
@@ -253,7 +272,7 @@ def _prepare_history(
     if raw.empty:
         return raw
     frame = raw.set_index(TIMESTAMP).sort_index()
-    numeric = [c for c in (LOAD_KW, GENERATION_KW, GRID_AVAILABLE) if c in frame.columns]
+    numeric = [c for c in (LOAD_KW, GENERATION_KW, *OPTIONAL_COLUMNS) if c in frame.columns]
     # Resolution is explicit: plans are hourly, so finer data is averaged into
     # hours (a grid hour counts as on only if it was on throughout).
     hourly = frame[numeric].resample("1h").mean()
@@ -295,6 +314,10 @@ def _plan(
     if primary.isna().any().any():
         raise RuntimeError("forecast does not cover the plan window")
 
+    if soc_kwh is None:
+        soc_kwh = measured_soc_kwh(
+            history, assets, start, pd.Timedelta(hours=config.soc_max_age_hours)
+        )
     soc_assumed = soc_kwh is None
     soc = (
         assets.min_soc_kwh + config.assumed_soc_fraction * (assets.battery_kwh - assets.min_soc_kwh)
@@ -372,6 +395,29 @@ def _plan(
         forecasts=pd.concat(frames, ignore_index=True),
         plan=plan_rows,
     )
+
+
+def measured_soc_kwh(
+    history: pd.DataFrame, assets: SiteAssets, start: pd.Timestamp, max_age: pd.Timedelta
+) -> float | None:
+    """The battery's charge at the plan start, from its latest recent reading.
+
+    Monitoring systems report state of charge as a percentage of the battery's
+    capacity; the plan works in usable kWh, so the percentage is applied to the
+    usable capacity and held between the floor and full. None when the site
+    reports no charge, or only an old one: the plan then assumes a charge and
+    says so.
+    """
+    if assets.battery_kwh <= 0 or BATTERY_SOC_PCT not in history:
+        return None
+    readings = history.dropna(subset=[BATTERY_SOC_PCT])
+    if readings.empty:
+        return None
+    last = readings.iloc[-1]
+    if start - pd.Timestamp(last[TIMESTAMP]) > max_age:
+        return None
+    kwh = float(last[BATTERY_SOC_PCT]) / 100.0 * assets.battery_kwh
+    return float(np.clip(kwh, assets.min_soc_kwh, assets.battery_kwh))
 
 
 def _forecast_with_fallback(

@@ -16,6 +16,7 @@ cannot contain line breaks.
 
 from __future__ import annotations
 
+import html
 import re
 from dataclasses import dataclass
 
@@ -55,6 +56,45 @@ class PlanMessage:
         for i, value in enumerate(self.params, start=1):
             body = body.replace("{{" + str(i) + "}}", value)
         return body
+
+    @property
+    def email_subject(self) -> str:
+        return _one_line(f"Vaticore plan for {self.site_name}, {self.day}", 150)
+
+    @property
+    def email_text(self) -> str:
+        return (
+            f"Vaticore plan for {self.site_name}, {self.day}.\n\n"
+            f"Generator: {self.generator}\n"
+            f"Grid: {self.grid}\n"
+            f"Battery: {self.battery}\n"
+            f"Note: {self.note}\n\n"
+            "Advisory only: your team decides.\n"
+            "Did you follow the plan? Reply 1 if yes, 2 if not. To stop these emails, "
+            "reply with STOP.\n"
+        )
+
+    @property
+    def email_html(self) -> str:
+        rows = "".join(
+            f'<tr><td style="padding:4px 12px 4px 0;color:#6B676D">{label}</td>'
+            f'<td style="padding:4px 0">{html.escape(value)}</td></tr>'
+            for label, value in (
+                ("Generator", self.generator),
+                ("Grid", self.grid),
+                ("Battery", self.battery),
+                ("Note", self.note),
+            )
+        )
+        return (
+            '<div style="font-family:Arial,sans-serif;font-size:15px;color:#1D1A1E">'
+            f"<p><b>Vaticore plan for {html.escape(self.site_name)}</b><br>"
+            f"{html.escape(self.day)}</p>"
+            f'<table style="border-collapse:collapse">{rows}</table>'
+            '<p style="color:#6B676D;font-size:13px">Advisory only: your team decides. '
+            "Reply 1 if you followed the plan, 2 if not, or STOP to stop these emails.</p>"
+            "</div>"
+        )
 
     def to_dict(self) -> dict[str, str]:
         return {

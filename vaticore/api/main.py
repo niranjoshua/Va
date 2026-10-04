@@ -27,6 +27,7 @@ from vaticore.api.schemas import (
     ForecastPoint,
     ForecastRequest,
     ForecastResponse,
+    IngestBatch,
     PlanHour,
     PlanRequest,
     PlanResponse,
@@ -38,9 +39,12 @@ from vaticore.datasets import make_synthetic_fleet
 from vaticore.decisions.dispatch import SiteAssets
 from vaticore.delivery.webhook import handle_webhook, verify_signature
 from vaticore.forecasting.base import ForecasterError, quantile_column
+from vaticore.pipeline.health import site_health_report
 from vaticore.pipeline.scoring import scorecard
 from vaticore.pipeline.store import PlanStore
 from vaticore.schemas import GENERATION_KW, LOAD_KW, OPERATOR_ID, SITE_ID, TIMESTAMP
+from vaticore.sites.model import Portfolio, Site, load_portfolio
+from vaticore.storage import TimeSeriesRepository
 
 try:  # FastAPI resolves this annotation at runtime; it needs the service extra.
     from fastapi import Request
@@ -50,7 +54,6 @@ except ImportError:  # pragma: no cover - service extra not installed
 if TYPE_CHECKING:
     from fastapi import FastAPI
 
-    from vaticore.storage import TimeSeriesRepository
 
 _VALID_TARGETS = {LOAD_KW, GENERATION_KW}
 
@@ -65,7 +68,8 @@ def get_repository() -> TimeSeriesRepository:
     from vaticore.storage import get_repository as build_repository
 
     repo = build_repository()
-    if repo.count() == 0:
+    # Demo data only outside production: a live database must never be seeded.
+    if repo.count() == 0 and get_settings().environment != "production":
         repo.upsert(make_synthetic_fleet(days=90, seed=1))
     return repo
 
@@ -78,6 +82,23 @@ def get_fleet() -> pd.DataFrame:
 def get_app_settings() -> Settings:
     """Settings dependency, overridable in tests."""
     return get_settings()
+
+
+def _registered_site(operator_id: str, site_id: str) -> Site | None:
+    """The site's record from the configured portfolio, if there is one."""
+    path = get_settings().portfolio_file
+    if path is None:
+        return None
+    portfolio = _portfolio(str(path))
+    try:
+        return portfolio.get(operator_id, site_id)
+    except KeyError:
+        return None
+
+
+@lru_cache(maxsize=4)
+def _portfolio(path: str) -> Portfolio:
+    return load_portfolio(path)
 
 
 @lru_cache(maxsize=1)
@@ -257,20 +278,33 @@ def create_app() -> FastAPI:
 
     # -- daily pipeline: plans, track records and WhatsApp webhooks --------------
 
-    def require_token(
+    def site_access(
+        operator_id: str,
         authorization: str | None = Header(default=None),
         settings: Settings = Depends(get_app_settings),
+        store: PlanStore = Depends(get_plan_store),
     ) -> None:
-        if settings.api_token is None:
-            if settings.environment == "production":
-                raise HTTPException(503, "set VATICORE_API_TOKEN to serve plan data")
+        """Each operator reaches only its own sites; the admin token reaches all.
+
+        Without any credential the API serves data only in local development
+        with no admin token set, so a demo works out of the box.
+        """
+        if not authorization:
+            if settings.api_token is None and settings.environment != "production":
+                return
+            raise HTTPException(401, "send Authorization: Bearer <key>")
+        token = authorization.removeprefix("Bearer ").strip()
+        admin = settings.api_token
+        if admin is not None and hmac.compare_digest(token, admin.get_secret_value()):
             return
-        expected = f"Bearer {settings.api_token.get_secret_value()}"
-        if not hmac.compare_digest(authorization or "", expected):
-            raise HTTPException(401, "missing or wrong bearer token")
+        owner = store.operator_for_key(token)
+        if owner is None:
+            raise HTTPException(401, "unknown or revoked key")
+        if owner != operator_id:
+            raise HTTPException(403, "this key belongs to another operator")
 
     @app.get(
-        "/sites/{operator_id}/{site_id}/plans/{plan_date}", dependencies=[Depends(require_token)]
+        "/sites/{operator_id}/{site_id}/plans/{plan_date}", dependencies=[Depends(site_access)]
     )
     def stored_plan(
         operator_id: str,
@@ -310,7 +344,7 @@ def create_app() -> FastAPI:
             "advisory_only": True,
         }
 
-    @app.get("/sites/{operator_id}/{site_id}/scorecard", dependencies=[Depends(require_token)])
+    @app.get("/sites/{operator_id}/{site_id}/scorecard", dependencies=[Depends(site_access)])
     def site_scorecard(
         operator_id: str,
         site_id: str,
@@ -331,6 +365,69 @@ def create_app() -> FastAPI:
             "models": card.models.reset_index().to_dict(orient="records"),
             "basis": "if each plan had been followed, against planning from yesterday",
         }
+
+    @app.post("/ingest/{operator_id}/{site_id}", dependencies=[Depends(site_access)])
+    def ingest(
+        operator_id: str,
+        site_id: str,
+        batch: IngestBatch,
+        repo: TimeSeriesRepository = Depends(get_repository),
+    ) -> dict[str, Any]:
+        """Push readings from a monitoring system or integrator, up to 10,000 rows.
+
+        Timestamps need a UTC offset, or a timezone for the whole batch.
+        Optional columns (grid_available, battery_soc_pct, genset_kw,
+        fuel_level_l) may be left out; stored values are then kept.
+        """
+        if not batch.readings:
+            return {"rows": 0}
+        frame = pd.DataFrame([r.model_dump(exclude_none=True) for r in batch.readings])
+        stamps = pd.to_datetime(frame[TIMESTAMP], errors="coerce", format="mixed", utc=False)
+        try:
+            if stamps.dt.tz is None:
+                if batch.timezone is None:
+                    raise HTTPException(422, "timestamps need an offset, or set timezone")
+                stamps = stamps.dt.tz_localize(batch.timezone)
+            frame[TIMESTAMP] = stamps.dt.tz_convert("UTC")
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(422, f"unreadable timestamps: {exc}") from exc
+        if frame[TIMESTAMP].isna().any():
+            raise HTTPException(422, "unreadable timestamps")
+        if frame.duplicated(subset=[TIMESTAMP]).any():
+            raise HTTPException(422, "duplicate timestamps in the batch")
+        frame[OPERATOR_ID] = operator_id
+        frame[SITE_ID] = site_id
+        for column in (LOAD_KW, GENERATION_KW):
+            if column not in frame:
+                frame[column] = float("nan")
+        try:
+            rows = repo.upsert(frame)
+        except Exception as exc:  # schema violations come back as readable 422s
+            raise HTTPException(422, f"rejected: {str(exc)[:300]}") from exc
+        return {"rows": rows}
+
+    @app.get("/sites/{operator_id}/{site_id}/health", dependencies=[Depends(site_access)])
+    def site_health(
+        operator_id: str,
+        site_id: str,
+        days: int = Query(default=30, ge=1, le=366),
+        repo: TimeSeriesRepository = Depends(get_repository),
+    ) -> dict[str, object]:
+        """Data health over recent days: coverage, gaps, stuck meters, timezones."""
+        site = _registered_site(operator_id, site_id)
+        report = site_health_report(
+            repo.read_history(operator_id, site_id),
+            operator_id=operator_id,
+            site_id=site_id,
+            end=pd.Timestamp.now(tz="UTC"),
+            days=days,
+            timezone=site.timezone if site else "UTC",
+            longitude=site.longitude if site else None,
+            has_solar=site.solar is not None if site else True,
+            has_grid=bool(site and site.grid and not site.grid.reliable),
+            has_battery=site is not None,
+        )
+        return {**report.to_dict(), "summary": report.to_text()}
 
     @app.get("/webhooks/whatsapp", response_class=PlainTextResponse)
     def whatsapp_verify(

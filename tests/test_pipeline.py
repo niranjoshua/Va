@@ -22,7 +22,7 @@ from vaticore.pipeline.health import HealthStatus, check_health
 from vaticore.pipeline.runner import PipelineConfig, plan_window, run_portfolio, run_site
 from vaticore.pipeline.scoring import score_day, score_due, scorecard, value_phrase
 from vaticore.pipeline.store import PlanStore
-from vaticore.schemas import GENERATION_KW, GRID_AVAILABLE, LOAD_KW, TIMESTAMP
+from vaticore.schemas import BATTERY_SOC_PCT, GENERATION_KW, GRID_AVAILABLE, LOAD_KW, TIMESTAMP
 from vaticore.sites import Site
 from vaticore.sites.model import Portfolio
 from vaticore.storage import DuckDBRepository
@@ -81,6 +81,9 @@ class FakeChannel:
 
     def __init__(self) -> None:
         self.sent: list[tuple[str, PlanMessage]] = []
+
+    def address(self, person: Recipient) -> str | None:
+        return person.whatsapp
 
     def send(self, to: str, message: PlanMessage) -> SendResult:
         self.sent.append((to, message))
@@ -268,28 +271,28 @@ def test_each_plan_is_sent_once_and_only_with_consent(
     portfolio = Portfolio(sites=(site,))
 
     first = run_portfolio(
-        portfolio, repo, store, plan_date=DAY, channel=channel, recipients=people, config=FAST
+        portfolio, repo, store, plan_date=DAY, channels=[channel], recipients=people, config=FAST
     )
     assert len(channel.sent) == 1  # the person without consent is never messaged
-    assert first[0].deliveries == [("+234******0001", "sent")]
+    assert first[0].deliveries == [("+234******0001", "whatsapp sent")]
 
     again = run_portfolio(
-        portfolio, repo, store, plan_date=DAY, channel=channel, recipients=people, config=FAST
+        portfolio, repo, store, plan_date=DAY, channels=[channel], recipients=people, config=FAST
     )
     assert len(channel.sent) == 1
-    assert again[0].deliveries == [("+234******0001", "already_sent")]
+    assert again[0].deliveries == [("+234******0001", "whatsapp already_sent")]
 
     forced = run_portfolio(
         portfolio,
         repo,
         store,
         plan_date=DAY,
-        channel=channel,
+        channels=[channel],
         recipients=people,
         config=FAST,
         force=True,
     )
-    assert len(channel.sent) == 2 and forced[0].deliveries[0][1] == "sent"
+    assert len(channel.sent) == 2 and forced[0].deliveries[0][1] == "whatsapp sent"
     sent = store.deliveries("op")
     assert list(sent["status"]) == ["sent"] and sent["provider_message_id"].iloc[0] == "wamid.2"
     assert "2348000000001" not in sent.to_string()  # only the masked number is stored
@@ -308,7 +311,7 @@ def test_a_stored_plan_is_resent_exactly_not_replanned(
         repo,
         store,
         plan_date=DAY,
-        channel=channel,
+        channels=[channel],
         recipients=_people(site),
         config=PipelineConfig(model_order=(runner.GBM,), shadow=False),
     )
@@ -327,12 +330,77 @@ def test_people_who_replied_stop_are_not_messaged(repo: DuckDBRepository, store:
         repo,
         store,
         plan_date=DAY,
-        channel=channel,
+        channels=[channel],
         recipients=people,
         config=FAST,
     )
     assert channel.sent == []
     assert runs[0].deliveries == [("+234******0001", "opted_out")]
+
+
+class FakeEmail(FakeChannel):
+    name = "email"
+
+    def address(self, person: Recipient) -> str | None:
+        return person.email
+
+
+def test_each_channel_reaches_people_who_use_it_and_stop_ends_both(
+    repo: DuckDBRepository, store: PlanStore
+) -> None:
+    site = _tower()
+    _fill(repo, site)
+    person = Recipient(
+        name="Ada", whatsapp="+2348000000001", email="ada@bank.ng", operator_id="op",
+        sites=(site.site_id,), consent=True,
+    )  # fmt: skip
+    email_only = Recipient(name="Obi", email="obi@bank.ng", operator_id="op",
+                           sites=(site.site_id,), consent=True)  # fmt: skip
+    whatsapp, email = FakeChannel(), FakeEmail()
+    runs = run_portfolio(
+        Portfolio(sites=(site,)), repo, store, plan_date=DAY, channels=[whatsapp, email],
+        recipients=[person, email_only], config=FAST,
+    )  # fmt: skip
+    assert [to for to, _ in whatsapp.sent] == ["+2348000000001"]
+    assert [to for to, _ in email.sent] == ["ada@bank.ng", "obi@bank.ng"]
+    assert runs[0].deliveries == [
+        ("+234******0001", "whatsapp sent"),
+        ("a**@bank.ng", "email sent"),
+        ("o**@bank.ng", "email sent"),
+    ]
+    assert "ada@bank.ng" not in store.deliveries("op").to_string()
+
+    # STOP sent on WhatsApp also stops the email to the same person.
+    store.set_opt_out(person.hashes[0], True, "test", datetime(2026, 3, 10, 12))
+    runs = run_portfolio(
+        Portfolio(sites=(site,)), repo, store, plan_date=DAY, channels=[whatsapp, email],
+        recipients=[person, email_only], config=FAST, force=True,
+    )  # fmt: skip
+    assert runs[0].deliveries[0] == ("+234******0001", "opted_out")
+    assert [to for to, _ in email.sent][-1] == "obi@bank.ng" and len(email.sent) == 3
+
+
+def test_the_plan_starts_from_the_measured_battery_charge(
+    repo: DuckDBRepository, store: PlanStore
+) -> None:
+    site = _tower()
+    start, _ = plan_window(site, DAY)
+    history = synthetic_history(site, start, 30, seed=3)  # last reading 6 h before the plan
+    history[BATTERY_SOC_PCT] = np.nan
+    history.loc[history.index[-1], BATTERY_SOC_PCT] = 80.0
+    repo.upsert(history)
+    recent = PipelineConfig(model_order=("persistence",), shadow=False, soc_max_age_hours=8)
+    run = run_site(site, repo, store, plan_date=DAY, config=recent)
+    record = store.get_run("op", "tower-1", DAY)
+    assert run.status == "planned" and record is not None
+    assert record.soc_assumed is False and record.soc_start_kwh == pytest.approx(24.0)
+
+    # A reading older than the limit (3 h by default) is not trusted: the plan
+    # assumes a charge and says so.
+    run_site(site, repo, store, plan_date=DAY, config=FAST)
+    record = store.get_run("op", "tower-1", DAY)
+    assert record is not None and record.soc_assumed is True
+    assert record.soc_start_kwh == pytest.approx(6.0 + 0.5 * 24.0)
 
 
 # -- scoring ---------------------------------------------------------------------

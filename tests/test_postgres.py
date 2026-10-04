@@ -75,3 +75,8 @@ def test_grid_record_survives_feeds_without_it(repo) -> None:  # type: ignore[no
     stored = repo.read_history("op1", "siteA")
     assert (stored["load_kw"] == 1.0).all()
     assert stored["grid_available"].tolist() == site["grid_available"].tolist()
+
+    # A battery-charge feed without load or solar keeps the stored readings.
+    repo.upsert(site.assign(load_kw=float("nan"), generation_kw=float("nan"), battery_soc_pct=55.0))
+    stored = repo.read_history("op1", "siteA")
+    assert (stored["load_kw"] == 1.0).all() and (stored["battery_soc_pct"] == 55.0).all()

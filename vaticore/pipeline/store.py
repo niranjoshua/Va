@@ -26,7 +26,10 @@ store. Every table is keyed by operator_id and site_id.
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
+import secrets
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
@@ -124,6 +127,14 @@ CREATE TABLE IF NOT EXISTS recipient_prefs (
     opted_out BOOLEAN NOT NULL,
     source TEXT,
     updated_at TIMESTAMPTZ NOT NULL
+);
+CREATE TABLE IF NOT EXISTS api_keys (
+    key_id TEXT PRIMARY KEY,
+    key_hash TEXT NOT NULL,
+    operator_id TEXT NOT NULL,
+    name TEXT,
+    created_at TIMESTAMPTZ NOT NULL,
+    revoked_at TIMESTAMPTZ
 );
 CREATE TABLE IF NOT EXISTS feedback (
     provider_message_id TEXT PRIMARY KEY,
@@ -480,6 +491,47 @@ class PlanStore:
             params.append(operator_id)
         return self._df(query + " ORDER BY received_at", params)
 
+    # -- operator API keys ---------------------------------------------------
+
+    def create_api_key(self, operator_id: str, name: str, at: datetime) -> str:
+        """A new key for one operator. Returned once; only its hash is stored."""
+        key_id = secrets.token_hex(4)
+        secret = secrets.token_urlsafe(24)
+        self._exec(
+            "INSERT INTO api_keys (key_id, key_hash, operator_id, name, created_at)"
+            " VALUES (?, ?, ?, ?, ?)",
+            (key_id, _key_hash(secret), operator_id, name, at),
+        )
+        return f"vk_{key_id}_{secret}"
+
+    def operator_for_key(self, key: str) -> str | None:
+        """The operator a key belongs to, or None if it is unknown or revoked."""
+        parts = key.split("_", 2)
+        if len(parts) != 3 or parts[0] != "vk":
+            return None
+        frame = self._df(
+            "SELECT key_hash, operator_id FROM api_keys WHERE key_id = ? AND revoked_at IS NULL",
+            (parts[1],),
+        )
+        if frame.empty:
+            return None
+        if not hmac.compare_digest(str(frame.iloc[0]["key_hash"]), _key_hash(parts[2])):
+            return None
+        return str(frame.iloc[0]["operator_id"])
+
+    def revoke_api_key(self, key_id: str, at: datetime) -> bool:
+        found = self._df("SELECT 1 FROM api_keys WHERE key_id = ?", (key_id,))
+        if found.empty:
+            return False
+        self._exec("UPDATE api_keys SET revoked_at = ? WHERE key_id = ?", (at, key_id))
+        return True
+
+    def api_keys(self) -> pd.DataFrame:
+        return self._df(
+            "SELECT key_id, operator_id, name, created_at, revoked_at FROM api_keys"
+            " ORDER BY operator_id, created_at"
+        )
+
     def close(self) -> None:
         self._con.close()
 
@@ -537,6 +589,10 @@ class PlanStore:
                 self._con.execute("ROLLBACK")
                 raise
             self._con.execute("COMMIT")
+
+
+def _key_hash(secret: str) -> str:
+    return hashlib.sha256(f"vaticore-api-key:{secret}".encode()).hexdigest()
 
 
 def _py(value: Any) -> Any:

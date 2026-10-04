@@ -136,3 +136,33 @@ class PlanResponse(BaseModel):
     expected_unserved_kwh: float
     hours: list[PlanHour]
     advisory_only: bool = True
+
+
+class Reading(BaseModel):
+    """One timestamped reading. Units: kW, percent, litres; grid 1 on, 0 off."""
+
+    timestamp: str
+    load_kw: float | None = Field(default=None, ge=0.0)
+    generation_kw: float | None = Field(default=None, ge=0.0)
+    grid_available: float | None = Field(default=None, ge=0.0, le=1.0)
+    battery_soc_pct: float | None = Field(default=None, ge=0.0, le=100.0)
+    genset_kw: float | None = Field(default=None, ge=0.0)
+    fuel_level_l: float | None = Field(default=None, ge=0.0)
+
+
+class IngestBatch(BaseModel):
+    readings: list[Reading] = Field(max_length=10_000)
+    timezone: str | None = Field(
+        default=None, description="For timestamps without an offset, e.g. Africa/Lagos"
+    )
+
+    @field_validator("timezone")
+    @classmethod
+    def _known_timezone(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        try:
+            ZoneInfo(value)
+        except (ZoneInfoNotFoundError, ValueError) as exc:
+            raise ValueError(f"unknown timezone {value!r}") from exc
+        return value

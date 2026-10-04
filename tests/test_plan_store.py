@@ -179,3 +179,16 @@ def test_deliveries_preferences_and_feedback(store: PlanStore) -> None:
     )
     assert first and not again
     assert store.feedback("op")["kind"].tolist() == ["followed"]
+
+
+def test_operator_api_keys(store: PlanStore) -> None:
+    key = store.create_api_key("op", "ops laptop", START)
+    assert key.startswith("vk_") and store.operator_for_key(key) == "op"
+    assert store.operator_for_key(key + "x") is None
+    assert store.operator_for_key("not a key") is None
+    listed = store.api_keys()
+    assert list(listed["operator_id"]) == ["op"] and key not in listed.to_string()
+    key_id = str(listed["key_id"].iloc[0])
+    assert store.revoke_api_key(key_id, END)
+    assert store.operator_for_key(key) is None
+    assert not store.revoke_api_key("nope", END)
