@@ -24,7 +24,7 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 _E164 = re.compile(r"^\+[1-9]\d{7,14}$")
 
@@ -53,11 +53,33 @@ def mask_phone(phone: str) -> str:
     return number[:4] + "*" * (len(number) - 8) + number[-4:]
 
 
+_EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def normalise_email(value: str) -> str:
+    cleaned = value.strip().lower()
+    if not _EMAIL.match(cleaned):
+        raise ValueError(f"not an email address: {value!r}")
+    return cleaned
+
+
+def email_hash(email: str) -> str:
+    """One-way identifier for an email address, like recipient_hash for phones."""
+    return hashlib.sha256(f"vaticore-email:{normalise_email(email)}".encode()).hexdigest()
+
+
+def mask_email(email: str) -> str:
+    """ada.obi@bank.ng -> a******@bank.ng"""
+    local, _, domain = normalise_email(email).partition("@")
+    return f"{local[0]}{'*' * max(len(local) - 1, 1)}@{domain}"
+
+
 class Recipient(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     name: str = Field(min_length=1)
-    whatsapp: str
+    whatsapp: str | None = None
+    email: str | None = None
     operator_id: str = Field(min_length=1)
     sites: tuple[str, ...] = Field(min_length=1)
     consent: bool
@@ -66,16 +88,37 @@ class Recipient(BaseModel):
 
     @field_validator("whatsapp")
     @classmethod
-    def _phone(cls, value: str) -> str:
-        return normalise_phone(value)
+    def _phone(cls, value: str | None) -> str | None:
+        return None if value is None else normalise_phone(value)
+
+    @field_validator("email")
+    @classmethod
+    def _email(cls, value: str | None) -> str | None:
+        return None if value is None else normalise_email(value)
+
+    @model_validator(mode="after")
+    def _reachable(self) -> Recipient:
+        if self.whatsapp is None and self.email is None:
+            raise ValueError(f"recipient {self.name!r} needs a whatsapp number or an email")
+        return self
+
+    @property
+    def hashes(self) -> tuple[str, ...]:
+        """One-way identifiers for every address: an opt-out on any one stops all."""
+        out = []
+        if self.whatsapp:
+            out.append(recipient_hash(self.whatsapp))
+        if self.email:
+            out.append(email_hash(self.email))
+        return tuple(out)
 
     @property
     def hash(self) -> str:
-        return recipient_hash(self.whatsapp)
+        return self.hashes[0]
 
     @property
     def masked(self) -> str:
-        return mask_phone(self.whatsapp)
+        return mask_phone(self.whatsapp) if self.whatsapp else mask_email(self.email or "")
 
     def covers(self, operator_id: str, site_id: str) -> bool:
         return self.operator_id == operator_id and ("*" in self.sites or site_id in self.sites)

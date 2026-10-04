@@ -273,4 +273,70 @@ def test_stored_plans_and_scorecards_need_the_token() -> None:
     assert card["days"] == 0 and "no scored days" in card["summary"]
 
     production, _ = _pipeline_client(environment="production")
-    assert production.get(path).status_code == 503
+    assert production.get(path).status_code == 401
+
+
+def test_operator_keys_reach_only_their_own_sites() -> None:
+    from datetime import UTC, datetime
+
+    client, store = _pipeline_client(environment="production")
+    key = store.create_api_key("op", "ops team", datetime.now(tz=UTC))  # type: ignore[attr-defined]
+    other = store.create_api_key("rival", "x", datetime.now(tz=UTC))  # type: ignore[attr-defined]
+    path = "/sites/op/s1/scorecard"
+    assert client.get(path, headers={"Authorization": f"Bearer {key}"}).status_code == 200
+    assert client.get(path, headers={"Authorization": f"Bearer {other}"}).status_code == 403
+    assert client.get(path, headers={"Authorization": "Bearer vk_nope_nope"}).status_code == 401
+    key_id = key.split("_")[1]
+    store.revoke_api_key(key_id, datetime.now(tz=UTC))  # type: ignore[attr-defined]
+    assert client.get(path, headers={"Authorization": f"Bearer {key}"}).status_code == 401
+
+
+def test_readings_can_be_pushed_in() -> None:
+    from vaticore.api.main import get_repository
+    from vaticore.storage import DuckDBRepository
+
+    client, _ = _pipeline_client(api_token="admin")
+    repo = DuckDBRepository(":memory:")
+    client.app.dependency_overrides[get_repository] = lambda: repo  # type: ignore[attr-defined]
+    auth = {"Authorization": "Bearer admin"}
+    readings = [
+        {"timestamp": "2026-03-10T06:00:00+01:00", "load_kw": 3.2, "battery_soc_pct": 64},
+        {"timestamp": "2026-03-10T07:00:00+01:00", "load_kw": 3.4, "grid_available": 0},
+    ]
+    resp = client.post("/ingest/op/s1", json={"readings": readings}, headers=auth)
+    assert resp.status_code == 200 and resp.json() == {"rows": 2}
+    stored = repo.read_history("op", "s1")
+    assert str(stored["timestamp"].iloc[0]) == "2026-03-10 05:00:00+00:00"
+    assert stored["battery_soc_pct"].iloc[0] == 64.0
+
+    naive = [{"timestamp": "2026-03-10 08:00", "load_kw": 3.0}]
+    assert client.post("/ingest/op/s1", json={"readings": naive}, headers=auth).status_code == 422
+    local = {"readings": naive, "timezone": "Africa/Lagos"}
+    assert client.post("/ingest/op/s1", json=local, headers=auth).json() == {"rows": 1}
+    twice = {"readings": readings + readings[:1]}
+    assert client.post("/ingest/op/s1", json=twice, headers=auth).status_code == 422
+    bad = {"readings": [{"timestamp": "2026-03-10T09:00:00Z", "battery_soc_pct": 140}]}
+    assert client.post("/ingest/op/s1", json=bad, headers=auth).status_code == 422
+
+
+def test_site_health_endpoint() -> None:
+    from vaticore.api.main import get_repository
+
+    client, _ = _pipeline_client()
+    client.app.dependency_overrides[get_repository] = lambda: _health_repo()  # type: ignore[attr-defined]
+    body = client.get("/sites/lagos-energy/ikeja-minigrid/health?days=10").json()
+    assert body["status"] in {"ok", "warn", "fail"}
+    assert "load_kw" in body["coverage"] and "Data health" in body["summary"]
+
+
+def _health_repo():  # type: ignore[no-untyped-def]
+    import pandas as pd
+
+    from vaticore.storage import DuckDBRepository
+
+    repo = DuckDBRepository(":memory:")
+    fleet = make_synthetic_fleet(days=12, seed=1)
+    shift = pd.Timestamp.now(tz="UTC").normalize() - fleet["timestamp"].max().normalize()
+    fleet["timestamp"] = fleet["timestamp"] + shift
+    repo.upsert(fleet)
+    return repo

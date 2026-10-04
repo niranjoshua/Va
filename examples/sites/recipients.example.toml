@@ -1,12 +1,14 @@
-# Who receives each site's daily plan on WhatsApp. COPY this file outside the
-# repository (recipients*.toml is git-ignored) and fill in real numbers there.
-# Phone numbers are personal data: keep the real file private.
+# Who receives each site's daily plan, on WhatsApp, email or both. COPY this
+# file outside the repository (recipients*.toml is git-ignored) and fill in
+# real details there. Phone numbers and email addresses are personal data:
+# keep the real file private.
 #
 # Every person must have agreed to receive the plans (WhatsApp requires it).
 # Record when and how in consent_note. A reply of STOP opts them out at once,
-# whatever this file says; START opts them back in.
+# whatever this file says; START opts them back in. A STOP on one channel
+# stops the other too for the same person.
 #
-# The numbers below are fictitious placeholders.
+# The numbers and addresses below are fictitious placeholders.
 
 [[recipient]]
 name = "Power manager, Ikorodu tower"
@@ -19,6 +21,7 @@ consent_note = "Agreed in writing at pilot kick-off (example)"
 [[recipient]]
 name = "Operations lead, example towerco"
 whatsapp = "+2348000000002"
+email = "ops.lead@example.com"   # also gets the plan by email (--channel email)
 operator_id = "example-towerco"
 sites = ["*"]          # every site of this operator
 consent = true
@@ -30,3 +33,11 @@ whatsapp = "+2348000000003"
 operator_id = "example-bank"
 sites = ["abj-wuse-01"]
 consent = false        # not asked yet: will NOT be messaged
+
+[[recipient]]
+name = "Head of facilities, example bank"
+email = "facilities@example.com"   # email only
+operator_id = "example-bank"
+sites = ["*"]
+consent = true
+consent_note = "Agreed by email (example)"

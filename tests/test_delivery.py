@@ -5,13 +5,15 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import smtplib
 from datetime import date, datetime
+from typing import ClassVar
 
 import httpx
 import pandas as pd
 import pytest
 
-from vaticore.delivery.channels import ConsoleChannel, WhatsAppChannel
+from vaticore.delivery.channels import ConsoleChannel, EmailChannel, WhatsAppChannel
 from vaticore.delivery.message import (
     TEMPLATE_BODY,
     PlanMessage,
@@ -21,7 +23,10 @@ from vaticore.delivery.message import (
     run_windows,
 )
 from vaticore.delivery.recipients import (
+    Recipient,
+    email_hash,
     load_recipients,
+    mask_email,
     mask_phone,
     normalise_phone,
     recipient_hash,
@@ -153,7 +158,8 @@ consent = false
 
 def test_the_example_recipients_file_loads() -> None:
     people = load_recipients("examples/sites/recipients.example.toml")
-    assert len(people) == 3 and not people[2].consent
+    assert len(people) == 4 and not people[2].consent
+    assert people[1].email and people[1].whatsapp and people[3].whatsapp is None
 
 
 # -- WhatsApp channel ------------------------------------------------------------
@@ -366,3 +372,121 @@ def test_webhooks_track_receipts_replies_and_opt_outs() -> None:
     }
     assert handle_webhook(store, _payload(messages=[start])).opt_ins == 1
     assert not store.is_opted_out(who)
+
+
+# -- email --------------------------------------------------------------------
+
+
+class _FakeSMTP:
+    """Records what an SMTP session was asked to do; fails on cue."""
+
+    sessions: ClassVar[list[_FakeSMTP]] = []
+    failures: ClassVar[list[Exception]] = []
+
+    def __init__(self, host: str, port: int, timeout: float) -> None:
+        self.host, self.port = host, port
+        self.calls: list[str] = []
+        self.sent: list[object] = []
+        _FakeSMTP.sessions.append(self)
+
+    def __enter__(self) -> _FakeSMTP:
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self.calls.append("quit")
+
+    def starttls(self) -> None:
+        self.calls.append("starttls")
+
+    def login(self, user: str, password: str) -> None:
+        self.calls.append(f"login {user}")
+
+    def send_message(self, mail: object) -> None:
+        if _FakeSMTP.failures:
+            raise _FakeSMTP.failures.pop(0)
+        self.sent.append(mail)
+
+
+def _email(**kwargs: object) -> tuple[EmailChannel, list[float]]:
+    _FakeSMTP.sessions, _FakeSMTP.failures = [], []
+    waits: list[float] = []
+    options: dict[str, object] = {
+        "host": "smtp.example.com",
+        "sender": "plans@vaticore.example",
+        "username": "plans",
+        "password": "secret",
+        "smtp_factory": _FakeSMTP,
+        "sleep": waits.append,
+    }
+    options.update(kwargs)
+    return EmailChannel(**options), waits  # type: ignore[arg-type]
+
+
+def test_a_plan_goes_out_as_a_two_part_email() -> None:
+    channel, _ = _email(reply_to="ops@vaticore.example")
+    result = channel.send("ada@bank.example", _message())
+    assert result.status == "sent" and result.provider_message_id
+    (session,) = _FakeSMTP.sessions
+    assert (session.host, session.port) == ("smtp.example.com", 587)
+    assert session.calls == ["starttls", "login plans", "quit"]
+    mail = session.sent[0]
+    assert mail["To"] == "ada@bank.example"  # type: ignore[index]
+    assert mail["Subject"] == "Vaticore plan for Tower One, Tue 10 Mar"  # type: ignore[index]
+    assert mail["Reply-To"] == "ops@vaticore.example"  # type: ignore[index]
+    assert "unsubscribe" in mail["List-Unsubscribe"]  # type: ignore[index]
+    assert mail["Message-ID"] == result.provider_message_id  # type: ignore[index]
+    text = mail.get_body(("plain",)).get_content()  # type: ignore[attr-defined]
+    html = mail.get_body(("html",)).get_content()  # type: ignore[attr-defined]
+    assert "Generator: 18:00 to 20:00." in text and "Advisory only" in text
+    assert "<table" in html and "18:00 to 20:00." in html
+
+
+def test_a_sender_with_a_display_name() -> None:
+    channel, _ = _email(sender="Vaticore <plans@vaticore.example>")
+    result = channel.send("ada@bank.example", _message())
+    mail = _FakeSMTP.sessions[0].sent[0]
+    assert (result.provider_message_id or "").endswith("@vaticore.example>")
+    assert mail["List-Unsubscribe"] == "<mailto:plans@vaticore.example?subject=unsubscribe>"  # type: ignore[index]
+
+
+def test_email_html_escapes_site_names() -> None:
+    message = PlanMessage("<b>A & B</b>", "today", "none.", "none.", "ends 50%.", "OK")
+    assert "&lt;b&gt;A &amp; B&lt;/b&gt;" in message.email_html
+
+
+def test_temporary_smtp_errors_are_retried_and_final_ones_are_not() -> None:
+    channel, waits = _email()
+    _FakeSMTP.failures = [smtplib.SMTPResponseException(421, b"busy"), OSError("reset")]
+    result = channel.send("ada@bank.example", _message())
+    assert result.status == "sent" and result.attempts == 3 and waits == [1.0, 2.0]
+
+    channel, waits = _email()
+    _FakeSMTP.failures = [smtplib.SMTPResponseException(550, b"no such user")]
+    result = channel.send("ada@bank.example", _message())
+    assert result.status == "failed" and result.attempts == 1 and waits == []
+    assert "SMTP 550" in (result.error or "")
+
+
+def test_ssl_mode_skips_starttls_and_no_login_without_a_username() -> None:
+    channel, _ = _email(use_ssl=True, port=465, username=None)
+    assert channel.send("ada@bank.example", _message()).status == "sent"
+    assert _FakeSMTP.sessions[0].calls == ["quit"]
+    with pytest.raises(ValueError, match="SMTP host"):
+        EmailChannel(host="", sender="plans@vaticore.example")
+
+
+def test_email_recipients_are_validated_and_kept_private() -> None:
+    assert mask_email(" Ada.Obi@Bank.NG ") == "a******@bank.ng"
+    assert email_hash("ADA@bank.ng") == email_hash("ada@bank.ng")
+    with pytest.raises(ValueError, match="not an email"):
+        email_hash("ada at bank")
+    both = Recipient(
+        name="Ada", whatsapp="+2348000000001", email="Ada@Bank.ng", operator_id="op",
+        sites=("s1",), consent=True,
+    )  # fmt: skip
+    assert both.email == "ada@bank.ng" and len(both.hashes) == 2
+    only_email = Recipient(name="Ada", email="ada@bank.ng", operator_id="op", sites=("s1",),
+                           consent=True)  # fmt: skip
+    assert only_email.masked == "a**@bank.ng" and only_email.hash == email_hash("ada@bank.ng")
+    with pytest.raises(ValueError, match="whatsapp number or an email"):
+        Recipient(name="Nobody", operator_id="op", sites=("s1",), consent=True)

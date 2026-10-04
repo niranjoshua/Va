@@ -71,6 +71,7 @@ def test_read_empty_returns_valid_empty_frame(repo: DuckDBRepository) -> None:
 def test_path_parsing() -> None:
     assert _path_from_url("duckdb:///vaticore.duckdb") == "vaticore.duckdb"
     assert _path_from_url("duckdb:///:memory:") == ":memory:"
+    assert _path_from_url("duckdb:////data/vaticore.duckdb") == "/data/vaticore.duckdb"
     assert _path_from_url("/tmp/x.duckdb") == "/tmp/x.duckdb"
 
 
@@ -104,5 +105,19 @@ def test_grid_record_round_trips_and_survives_feeds_without_it(repo: DuckDBRepos
     assert (again["load_kw"] == 1.0).all()
     assert again[GRID_AVAILABLE].tolist() == site[GRID_AVAILABLE].tolist()
 
-    with pytest.raises(ValueError, match="grid_available"):
+    with pytest.raises(Exception, match="grid_available"):
         repo.upsert(site.assign(**{GRID_AVAILABLE: 0.5}))
+
+
+def test_a_battery_feed_does_not_wipe_load_readings(repo: DuckDBRepository) -> None:
+    from vaticore.schemas import BATTERY_SOC_PCT
+
+    site = make_synthetic_site("op1", "siteA", days=1, seed=1, gap_fraction=0.0)
+    repo.upsert(site)
+    soc_only = site.assign(
+        load_kw=float("nan"), generation_kw=float("nan"), **{BATTERY_SOC_PCT: 55.0}
+    )
+    repo.upsert(soc_only)
+    stored = repo.read_history("op1", "siteA")
+    assert stored["load_kw"].tolist() == site["load_kw"].tolist()
+    assert (stored[BATTERY_SOC_PCT] == 55.0).all()

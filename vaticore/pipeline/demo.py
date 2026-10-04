@@ -116,7 +116,7 @@ def run_demo(
                 store,
                 plan_date=day,
                 sites=[site.key],
-                channel=console if last_day else silent,
+                channels=[console if last_day else silent],
                 recipients=people,
                 config=config,
                 now=start.to_pydatetime(),

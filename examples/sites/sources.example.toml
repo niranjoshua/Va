@@ -1,0 +1,44 @@
+# Where each site's readings come from. COPY this file outside the repository
+# and point VATICORE_SOURCES_FILE (or `ingest --sources`) at the copy. It holds
+# no secrets itself: tokens are read from the environment variables it names.
+#
+# One source per site. `python -m vaticore.pipeline ingest` pulls new readings
+# for every source, from 6 hours before the last stored reading, so late
+# corrections are picked up. See docs/data-connectors.md.
+#
+# The sites, paths and installation IDs below are placeholders.
+
+# A tower whose monitoring platform exports CSV files to a shared folder.
+[[source]]
+operator_id = "example-towerco"
+site_id = "lag-ikd-0142"
+connector = "csv"
+path = "/data/exports/lag-ikd-0142/*.csv"
+timezone = "Africa/Lagos"      # the clock the export's timestamps are written in
+backfill_days = 365            # first sync loads a year (default 60 days)
+
+[source.columns]               # internal name = column header in the export
+timestamp = "Time"
+load_kw = "Load Power(W)"
+generation_kw = "PV Power(W)"
+battery_soc_pct = "SOC(%)"
+grid_available = "Grid Status"
+
+[source.scale]                 # watts to kW
+load_kw = 0.001
+generation_kw = 0.001
+
+[source.grid]                  # how the export says the grid is on or off
+on = ["On", "Connected"]
+off = ["Off", "Disconnected"]
+
+# A bank branch with a Victron system: battery charge from VRM.
+[[source]]
+operator_id = "example-bank"
+site_id = "abj-wuse-01"
+connector = "victron_vrm"
+installation_id = "000000"
+token_env = "VATICORE_VRM_TOKEN"   # the token itself goes in the environment
+
+[source.attributes]                # internal name = VRM attribute code
+battery_soc_pct = "bs"

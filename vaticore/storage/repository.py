@@ -12,7 +12,7 @@ from typing import Protocol
 
 import pandas as pd
 
-from vaticore.schemas import GRID_AVAILABLE
+from vaticore.schemas import GRID_AVAILABLE, OPTIONAL_COLUMNS
 
 
 class TimeSeriesRepository(Protocol):
@@ -49,17 +49,20 @@ class TimeSeriesRepository(Protocol):
         ...
 
 
-def with_grid_column(frame: pd.DataFrame) -> pd.DataFrame:
-    """Add an empty grid_available column if the feed has none.
+def with_optional_columns(frame: pd.DataFrame) -> pd.DataFrame:
+    """Add the optional monitoring columns a feed does not carry, as missing.
 
-    A feed without a grid record leaves the stored record untouched (the upsert
-    keeps the existing value), so one CSV without the column cannot erase grid
-    hours recorded by another.
+    The stores keep an existing value when an incoming one is missing, so a
+    feed without, say, a grid record cannot erase grid hours recorded by
+    another feed.
     """
-    if GRID_AVAILABLE in frame.columns:
-        values = pd.to_numeric(frame[GRID_AVAILABLE], errors="coerce")
-        bad = values.notna() & ~values.isin([0.0, 1.0])
-        if bad.any():
-            raise ValueError(f"{GRID_AVAILABLE} must be 1 (on), 0 (off) or missing")
-        return frame.assign(**{GRID_AVAILABLE: values.astype(float)})
-    return frame.assign(**{GRID_AVAILABLE: float("nan")})
+    out = frame.copy()
+    for column in OPTIONAL_COLUMNS:
+        if column not in out.columns:
+            out[column] = float("nan")
+        else:
+            out[column] = pd.to_numeric(out[column], errors="coerce").astype(float)
+    bad = out[GRID_AVAILABLE].notna() & ~out[GRID_AVAILABLE].isin([0.0, 1.0])
+    if bad.any():
+        raise ValueError(f"{GRID_AVAILABLE} must be 1 (on), 0 (off) or missing")
+    return out
