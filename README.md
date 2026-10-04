@@ -99,7 +99,7 @@ solar, where Elia uses weather, Elia is far ahead; weather is the next study.
 
 ```
 vaticore/
-  ingestion/     # CSV/API intake, adapters (Elia), validation, UTC, gap handling
+  ingestion/     # intake: CSV, Elia, monitoring connectors (docs/data-connectors.md)
   features/      # calendar, lags, weather enrichment
   forecasting/   # baselines, quantile GBM, conformal, grid, foundation models
   evaluation/    # backtesting harness, pinball loss, calibration, baseline comparison
@@ -110,7 +110,7 @@ vaticore/
   dashboard/     # Streamlit app
   copilot/       # LLM explanations grounded on the engine's numbers
   pipeline/      # the daily loop: data health, plan, store, score (docs/pipeline.md)
-  delivery/      # morning messages on WhatsApp, replies, opt-outs (docs/whatsapp-setup.md)
+  delivery/      # morning messages on WhatsApp and email, replies, opt-outs
   storage/       # multi-tenant, multi-site persistence
   engine.py      # orchestration facade used by api and dashboard
   datasets.py    # synthetic demo data

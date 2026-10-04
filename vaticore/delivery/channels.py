@@ -1,4 +1,4 @@
-"""Delivery channels: WhatsApp (Meta's Cloud API) and a console dry run.
+"""Delivery channels: WhatsApp (Meta's Cloud API), email (SMTP) and a console dry run.
 
 WhatsApp rules that shape this code:
   - A business may message someone first only with a pre-approved template.
@@ -16,15 +16,25 @@ attempt's outcome is returned so it can be stored.
 
 from __future__ import annotations
 
+import smtplib
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from email.message import EmailMessage
+from email.utils import make_msgid, parseaddr
 from typing import Any, Protocol
 
 import httpx
 
 from vaticore.delivery.message import PlanMessage
-from vaticore.delivery.recipients import mask_phone, normalise_phone
+from vaticore.delivery.recipients import (
+    Recipient,
+    email_hash,
+    mask_email,
+    mask_phone,
+    normalise_phone,
+    recipient_hash,
+)
 
 GRAPH_URL = "https://graph.facebook.com"
 # WhatsApp error codes that mean "slow down" or "try again later".
@@ -42,7 +52,20 @@ class SendResult:
 class Channel(Protocol):
     name: str
 
+    def address(self, person: Recipient) -> str | None:
+        """Where this channel reaches the person; None if it cannot."""
+        ...
+
     def send(self, to: str, message: PlanMessage) -> SendResult: ...
+
+
+def address_hash(address: str) -> str:
+    """One-way identifier for a phone number or an email address."""
+    return email_hash(address) if "@" in address else recipient_hash(address)
+
+
+def mask_address(address: str) -> str:
+    return mask_email(address) if "@" in address else mask_phone(address)
 
 
 class ConsoleChannel:
@@ -53,9 +76,88 @@ class ConsoleChannel:
     def __init__(self, printer: Callable[[str], None] = print) -> None:
         self._print = printer
 
+    def address(self, person: Recipient) -> str | None:
+        return person.whatsapp or person.email
+
     def send(self, to: str, message: PlanMessage) -> SendResult:
-        self._print(f"--- to {mask_phone(to)} ---\n{message.text}\n")
+        self._print(f"--- to {mask_address(to)} ---\n{message.text}\n")
         return SendResult(status="dry_run")
+
+
+class EmailChannel:
+    """Plain email over SMTP: for people who prefer it, and as a fallback.
+
+    Works with any provider that offers SMTP (Google Workspace, Microsoft 365,
+    Zoho, Amazon SES, Postmark). Each message has a text and an HTML part and a
+    List-Unsubscribe header; unsubscribe requests are applied with
+    `python -m vaticore.pipeline optout --email ...`.
+    """
+
+    name = "email"
+
+    def __init__(
+        self,
+        *,
+        host: str,
+        sender: str,
+        port: int = 587,
+        username: str | None = None,
+        password: str | None = None,
+        reply_to: str | None = None,
+        use_ssl: bool = False,
+        max_attempts: int = 3,
+        smtp_factory: Callable[..., Any] | None = None,
+        sleep: Callable[[float], None] = time.sleep,
+    ) -> None:
+        if not host or not sender:
+            raise ValueError("email needs an SMTP host and a sender address")
+        self._host, self._port = host, port
+        self._username, self._password = username, password
+        self._sender = sender
+        self._reply_to = reply_to or sender
+        self._use_ssl = use_ssl
+        self._max_attempts = max_attempts
+        self._factory = smtp_factory or (smtplib.SMTP_SSL if use_ssl else smtplib.SMTP)
+        self._sleep = sleep
+
+    def address(self, person: Recipient) -> str | None:
+        return person.email
+
+    def send(self, to: str, message: PlanMessage) -> SendResult:
+        mail = EmailMessage()
+        mail["Subject"] = message.email_subject
+        mail["From"] = self._sender
+        mail["To"] = to
+        mail["Reply-To"] = self._reply_to
+        # Addresses may carry a display name ("Vaticore <plans@vaticore.com>").
+        unsubscribe = parseaddr(self._reply_to)[1] or self._reply_to
+        mail["List-Unsubscribe"] = f"<mailto:{unsubscribe}?subject=unsubscribe>"
+        domain = parseaddr(self._sender)[1].rpartition("@")[2]
+        message_id = make_msgid(domain=domain or None)
+        mail["Message-ID"] = message_id
+        mail.set_content(message.email_text)
+        mail.add_alternative(message.email_html, subtype="html")
+
+        error = "not sent"
+        for attempt in range(1, self._max_attempts + 1):
+            try:
+                with self._factory(self._host, self._port, timeout=30) as smtp:
+                    if not self._use_ssl:
+                        smtp.starttls()
+                    if self._username:
+                        smtp.login(self._username, self._password or "")
+                    smtp.send_message(mail)
+                return SendResult("sent", message_id, None, attempt)
+            except smtplib.SMTPResponseException as exc:
+                error = f"SMTP {exc.smtp_code}: {exc.smtp_error!r}"
+                retry = 400 <= exc.smtp_code < 500  # temporary; 5xx is final
+            except (smtplib.SMTPException, OSError) as exc:
+                error = f"{type(exc).__name__}: {exc}"
+                retry = not isinstance(exc, smtplib.SMTPRecipientsRefused)
+            if not retry or attempt == self._max_attempts:
+                return SendResult("failed", None, error, attempt)
+            self._sleep(2.0 ** (attempt - 1))
+        return SendResult("failed", None, error, self._max_attempts)
 
 
 class WhatsAppChannel:
@@ -88,6 +190,9 @@ class WhatsAppChannel:
         self._max_attempts = max_attempts
         self._client = client or httpx.Client(timeout=20.0)
         self._sleep = sleep
+
+    def address(self, person: Recipient) -> str | None:
+        return person.whatsapp
 
     def send(self, to: str, message: PlanMessage) -> SendResult:
         if self._mode == "text":

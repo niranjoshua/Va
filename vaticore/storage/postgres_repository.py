@@ -16,16 +16,16 @@ import pandas as pd
 from vaticore import schemas
 from vaticore.schemas import (
     GENERATION_KW,
-    GRID_AVAILABLE,
     LOAD_KW,
     OPERATOR_ID,
+    OPTIONAL_COLUMNS,
     SITE_ID,
     TIMESTAMP,
 )
-from vaticore.storage.repository import with_grid_column
+from vaticore.storage.repository import with_optional_columns
 
 _TABLE = "observations"
-_COLUMNS = [OPERATOR_ID, SITE_ID, TIMESTAMP, LOAD_KW, GENERATION_KW, GRID_AVAILABLE]
+_COLUMNS = [OPERATOR_ID, SITE_ID, TIMESTAMP, LOAD_KW, GENERATION_KW, *OPTIONAL_COLUMNS]
 
 _DDL = f"""
 CREATE TABLE IF NOT EXISTS {_TABLE} (
@@ -34,20 +34,19 @@ CREATE TABLE IF NOT EXISTS {_TABLE} (
     {TIMESTAMP}     TIMESTAMPTZ      NOT NULL,
     {LOAD_KW}       DOUBLE PRECISION,
     {GENERATION_KW} DOUBLE PRECISION,
-    {GRID_AVAILABLE} DOUBLE PRECISION,
     PRIMARY KEY ({OPERATOR_ID}, {SITE_ID}, {TIMESTAMP})
 );
-ALTER TABLE {_TABLE} ADD COLUMN IF NOT EXISTS {GRID_AVAILABLE} DOUBLE PRECISION;
-"""
+""" + "".join(
+    f"ALTER TABLE {_TABLE} ADD COLUMN IF NOT EXISTS {c} DOUBLE PRECISION;\n"
+    for c in OPTIONAL_COLUMNS
+)
 
-_UPSERT = f"""
-INSERT INTO {_TABLE} ({", ".join(_COLUMNS)})
-VALUES (%s, %s, %s, %s, %s, %s)
-ON CONFLICT ({OPERATOR_ID}, {SITE_ID}, {TIMESTAMP}) DO UPDATE SET
-    {LOAD_KW} = EXCLUDED.{LOAD_KW},
-    {GENERATION_KW} = EXCLUDED.{GENERATION_KW},
-    {GRID_AVAILABLE} = COALESCE(EXCLUDED.{GRID_AVAILABLE}, {_TABLE}.{GRID_AVAILABLE})
-"""
+_UPSERT = (
+    f"INSERT INTO {_TABLE} ({', '.join(_COLUMNS)}) VALUES ({', '.join(['%s'] * len(_COLUMNS))})"
+    f" ON CONFLICT ({OPERATOR_ID}, {SITE_ID}, {TIMESTAMP}) DO UPDATE SET "
+    # A value missing from a new batch keeps the stored one (see the DuckDB store).
+    + ", ".join(f"{c} = COALESCE(EXCLUDED.{c}, {_TABLE}.{c})" for c in _COLUMNS[3:])
+)
 
 
 class PostgresRepository:
@@ -60,7 +59,9 @@ class PostgresRepository:
         dsn = url.replace("postgresql+psycopg://", "postgresql://")
         self._conn = psycopg.connect(dsn, autocommit=True)
         self._conn.execute("SET TIME ZONE 'UTC'")
-        self._conn.execute(_DDL)
+        for statement in _DDL.split(";"):
+            if statement.strip():
+                self._conn.execute(statement)
         if use_timescale:
             self._maybe_hypertable()
 
@@ -77,7 +78,7 @@ class PostgresRepository:
             pass
 
     def upsert(self, frame: pd.DataFrame) -> int:
-        validated = with_grid_column(schemas.validate(frame))[_COLUMNS]
+        validated = with_optional_columns(schemas.validate(frame))[_COLUMNS]
         rows = _to_rows(validated)
         with self._conn.cursor() as cur:
             cur.executemany(_UPSERT, rows)

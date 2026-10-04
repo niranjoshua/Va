@@ -62,9 +62,23 @@ class Settings(BaseSettings):
     whatsapp_app_secret: SecretStr | None = Field(default=None)
     whatsapp_verify_token: SecretStr | None = Field(default=None)
 
-    # Bearer token for the API's plan and scorecard endpoints. Required in
-    # production: plans are operator data.
+    # Admin bearer token for the API (all operators). Operators get their own
+    # keys (python -m vaticore.pipeline apikey create), which only reach their
+    # own sites. Required in production: plans are operator data.
     api_token: SecretStr | None = Field(default=None)
+
+    # Email delivery over SMTP (any provider: Google Workspace, Microsoft 365,
+    # Zoho, Amazon SES, Postmark).
+    smtp_host: str | None = Field(default=None)
+    smtp_port: int = Field(default=587)
+    smtp_username: str | None = Field(default=None)
+    smtp_password: SecretStr | None = Field(default=None)
+    smtp_ssl: bool = Field(default=False, description="SSL from the start (port 465)")
+    email_from: str | None = Field(default=None, description="for example plans@vaticore.com")
+    email_reply_to: str | None = Field(default=None)
+
+    # Monitoring connectors: which source each site's readings come from.
+    sources_file: Path | None = Field(default=None)
 
 
 def get_settings() -> Settings:

@@ -17,13 +17,13 @@ import pandas as pd
 from vaticore import schemas
 from vaticore.schemas import (
     GENERATION_KW,
-    GRID_AVAILABLE,
     LOAD_KW,
     OPERATOR_ID,
+    OPTIONAL_COLUMNS,
     SITE_ID,
     TIMESTAMP,
 )
-from vaticore.storage.repository import with_grid_column
+from vaticore.storage.repository import with_optional_columns
 
 _TABLE = "observations"
 
@@ -34,23 +34,32 @@ CREATE TABLE IF NOT EXISTS {_TABLE} (
     {TIMESTAMP}     TIMESTAMPTZ  NOT NULL,
     {LOAD_KW}       DOUBLE,
     {GENERATION_KW} DOUBLE,
-    {GRID_AVAILABLE} DOUBLE,
     PRIMARY KEY ({OPERATOR_ID}, {SITE_ID}, {TIMESTAMP})
 );
-ALTER TABLE {_TABLE} ADD COLUMN IF NOT EXISTS {GRID_AVAILABLE} DOUBLE;
-"""
+""" + "".join(
+    f"ALTER TABLE {_TABLE} ADD COLUMN IF NOT EXISTS {c} DOUBLE;\n" for c in OPTIONAL_COLUMNS
+)
 
-_COLUMNS = [OPERATOR_ID, SITE_ID, TIMESTAMP, LOAD_KW, GENERATION_KW, GRID_AVAILABLE]
+_COLUMNS = [OPERATOR_ID, SITE_ID, TIMESTAMP, LOAD_KW, GENERATION_KW, *OPTIONAL_COLUMNS]
+
+
+# A value missing from a new batch keeps the stored one: a battery-charge feed
+# must not wipe load readings that arrived from another source.
+_COALESCE = ",\n".join(f"{c} = COALESCE(excluded.{c}, {_TABLE}.{c})" for c in _COLUMNS[3:])
 
 
 def _path_from_url(url: str) -> str:
     """Turn a duckdb URL or bare path into a DuckDB connection target.
 
-    Accepts 'duckdb:///file.duckdb', 'duckdb:///:memory:', or a plain path.
+    Follows the SQLAlchemy convention: 'duckdb:///file.duckdb' is relative to
+    the working directory, 'duckdb:////data/file.duckdb' is absolute (for a
+    mounted disk), 'duckdb:///:memory:' is in memory. A plain path is used as is.
     """
     if url.startswith("duckdb://"):
         rest = url[len("duckdb://") :]
-        return rest.lstrip("/") if rest not in ("/:memory:", "//:memory:") else ":memory:"
+        if rest in ("", "/", "/:memory:", "//:memory:"):
+            return ":memory:"
+        return rest[1:] if rest.startswith("/") else rest
     return url
 
 
@@ -61,7 +70,9 @@ class DuckDBRepository:
         target = _path_from_url(url)
         # ":memory:" gives a private in-process database, perfect for tests.
         self._con = duckdb.connect(target if target else ":memory:")
-        self._con.execute(_DDL)
+        for statement in _DDL.split(";"):
+            if statement.strip():
+                self._con.execute(statement)
 
     def upsert(self, frame: pd.DataFrame) -> int:
         """Insert or update rows for one or more sites. Returns rows written.
@@ -69,7 +80,7 @@ class DuckDBRepository:
         The frame is validated against the internal schema first, so malformed
         data never reaches the store.
         """
-        validated = with_grid_column(schemas.validate(frame))[_COLUMNS]
+        validated = with_optional_columns(schemas.validate(frame))[_COLUMNS]
         self._con.register("incoming", validated)
         try:
             self._con.execute(
@@ -77,9 +88,7 @@ class DuckDBRepository:
                 INSERT INTO {_TABLE}
                 SELECT {", ".join(_COLUMNS)} FROM incoming
                 ON CONFLICT ({OPERATOR_ID}, {SITE_ID}, {TIMESTAMP}) DO UPDATE SET
-                    {LOAD_KW} = excluded.{LOAD_KW},
-                    {GENERATION_KW} = excluded.{GENERATION_KW},
-                    {GRID_AVAILABLE} = COALESCE(excluded.{GRID_AVAILABLE}, {_TABLE}.{GRID_AVAILABLE})
+                    {_COALESCE}
                 """
             )
         finally:
@@ -150,6 +159,6 @@ def _empty_frame() -> pd.DataFrame:
             TIMESTAMP: pd.Series([], dtype="datetime64[ns, UTC]"),
             LOAD_KW: pd.Series([], dtype="float64"),
             GENERATION_KW: pd.Series([], dtype="float64"),
-            GRID_AVAILABLE: pd.Series([], dtype="float64"),
+            **{c: pd.Series([], dtype="float64") for c in OPTIONAL_COLUMNS},
         }
     )
