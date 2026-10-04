@@ -5,6 +5,7 @@
     uv run python -m vaticore.pipeline run --channel whatsapp --channel email
     uv run python -m vaticore.pipeline score                    # score finished days
     uv run python -m vaticore.pipeline scorecard                # track record per site
+    uv run python -m vaticore.pipeline monitor                  # each model, week by week
     uv run python -m vaticore.pipeline health --days 30         # data health per site
     uv run python -m vaticore.pipeline apikey create --operator example-towerco --name ops
     uv run python -m vaticore.pipeline optout --email someone@example.com
@@ -32,7 +33,9 @@ from vaticore.config import Settings, get_settings
 from vaticore.delivery.channels import Channel, ConsoleChannel, EmailChannel, WhatsAppChannel
 from vaticore.delivery.message import PlanMessage
 from vaticore.delivery.recipients import Recipient, email_hash, load_recipients, recipient_hash
+from vaticore.features.weather import OpenMeteoProvider
 from vaticore.ingestion.connectors import load_sources, sync_sources
+from vaticore.pipeline import monitoring
 from vaticore.pipeline.health import site_health_report
 from vaticore.pipeline.runner import run_portfolio
 from vaticore.pipeline.scoring import score_due, scorecard
@@ -99,6 +102,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                         f"baseline {record.fuel_baseline_l:.0f} L"
                     )
                 return 0
+            if args.command == "monitor":
+                for site in portfolio.sites:
+                    _monitor(store, site.operator_id, site.site_id, args.weeks)
+                return 0
             if args.command == "scorecard":
                 for site in portfolio.sites:
                     card = scorecard(store, site.operator_id, site.site_id, days=args.days)
@@ -148,6 +155,7 @@ def _run(
             channels.append(_email(settings))
     recipients = _recipients(args, settings) if channels else []
     sites = [_site_key(s) for s in args.site] if args.site else None
+    weather = None if args.no_weather else _weather(settings)
     runs = run_portfolio(
         portfolio,
         repo,  # type: ignore[arg-type]
@@ -157,13 +165,65 @@ def _run(
         channels=channels,
         recipients=recipients,
         force=args.force,
+        weather=weather,
     )
     for r in runs:
         sent = ", ".join(f"{who} {status}" for who, status in r.deliveries) or "not sent"
         print(f"{r.operator_id}/{r.site_id} {r.plan_date}: {r.status} ({r.model}); {sent}")
         if r.error:
             print(f"  error: {r.error}")
+    alerts = [alert for r in runs for alert in r.alerts]
+    for alert in alerts:
+        print(f"ALERT {alert}")
+    if alerts:
+        _alert_ops(settings, alerts)
     return 1 if any(r.status == "failed" for r in runs) else 0
+
+
+def _weather(settings: Settings) -> OpenMeteoProvider | None:
+    """Live weather, if configured and licensed for this environment."""
+    if settings.weather_provider.lower() in ("", "none", "off"):
+        return None
+    key = settings.weather_api_key.get_secret_value() if settings.weather_api_key else None
+    if key is None and settings.environment == "production":
+        # Open-Meteo's free API is non-commercial: production needs a key.
+        print("weather: skipped (set VATICORE_WEATHER_API_KEY for commercial use)")
+        return None
+    return OpenMeteoProvider(api_key=key)
+
+
+def _alert_ops(settings: Settings, alerts: list[str]) -> None:
+    if not settings.ops_email:
+        return
+    if not settings.smtp_host or not settings.email_from:
+        print("alerts not emailed: VATICORE_OPS_EMAIL is set but SMTP is not")
+        return
+    body = (
+        "Model monitoring changed the planning model at these sites. Plans continue on "
+        "the next model in the chain; suspended models keep running in shadow and return "
+        "when their record recovers.\n\n" + "\n".join(f"- {a}" for a in alerts)
+    )
+    result = _email(settings).send_text(
+        settings.ops_email, f"Vaticore model monitoring: {len(alerts)} change(s)", body
+    )
+    print(f"alerts emailed to ops: {result.status}")
+
+
+def _monitor(store: PlanStore, operator_id: str, site_id: str, weeks: int) -> None:
+    print(f"== {operator_id}/{site_id}")
+    statuses = store.model_statuses(operator_id, site_id)
+    for model, row in statuses.items():
+        print(f"  {model}: {row['status']} since {row['since']} ({row['reason']})")
+    report = monitoring.weekly_report(store, operator_id, site_id, weeks=weeks)
+    if report.empty:
+        print("  no scored days yet")
+        return
+    shown = report.assign(
+        range_held=report["range_held"].map(lambda v: f"{v:.0%}"),
+        pinball=report["pinball"].map(lambda v: f"{v:.3f}"),
+        skill=report["skill"].map(lambda v: "n/a" if pd.isna(v) else f"{v:+.0%}"),
+    )
+    print("  " + shown.to_string(index=False).replace("\n", "\n  "))
 
 
 def _apikey(args: argparse.Namespace, store: PlanStore) -> int:
@@ -213,16 +273,20 @@ def _parser() -> argparse.ArgumentParser:
     )  # fmt: skip
     run.add_argument("--whatsapp-mode", choices=["template", "text"], default="template")
     run.add_argument("--force", action="store_true", help="re-plan and resend even if sent")
+    run.add_argument("--no-weather", action="store_true", help="skip live weather")
 
     for name, text in (
         ("score", "score finished plan days against actual readings"),
         ("scorecard", "each site's recent track record"),
         ("health", "data health report per site"),
+        ("monitor", "each model's calibration and accuracy, week by week"),
     ):
         command = sub.add_parser(name, help=text)
         _portfolio_arg(command)
         if name in ("scorecard", "health"):
             command.add_argument("--days", type=int, default=30)
+        if name == "monitor":
+            command.add_argument("--weeks", type=int, default=8)
 
     ingest = sub.add_parser("ingest", help="pull new readings from monitoring platforms")
     ingest.add_argument("--sources", type=Path, help="sources TOML (default from settings)")

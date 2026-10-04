@@ -196,9 +196,15 @@ In order of how much each unblocks the product:
      gaps before they reach a forecast (`docs/data-connectors.md`).
    - Next: FusionSolar and Solarman APIs, tower RMS vendors, generator
      controllers and fuel-level sensors. Each is an adapter into the schema.
-3. **Weather service.**
-   - Cached archived forecasts (not reanalysis) for backtests.
-   - Live forecasts for plans.
+3. **Model monitoring and live weather (built).**
+   - Each site's models are checked on their last 14 scored days; a drifting
+     model is suspended and the plan falls back (Chronos-2, the GBM,
+     persistence), with an alert. Suspended models return on their record.
+   - Live weather feeds a weather model in shadow, promoted only when it
+     beats the default model on the site's own days. Each plan's weather
+     forecast is archived as issued, for honest weather backtests.
+   - Next: a weather backtest once the archive (or Open-Meteo's historical
+     forecast API) covers a held-out period.
 4. **Fuel module.**
    - Expected fuel use from generator runtime and load, reconciled against
      deliveries and tank levels.

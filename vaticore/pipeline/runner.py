@@ -12,13 +12,19 @@ For each site:
      the GBM, which needs months; with more, the calibrated GBM (the published
      planning model) plans and Chronos-2 runs beside it in shadow, so every
      pilot produces a head-to-head comparison on real data.
-  3. Fall back rather than fail: primary model calibrated, then uncalibrated,
-     then the other model, then persistence. A site always gets a plan if its
-     data allows one, and the run records why a fallback happened.
-  4. Plan the generator on the high quantile of net load (P90) and count on the
+  3. Check each model's recent record (monitoring.py). A model whose range
+     has drifted, or which has fallen behind persistence, is suspended and
+     the plan falls back down the chain; a challenger (the weather model,
+     where the site has weather) that has clearly beaten the default model
+     over two weeks goes first. Every change is stored and alerted.
+  4. Fall back rather than fail: primary model calibrated, then uncalibrated,
+     then the next model, then persistence. A site always gets a plan if its
+     data allows one, and the run records why a fallback happened. The other
+     models run in shadow and are scored, so the evidence keeps coming in.
+  5. Plan the generator on the high quantile of net load (P90) and count on the
      grid only at its low quantile (P10). Also plan the persistence baseline,
      "tomorrow looks like today", which every plan is later scored against.
-  5. Store everything (store.py), compose the message (local clock) and send
+  6. Store everything (store.py), compose the message (local clock) and send
      it to the site's consenting recipients, once.
 
 One site failing never stops the others; failures are stored with the error.
@@ -41,9 +47,12 @@ from vaticore.delivery.channels import Channel, address_hash, mask_address
 from vaticore.delivery.message import PlanMessage, no_plan_message, plan_message
 from vaticore.delivery.recipients import Recipient, recipients_for
 from vaticore.forecasting.base import quantile_column
+from vaticore.pipeline import monitoring
 from vaticore.pipeline.health import HealthReport, check_health
+from vaticore.pipeline.monitoring import MonitorConfig
 from vaticore.pipeline.scoring import value_phrase
 from vaticore.pipeline.store import SENT_STATES, PlanStore, RunRecord
+from vaticore.pipeline.weather import LiveWeather, site_weather
 from vaticore.schemas import (
     BATTERY_SOC_PCT,
     GENERATION_KW,
@@ -59,6 +68,7 @@ log = logging.getLogger("vaticore.pipeline")
 
 GBM = engine.PLANNING_MODEL
 CHRONOS = "chronos_2"
+WEATHER = engine.WEATHER_MODEL
 PERSISTENCE = "persistence"
 QUANTILES = (0.1, 0.5, 0.9)
 
@@ -81,6 +91,8 @@ class PipelineConfig:
     model_order: tuple[str, ...] | None = None
     # Days of scored plans needed before the message quotes a track record.
     track_record_min_days: int = 3
+    # Suspend drifting models and promote proven challengers; None turns it off.
+    monitor: MonitorConfig | None = field(default_factory=MonitorConfig)
 
 
 @dataclass
@@ -96,6 +108,7 @@ class SiteRun:
     plan: DispatchPlan | None = None
     error: str | None = None
     deliveries: list[tuple[str, str]] = field(default_factory=list)  # (masked, status)
+    alerts: list[str] = field(default_factory=list)  # model status changes, for ops
 
 
 def plan_window(site: Site, plan_date: date) -> tuple[pd.Timestamp, pd.Timestamp]:
@@ -121,8 +134,13 @@ def run_site(
     config: PipelineConfig | None = None,
     soc_kwh: float | None = None,
     now: datetime | None = None,
+    weather: LiveWeather | None = None,
 ) -> SiteRun:
-    """Plan one site for one day and store the result. Never raises for data reasons."""
+    """Plan one site for one day and store the result. Never raises for data reasons.
+
+    With a weather provider, the site's weather is fetched and cached and the
+    weather model runs (in shadow until monitoring promotes it).
+    """
     config = config or PipelineConfig()
     now = now or datetime.now(tz=UTC)
     start, end = plan_window(site, plan_date)
@@ -149,7 +167,7 @@ def run_site(
             )
             store.save_run(_record(site, result, start, end, now))
             return result
-        _plan(site, history, health, store, result, start, end, config, soc_kwh, now)
+        _plan(site, history, health, store, result, start, end, config, soc_kwh, now, weather)
     except Exception as exc:  # stored, reported, and the next site still runs
         log.exception("site %s/%s failed", site.operator_id, site.site_id)
         result.status = "failed"
@@ -170,6 +188,7 @@ def run_portfolio(
     force: bool = False,
     config: PipelineConfig | None = None,
     now: datetime | None = None,
+    weather: LiveWeather | None = None,
 ) -> list[SiteRun]:
     """Plan (and optionally deliver) every site, or the listed ones."""
     config = config or PipelineConfig()
@@ -189,7 +208,9 @@ def run_portfolio(
                 )
                 runs.append(run)
                 continue
-        run = run_site(site, repo, store, plan_date=day, config=config, now=now)
+        run = run_site(site, repo, store, plan_date=day, config=config, now=now, weather=weather)
+        for alert in run.alerts:
+            log.warning("model monitoring: %s", alert)
         if channels and run.message is not None:
             run.deliveries = deliver(store, site, run, channels, list(recipients), force, now)
         runs.append(run)
@@ -299,6 +320,7 @@ def _plan(
     config: PipelineConfig,
     soc_kwh: float | None,
     now: datetime,
+    provider: LiveWeather | None = None,
 ) -> None:
     assets = site.dispatch_assets()
     # Forecasts start the hour after the history ends.
@@ -306,9 +328,33 @@ def _plan(
     horizon = int((end - last) / pd.Timedelta(hours=1)) - 1
     window = pd.date_range(start, periods=24, freq="1h", tz="UTC", name=TIMESTAMP)
 
+    weather = None
+    if provider is not None:
+        weather = site_weather(
+            site,
+            store,
+            provider,
+            start - pd.Timedelta(days=config.history_days),
+            end,
+            now,
+            result.fallback,
+        )
+
     short = health.history_days < config.short_history_days
-    order = list(config.model_order or ((CHRONOS, GBM) if short else (GBM, CHRONOS)))
-    forecast, model = _forecast_with_fallback(history, horizon, order, result.fallback)
+    default = [CHRONOS, GBM] if short else [GBM, CHRONOS]
+    challengers = [WEATHER] if weather is not None else []
+    if config.model_order is not None:
+        order = list(config.model_order)
+    elif config.monitor is not None:
+        checked, changes = monitoring.check_site(
+            store, site.operator_id, site.site_id, result.plan_date, now, config.monitor
+        )
+        result.alerts = [c.describe() for c in changes]
+        order, notes = monitoring.choose_order(default, challengers, checked, config.monitor)
+        result.fallback.extend(notes)
+    else:
+        order = default + challengers
+    forecast, model = _forecast_with_fallback(history, horizon, order, result.fallback, weather)
     result.model = model
     primary = forecast.reindex(window)
     if primary.isna().any().any():
@@ -350,14 +396,21 @@ def _plan(
         _forecast_rows(baseline_fc, PERSISTENCE, "baseline"),
     ]
     if config.shadow and config.model_order is None:
-        shadow_model = next(m for m in (CHRONOS, GBM) if m != model.split("+")[0])
-        try:
-            shadow = engine.net_load_forecast(
-                history, horizon=horizon, model=shadow_model, quantiles=QUANTILES, calibrate=True
-            ).reindex(window)
-            frames.append(_forecast_rows(shadow, f"{shadow_model}+conformal", "shadow"))
-        except Exception as exc:  # shadow models never block a plan
-            result.fallback.append(f"shadow {shadow_model} skipped ({type(exc).__name__})")
+        # Every other model runs beside the plan and is scored, suspended ones
+        # included: that is how a suspended model earns its way back.
+        for shadow_model in [m for m in (*default, *challengers) if m != model.split("+")[0]]:
+            try:
+                shadow = engine.net_load_forecast(
+                    history,
+                    horizon=horizon,
+                    model=shadow_model,
+                    quantiles=QUANTILES,
+                    calibrate=True,
+                    weather=weather,
+                ).reindex(window)
+                frames.append(_forecast_rows(shadow, f"{shadow_model}+conformal", "shadow"))
+            except Exception as exc:  # shadow models never block a plan
+                result.fallback.append(f"shadow {shadow_model} skipped ({type(exc).__name__})")
 
     plan_rows = pd.DataFrame(
         {
@@ -390,6 +443,10 @@ def _plan(
         track_note=_track_note(store, site, start, config),
     )
     result.status = "planned"
+    if weather is not None:
+        issued = weather[(weather[TIMESTAMP] >= start) & (weather[TIMESTAMP] < end)]
+        if not issued.empty:
+            store.save_issued_weather(site.operator_id, site.site_id, result.plan_date, issued, now)
     store.save_run(
         _record(site, result, start, end, now, soc=soc, soc_assumed=soc_assumed, assets=assets),
         forecasts=pd.concat(frames, ignore_index=True),
@@ -421,14 +478,23 @@ def measured_soc_kwh(
 
 
 def _forecast_with_fallback(
-    history: pd.DataFrame, horizon: int, order: list[str], notes: list[str]
+    history: pd.DataFrame,
+    horizon: int,
+    order: list[str],
+    notes: list[str],
+    weather: pd.DataFrame | None = None,
 ) -> tuple[pd.DataFrame, str]:
     attempts = [(m, cal) for m in order if m != PERSISTENCE for cal in (True, False)]
     attempts.append((PERSISTENCE, False))
     for model, calibrate in attempts:
         try:
             forecast = engine.net_load_forecast(
-                history, horizon=horizon, model=model, quantiles=QUANTILES, calibrate=calibrate
+                history,
+                horizon=horizon,
+                model=model,
+                quantiles=QUANTILES,
+                calibrate=calibrate,
+                weather=weather,
             )
             return forecast, f"{model}+conformal" if calibrate else model
         except Exception as exc:

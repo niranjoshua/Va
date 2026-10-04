@@ -340,3 +340,33 @@ def _health_repo():  # type: ignore[no-untyped-def]
     fleet["timestamp"] = fleet["timestamp"] + shift
     repo.upsert(fleet)
     return repo
+
+
+def test_model_monitoring_endpoint() -> None:
+    from datetime import UTC, date, datetime, timedelta
+
+    from vaticore.pipeline.store import ScoreRecord
+
+    client, store = _pipeline_client(api_token="admin")
+    now = datetime.now(tz=UTC)
+    for k in range(1, 4):
+        detail = {
+            "models": {
+                "persistence (baseline)": {"role": "baseline", "pinball": 1.0,
+                                           "coverage_80": 0.8, "hours": 24},
+                "chronos_2+conformal": {"role": "primary", "pinball": 0.6,
+                                        "coverage_80": 0.5, "hours": 24},
+            }
+        }  # fmt: skip
+        day = date.today() - timedelta(days=k)
+        store.save_score(  # type: ignore[attr-defined]
+            ScoreRecord("op", "s1", day, now, 24, 0, 0.6, 0.5, 0, 0, 0, 0, 0, 0, 0, 0, 0, detail)
+        )
+    store.set_model_status("op", "s1", "chronos_2", "suspended", "range held 50%", now)  # type: ignore[attr-defined]
+    resp = client.get("/sites/op/s1/models", headers={"Authorization": "Bearer admin"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["statuses"][0]["status"] == "suspended"
+    chronos = [w for w in body["weekly"] if w["model"] == "chronos_2"]
+    assert sum(w["days"] for w in chronos) == 3 and chronos[0]["range_held"] == 0.5
+    assert client.get("/sites/op/s1/models").status_code == 401

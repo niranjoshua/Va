@@ -69,4 +69,5 @@ notebooks, and each can be rerun from one command.
   on/off by hour. This moves RQ2, RQ4 and RQ6 from shaped sites to real ones.
 - **Archived weather forecasts.** Forecasts as they were issued, not
   reanalysis, for honest weather backtests (RQ3). Open-Meteo's historical
-  forecast API provides these.
+  forecast API provides these, and the pipeline now archives each plan day's
+  forecast as issued (`weather_issued`), so pilots build their own.

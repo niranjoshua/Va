@@ -34,9 +34,11 @@ class Settings(BaseSettings):
     # Point this at Postgres/TimescaleDB in staging and production.
     database_url: str = Field(default="duckdb:///vaticore.duckdb")
 
-    # Weather provider. Open-Meteo needs no key to start.
+    # Weather provider for live forecasts: "open-meteo" or "none". Open-Meteo's
+    # free API is for non-commercial use only; commercial use needs an API
+    # subscription key. Without a key, production runs skip live weather.
     weather_provider: str = Field(default="open-meteo")
-    weather_api_key: str | None = Field(default=None)
+    weather_api_key: SecretStr | None = Field(default=None)
 
     # Experiment tracking.
     mlflow_tracking_uri: str | None = Field(default=None)
@@ -79,6 +81,10 @@ class Settings(BaseSettings):
 
     # Monitoring connectors: which source each site's readings come from.
     sources_file: Path | None = Field(default=None)
+
+    # Where model monitoring alerts go (a model suspended or reinstated), by
+    # email over the SMTP settings above. Unset: alerts are logged only.
+    ops_email: str | None = Field(default=None)
 
 
 def get_settings() -> Settings:
