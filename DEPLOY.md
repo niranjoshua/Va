@@ -57,3 +57,19 @@ secrets or operator data.
 The API's data source is synthetic demo data today (`get_fleet`). Wire the
 `storage/` repository to your database and replace that dependency to serve real
 operator data. Nothing else about the handlers changes.
+
+## The daily pipeline
+
+`render.yaml` also defines `vaticore-daily-plans`, a scheduled job that runs
+at 04:40 UTC (05:40 in Lagos): it scores finished plan days, then plans every
+site and sends the plans on WhatsApp. It needs, in the Render dashboard:
+
+- `VATICORE_DATABASE_URL`: the same Postgres as the web service.
+- `VATICORE_WHATSAPP_TOKEN` and `VATICORE_WHATSAPP_PHONE_NUMBER_ID`.
+- Secret files `portfolio.toml` (the operator's sites) and `recipients.toml`
+  (who receives plans, with consent).
+
+The web service needs `VATICORE_WHATSAPP_APP_SECRET`,
+`VATICORE_WHATSAPP_VERIFY_TOKEN` (for the webhook) and `VATICORE_API_TOKEN`
+(for the plan and scorecard endpoints). Step by step: `docs/whatsapp-setup.md`
+and `docs/pipeline.md`.

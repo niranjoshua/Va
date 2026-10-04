@@ -109,6 +109,8 @@ vaticore/
   api/           # FastAPI service (thin handlers over the engine)
   dashboard/     # Streamlit app
   copilot/       # LLM explanations grounded on the engine's numbers
+  pipeline/      # the daily loop: data health, plan, store, score (docs/pipeline.md)
+  delivery/      # morning messages on WhatsApp, replies, opt-outs (docs/whatsapp-setup.md)
   storage/       # multi-tenant, multi-site persistence
   engine.py      # orchestration facade used by api and dashboard
   datasets.py    # synthetic demo data
@@ -137,6 +139,12 @@ uv run streamlit run vaticore/dashboard/app.py   # visual demo
 
 uv sync --extra service
 uv run uvicorn vaticore.api.main:app --reload    # API, docs at /docs
+```
+
+The daily pipeline (plan, send, score), on synthetic data with nothing sent:
+
+```bash
+uv run python -m vaticore.pipeline demo
 ```
 
 Example API call:

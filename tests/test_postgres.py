@@ -65,3 +65,13 @@ def test_list_sites(repo) -> None:  # type: ignore[no-untyped-def]
     repo.upsert(make_synthetic_fleet(days=4, seed=1))
     sites = repo.list_sites()
     assert len(sites) == 3
+
+
+def test_grid_record_survives_feeds_without_it(repo) -> None:  # type: ignore[no-untyped-def]
+    site = make_synthetic_site("op1", "siteA", days=2, seed=1, gap_fraction=0.0)
+    site["grid_available"] = [1.0, 0.0] * (len(site) // 2)
+    repo.upsert(site)
+    repo.upsert(site.drop(columns=["grid_available"]).assign(load_kw=1.0))
+    stored = repo.read_history("op1", "siteA")
+    assert (stored["load_kw"] == 1.0).all()
+    assert stored["grid_available"].tolist() == site["grid_available"].tolist()
