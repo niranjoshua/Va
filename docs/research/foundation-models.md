@@ -24,8 +24,9 @@ whether they help new sites with only weeks of history.
 3. **New sites are where pretrained models change the product.** With only two weeks of a site's history, Chronos-2 forecast Belgian load more accurately than the GBM trained on three years (pinball 84.0 against 95.0 MW, on the same 182 days). The GBM cannot run at all on two weeks, and on four weeks its range held only 43% of outcomes. This is the strongest commercial result in the note: a new site can get a usable, nearly honest forecast in its first fortnight.
 4. **Two findings came before any accuracy number.**
    - **Licences.** Chronos-2 and TimesFM 2.5 are Apache 2.0 and usable in
-     the product. TimesFM 3.0 is released under a non-commercial licence; it
-     appears below as a research reference only and cannot serve customers.
+     the product. TimesFM 3.0 is released under a non-commercial licence
+     that also excludes results used in commercial decisions, so it is not
+     part of this note.
    - **Contamination.** The models' pretraining corpus (GiftEvalPretrain)
      contains the Spanish load series of note 1, value for value from 2015 to
      2018, including its 2018 test year. Scoring the models on it would
@@ -53,7 +54,6 @@ at 00:00 UTC. Identical hours to note 2.
 | TimesFM 2.5, calibrated | 83.3 | 53.3% better | 252.7 | 80.4% |
 | **Chronos-2** | **75.0** | **58.0% better** | **230.2** | 77.9% |
 | **Chronos-2, calibrated** | **75.2** | **57.9% better** | **230.2** | **80.3%** |
-| TimesFM 3.0 (research only) | 75.4 | 57.8% better | 232.0 | 79.7% |
 
 Points to note:
 
@@ -62,7 +62,6 @@ Points to note:
   Calibration still moves Chronos-2 onto the target, at no cost in accuracy.
 - **None of these forecasts uses weather.** Elia's does. Weather covariates
   (Chronos-2 accepts them) are the obvious next test.
-- **TimesFM 3.0 matches Chronos-2** but cannot be used commercially.
 
 ## Value on a Belgian-shaped solar mini-grid, test
 
@@ -77,7 +76,6 @@ policy plans the generator on its own calibrated P90 of net load.
 | Vaticore GBM, calibrated | 3.32 | 25.6% better | 80.2% |
 | TimesFM 2.5, calibrated | 3.27 | 26.7% better | 81.3% |
 | **Chronos-2, calibrated** | **2.87** | **35.7% better** | **81.0%** |
-| TimesFM 3.0 (research only), calibrated | 2.97 | 33.5% better | 82.2% |
 
 | Policy | Diesel (L) | Unserved (kWh) | Outage hours | Total cost | Share of possible savings |
 |---|---|---|---|---|---|
@@ -86,7 +84,6 @@ policy plans the generator on its own calibrated P90 of net load.
 | Vaticore GBM, calibrated P90 | 76,927 | 669 | 102 | 85,289 | 85.2% |
 | TimesFM 2.5, calibrated P90 | 76,991 | 551 | 97 | 85,241 | 86.5% |
 | **Chronos-2, calibrated P90** | **76,936** | **602** | **98** | **85,232** | **86.7%** |
-| TimesFM 3.0 (research only), calibrated P90 | 76,991 | 495 | 94 | 85,186 | 88.0% |
 | Perfect forecast (bound) | 76,586 | 509 | 120 | 84,754 | 100% |
 
 An unserved kWh is priced at 1.00 and diesel at 1.10 per litre, as in notes
@@ -105,7 +102,6 @@ to calibrate on. Skill is against persistence with full history.
 | Vaticore GBM | cannot run | 136.1 (43.4%) | 123.5 (47.0%) |
 | TimesFM 2.5 | 104.9 (71.6%) | 98.7 (67.8%) | 89.4 (72.3%) |
 | **Chronos-2** | **84.0 (73.5%)** | **76.0 (76.5%)** | **73.1 (76.6%)** |
-| TimesFM 3.0 (research only) | 83.1 (81.8%) | 77.6 (80.9%) | 74.7 (81.3%) |
 
 Pinball loss in MW, with the share of outcomes inside the P10 to P90 range in
 brackets. For reference, on the same 182 days persistence with full history
@@ -130,8 +126,8 @@ scored 175.1 and the GBM with three years of history 95.0 (69.3% held).
   P50 and P90 are taken. Nothing is trained on the site.
 - **Design and test kept apart.** The only design choice, how much history
   each model sees (4, 12 or 48 weeks), was made on Elia load from July to
-  December 2024. All three models did best with 48 weeks (Chronos-2 skill
-  61.2% over persistence, TimesFM 2.5 57.7%, TimesFM 3.0 64.1%). The test
+  December 2024. Both models did best with 48 weeks (Chronos-2 skill 61.2%
+  over persistence, TimesFM 2.5 57.7%). The test
   periods were then run once.
 - **Calibration.** The same conformal calibration as notes 1 and 2: each
   day's band is adjusted using only the previous 28 days' misses.

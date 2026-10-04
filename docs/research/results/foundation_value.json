@@ -55,22 +55,6 @@
       "rmse": 18.531617745628896,
       "coverage_80": 0.8128205128205128,
       "hours": 3120
-    },
-    {
-      "model": "timesfm-3.0 (research only)",
-      "pinball": 2.9758576130244077,
-      "mae": 9.429312375044233,
-      "rmse": 17.448163219963515,
-      "coverage_80": 0.8538461538461538,
-      "hours": 3120
-    },
-    {
-      "model": "timesfm-3.0 (research only)+conformal",
-      "pinball": 2.9696914166709143,
-      "mae": 9.429622416526778,
-      "rmse": 17.448185242047675,
-      "coverage_80": 0.8224358974358974,
-      "hours": 3120
     }
   ],
   "value": {
@@ -139,19 +123,6 @@
       "savings_vs_baseline": 3115.0023271939,
       "share_of_possible": 0.8648180164
     },
-    "timesfm-3.0 (research only)+conformal P90": {
-      "fuel_l": 76991.4396256409,
-      "grid_kwh": 0.0,
-      "genset_hours": 2826.0,
-      "genset_starts": 175,
-      "unserved_kwh": 495.1961798334,
-      "unserved_hours": 94.0,
-      "fuel_cost": 84690.583588205,
-      "unserved_cost": 495.1961798334,
-      "total_cost": 85185.7797680385,
-      "savings_vs_baseline": 3170.018949219,
-      "share_of_possible": 0.8800922798
-    },
     "perfect forecast": {
       "fuel_l": 76585.9494514913,
       "grid_kwh": 0.0,
@@ -186,7 +157,6 @@
   "seconds": {
     "quantile_gbm_day_ahead": 83.18785834312439,
     "chronos-2": 309.0372247695923,
-    "timesfm-2.5": 1895.5522727966309,
-    "timesfm-3.0 (research only)": 1485.868929386139
+    "timesfm-2.5": 1895.5522727966309
   }
 }

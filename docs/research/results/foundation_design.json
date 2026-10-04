@@ -55,35 +55,10 @@
       "rmse": 331.5600158257722,
       "coverage_80": 0.779891304347826,
       "hours": 4416
-    },
-    {
-      "model": "timesfm-3.0 (research only), 4 weeks",
-      "pinball": 69.71885550236357,
-      "mae": 208.50241697449616,
-      "rmse": 330.6469037258092,
-      "coverage_80": 0.8086503623188406,
-      "hours": 4416
-    },
-    {
-      "model": "timesfm-3.0 (research only), 12 weeks",
-      "pinball": 64.43894173516168,
-      "mae": 196.04167146102245,
-      "rmse": 293.32838407198415,
-      "coverage_80": 0.7977807971014492,
-      "hours": 4416
-    },
-    {
-      "model": "timesfm-3.0 (research only), 48 weeks",
-      "pinball": 62.52503176186971,
-      "mae": 190.10743877466174,
-      "rmse": 286.592737013936,
-      "coverage_80": 0.8102355072463768,
-      "hours": 4416
     }
   ],
   "chosen_context_hours": {
     "chronos-2": 8064,
-    "timesfm-2.5": 8064,
-    "timesfm-3.0 (research only)": 8064
+    "timesfm-2.5": 8064
   }
 }
