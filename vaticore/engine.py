@@ -382,6 +382,7 @@ def dispatch_plan_for_site(
     calibrate: bool = True,
     grid_plan_quantile: float = 0.1,
     assume_grid_always_on: bool = False,
+    display_timezone: str = "UTC",
 ) -> DispatchPlan:
     """Today's hour by hour generator schedule for one site. Advisory only.
 
@@ -432,6 +433,7 @@ def dispatch_plan_for_site(
         soc_kwh=soc_kwh,
         assets=assets,
         planned_grid_available=planned_grid,
+        display_timezone=display_timezone,
     )
 
 
@@ -453,6 +455,7 @@ def plan_for_site(
         horizon=horizon,
         plan_quantile=plan_quantile,
         assume_grid_always_on=bool(site.grid and site.grid.reliable),
+        display_timezone=site.timezone,
     )
 
 

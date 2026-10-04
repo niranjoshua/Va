@@ -18,7 +18,11 @@ import pytest
 
 from vaticore.forecasting import Forecaster
 from vaticore.forecasting.base import InsufficientHistoryError, NotFittedError, quantile_column
-from vaticore.forecasting.foundation import ChronosForecaster, TimesFMForecaster
+from vaticore.forecasting.foundation import (
+    TIMESFM_3_MODEL,
+    ChronosForecaster,
+    TimesFMForecaster,
+)
 from vaticore.schemas import LOAD_KW, TIMESTAMP
 
 
@@ -61,14 +65,24 @@ class FakeChronos:
 
 
 class FakeTimesFM:
+    """TimesFM 2.5 style: forecast() returns the mean then the deciles."""
+
     def __init__(self) -> None:
         self.contexts: list[np.ndarray] = []
 
-    def predict(self, context: np.ndarray, horizon: int, return_quantiles: bool) -> Any:
-        self.contexts.append(context)
+    def forecast(self, horizon: int, inputs: list[np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
+        self.contexts.append(inputs[0])
         levels = np.asarray(TimesFMForecaster.model_quantiles)
-        row = -5.0 + 10.0 * levels
-        return SimpleNamespace(quantiles=np.tile(row, (horizon, 1)))
+        row = np.concatenate([[999.0], -5.0 + 10.0 * levels])  # the mean must be dropped
+        return np.zeros((1, horizon)), np.tile(row, (1, horizon, 1))
+
+
+class FakeTimesFM3:
+    """TimesFM 3.0 style: predict() returns an object with the deciles."""
+
+    def predict(self, context: np.ndarray, horizon: int, return_quantiles: bool) -> Any:
+        levels = np.asarray(TimesFMForecaster.model_quantiles)
+        return SimpleNamespace(quantiles=np.tile(-5.0 + 10.0 * levels, (horizon, 1)))
 
 
 def _site(hours: int = 24 * 10) -> pd.DataFrame:
@@ -98,6 +112,13 @@ def test_quantiles_between_model_levels_are_interpolated() -> None:
     model = TimesFMForecaster(LOAD_KW, pipeline=FakeTimesFM(), nonnegative=False).fit(_site())
     forecast = model.predict_quantiles(horizon=3, quantiles=(0.25, 0.5, 0.85))
     np.testing.assert_allclose(forecast.iloc[0].to_numpy(), [-2.5, 0.0, 3.5])
+
+
+def test_timesfm_3_research_model_is_supported() -> None:
+    model = TimesFMForecaster(
+        LOAD_KW, model_id=TIMESFM_3_MODEL, pipeline=FakeTimesFM3(), nonnegative=False
+    ).fit(_site())
+    np.testing.assert_allclose(model.predict_quantiles(1, (0.1, 0.9)).iloc[0], [-4.0, 4.0])
 
 
 def test_nonnegative_clips_and_signed_targets_do_not() -> None:

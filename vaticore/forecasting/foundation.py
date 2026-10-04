@@ -9,7 +9,11 @@ needs months of the site's own history.
 Two backends are wrapped:
 
   ChronosForecaster   Amazon's Chronos-2 (default "amazon/chronos-2").
-  TimesFMForecaster   Google's TimesFM (default "google/timesfm-3.0-pytorch").
+  TimesFMForecaster   Google's TimesFM (default "google/timesfm-2.5-200m-pytorch").
+
+Licences matter: Chronos-2 and TimesFM 2.5 are Apache 2.0 and can be used
+commercially. TimesFM 3.0 is released under a non-commercial licence, so it is
+supported for research benchmarks only and must not serve customers.
 
 Both are challengers, not the planning default. They earn production only by
 beating the current model on pinball loss, calibration and value in the
@@ -53,7 +57,8 @@ from vaticore.forecasting.base import (
 from vaticore.schemas import TIMESTAMP
 
 CHRONOS_MODEL = "amazon/chronos-2"
-TIMESFM_MODEL = "google/timesfm-3.0-pytorch"
+TIMESFM_MODEL = "google/timesfm-2.5-200m-pytorch"  # Apache 2.0
+TIMESFM_3_MODEL = "google/timesfm-3.0-pytorch"  # non-commercial licence: research only
 
 # Hours of history given to the model by default: 12 weeks, enough to show
 # daily and weekly patterns without making each forecast slow on a CPU.
@@ -242,17 +247,34 @@ class TimesFMForecaster(FoundationForecaster):
     ) -> None:
         super().__init__(target, model_id=model_id, **kwargs)
 
+    @property
+    def is_version_3(self) -> bool:
+        return "timesfm-3" in self.model_id
+
     def _load(self) -> Any:
-        return _load_timesfm(self.model_id, self.device)
+        if self.is_version_3:
+            return _load_timesfm_3(self.model_id, self.device)
+        return _load_timesfm_2p5(self.model_id, _round_up(self.context_length, 32))
 
     def _predict(self, context: np.ndarray, horizon: int) -> np.ndarray:
         # Leading missing values carry no information; TimesFM drops them too.
         observed = np.flatnonzero(~np.isnan(context))
-        trimmed = context[observed[0] :] if observed.size else context
-        output = self.pipeline.predict(
-            trimmed.astype(np.float32), horizon=horizon, return_quantiles=True
-        )
-        return np.asarray(output.quantiles, dtype=float)
+        trimmed = (context[observed[0] :] if observed.size else context).astype(np.float32)
+        if self.is_version_3:
+            output = self.pipeline.predict(trimmed, horizon=horizon, return_quantiles=True)
+            return np.asarray(output.quantiles, dtype=float)
+        if horizon > _TIMESFM_MAX_HORIZON:
+            raise ValueError(f"horizon is limited to {_TIMESFM_MAX_HORIZON} steps")
+        _point, quantiles = self.pipeline.forecast(horizon=horizon, inputs=[trimmed])
+        # TimesFM 2.5 returns the mean first, then the deciles 0.1 to 0.9.
+        return np.asarray(quantiles[0][:, 1:], dtype=float)
+
+
+_TIMESFM_MAX_HORIZON = 256
+
+
+def _round_up(value: int, multiple: int) -> int:
+    return -(-value // multiple) * multiple
 
 
 @lru_cache(maxsize=4)
@@ -264,10 +286,30 @@ def _load_chronos(model_id: str, device: str) -> Any:
     return BaseChronosPipeline.from_pretrained(model_id, device_map=device)
 
 
-@lru_cache(maxsize=4)
-def _load_timesfm(model_id: str, device: str) -> Any:
+def _import_timesfm() -> Any:
     try:
         import timesfm
     except ImportError as exc:  # pragma: no cover - depends on the environment
         raise ImportError("TimesFM needs the foundation extra: uv sync --extra foundation") from exc
-    return timesfm.TimesFM3Forecaster.from_pretrained(model_id, device=device)
+    return timesfm
+
+
+@lru_cache(maxsize=4)
+def _load_timesfm_2p5(model_id: str, max_context: int) -> Any:
+    timesfm = _import_timesfm()
+    model = timesfm.TimesFM_2p5_200M_torch.from_pretrained(model_id)
+    model.compile(
+        timesfm.ForecastConfig(
+            max_context=max_context,
+            max_horizon=_TIMESFM_MAX_HORIZON,
+            normalize_inputs=True,
+            use_continuous_quantile_head=True,
+            fix_quantile_crossing=True,
+        )
+    )
+    return model
+
+
+@lru_cache(maxsize=4)
+def _load_timesfm_3(model_id: str, device: str) -> Any:
+    return _import_timesfm().TimesFM3Forecaster.from_pretrained(model_id, device=device)

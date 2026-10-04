@@ -194,6 +194,7 @@ def create_app() -> FastAPI:
                 plan_quantile=request.plan_quantile,
                 calibrate=request.calibrate,
                 assume_grid_always_on=request.assume_grid_always_on,
+                display_timezone=request.timezone,
             )
         except (ValueError, ForecasterError) as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc

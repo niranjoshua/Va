@@ -123,6 +123,20 @@ def test_a_run_ending_at_midnight_says_midnight() -> None:
     assert plan.run_window_labels == ["20:00 to midnight"]
 
 
+def test_labels_use_the_site_clock_while_timestamps_stay_utc() -> None:
+    # 19:00 to 23:00 UTC is 20:00 to midnight in Lagos (UTC+1).
+    values = [0.0] * 19 + [60.0] * 4 + [0.0]
+    plan = plan_dispatch(
+        _series(values), soc_kwh=0.0, assets=ASSETS, display_timezone="Africa/Lagos"
+    )
+    assert plan.run_window_labels == ["20:00 to midnight"]
+    assert "Run the generator 20:00 to midnight" in plan.summary()
+    assert str(plan.timestamps.tz) == "UTC"
+    assert plan_dispatch(_series(values), soc_kwh=0.0, assets=ASSETS).run_window_labels == [
+        "19:00 to 23:00"
+    ]
+
+
 def test_plan_warns_when_even_the_generator_is_not_enough() -> None:
     plan = plan_dispatch(_series([100.0] * 3), soc_kwh=0.0, assets=ASSETS)
     assert plan.expected.unserved_kwh == pytest.approx(3 * 60.0)
