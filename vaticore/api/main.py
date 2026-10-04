@@ -181,6 +181,7 @@ def create_app() -> FastAPI:
                 battery_power_kw=request.battery_power_kw,
                 genset_kw=request.genset_kw,
                 min_soc_kwh=request.min_soc_kwh,
+                genset_min_run_hours=request.genset_min_run_hours,
                 diesel_price_per_l=request.diesel_price_per_l,
                 grid_kw=request.grid_kw,
                 grid_price_per_kwh=request.grid_price_per_kwh,
@@ -224,6 +225,7 @@ def create_app() -> FastAPI:
             grid_windows=result.grid_window_labels,
             expected_fuel_l=expected.fuel_l,
             expected_genset_hours=expected.genset_hours,
+            expected_genset_starts=expected.genset_starts,
             expected_unserved_kwh=expected.unserved_kwh,
             hours=hours,
         )

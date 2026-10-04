@@ -117,6 +117,7 @@ def test_plan_returns_an_hourly_advisory_schedule(client: TestClient) -> None:
     assert isinstance(body["summary"], str) and body["summary"]
     on_hours = sum(h["genset_on"] for h in body["hours"])
     assert body["expected_genset_hours"] <= on_hours
+    assert body["expected_genset_starts"] == len(body["run_windows"])
 
 
 def test_plan_rejects_a_battery_charge_outside_its_capacity(client: TestClient) -> None:

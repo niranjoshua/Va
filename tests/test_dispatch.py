@@ -160,3 +160,40 @@ def test_a_site_without_a_battery_runs_on_generator_and_solar() -> None:
     plan = plan_dispatch(_series([20.0, 20.0]), soc_kwh=0.0, assets=no_battery)
     assert plan.genset_on.all()
     assert "Run the generator" in plan.summary()
+
+
+def test_minimum_run_time_stops_hour_by_hour_cycling() -> None:
+    # 5 kW of net load, an empty battery and a 10 kW minimum stable load: an
+    # hour-by-hour planner runs the set one hour (charging 5 kWh), lets the
+    # battery cover the next, and starts again. Three starts in six hours.
+    hourly = plan_dispatch(_series([5.0] * 6), soc_kwh=0.0, assets=ASSETS)
+    assert hourly.genset_on.tolist() == [True, False, True, False, True, False]
+    assert hourly.expected.genset_starts == 3
+
+    # A three hour minimum run charges the battery enough for the rest of the
+    # day: one start, the same fuel, nothing unserved.
+    assets = SiteAssets(**{**ASSETS.__dict__, "genset_min_run_hours": 3.0})
+    held = plan_dispatch(_series([5.0] * 6), soc_kwh=0.0, assets=assets)
+    assert held.genset_on.tolist() == [True, True, True, False, False, False]
+    assert held.expected.genset_starts == 1
+    assert held.expected.unserved_kwh == 0.0
+    assert held.expected.fuel_l == pytest.approx(hourly.expected.fuel_l)
+    assert held.run_window_labels == ["00:00 to 03:00"]
+
+
+def test_minimum_run_is_cut_short_by_the_end_of_the_plan() -> None:
+    assets = SiteAssets(**{**ASSETS.__dict__, "genset_min_run_hours": 4.0})
+    plan = plan_dispatch(_series([0.0, 0.0, 5.0, 5.0]), soc_kwh=0.0, assets=assets)
+    assert plan.genset_on.tolist() == [False, False, True, True]
+
+
+def test_minimum_run_counts_whole_steps() -> None:
+    quarter_hourly = SiteAssets(**{**ASSETS.__dict__, "step_hours": 0.25})
+    assert (
+        SiteAssets(**{**quarter_hourly.__dict__, "genset_min_run_hours": 1.5}).genset_min_run_steps
+        == 6
+    )
+    assert SiteAssets(**{**ASSETS.__dict__, "genset_min_run_hours": 1.5}).genset_min_run_steps == 2
+    assert ASSETS.genset_min_run_steps == 1
+    with pytest.raises(ValueError):
+        SiteAssets(**{**ASSETS.__dict__, "genset_min_run_hours": 0.0})
