@@ -109,6 +109,9 @@ class Site(_Strict):
     generator: Generator | None = None
     grid: GridConnection | None = None
     tags: dict[str, str] = Field(default_factory=dict)
+    plan_start_hour: int = Field(
+        default=6, ge=0, le=23, description="Local hour each daily plan starts and is sent"
+    )
 
     @field_validator("timezone")
     @classmethod

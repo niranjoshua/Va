@@ -46,6 +46,8 @@ vaticore/
   evaluation/    # backtesting harness, pinball loss, calibration, baseline comparison
   sites/         # site and asset registry: towers, banks, C&I, institutions, mini-grids
   decisions/     # forecast -> hourly plan: grid, generator, battery (advisory only)
+  pipeline/      # daily loop: data health, plan, store, score (docs/pipeline.md)
+  delivery/      # plans to people: WhatsApp, replies, opt-outs (advisory messages only)
   api/           # FastAPI service
   dashboard/     # Streamlit app
   storage/       # multi-tenant, multi-site persistence

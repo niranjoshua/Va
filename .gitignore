@@ -50,3 +50,7 @@ dist-web/
 .DS_Store
 .vscode/
 .idea/
+
+# Recipient lists hold phone numbers (personal data): never commit them.
+recipients*.toml
+!examples/sites/recipients.example.toml

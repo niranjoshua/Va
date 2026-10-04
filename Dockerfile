@@ -17,6 +17,9 @@ WORKDIR /app
 COPY pyproject.toml uv.lock README.md ./
 COPY vaticore ./vaticore
 RUN uv sync --frozen --no-dev --extra service
+# Example portfolio and recipients template, for the pipeline demo. Real
+# portfolios and recipient lists are mounted as secret files, never baked in.
+COPY examples/sites ./examples/sites
 
 EXPOSE 8000
 

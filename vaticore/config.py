@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -43,6 +43,28 @@ class Settings(BaseSettings):
 
     # Default quantiles produced across the system.
     default_quantiles: tuple[float, ...] = Field(default=(0.1, 0.5, 0.9))
+
+    # Daily pipeline. The portfolio (sites and assets) and the recipients file
+    # (phone numbers: personal data, keep outside the repository).
+    portfolio_file: Path | None = Field(default=None)
+    recipients_file: Path | None = Field(default=None)
+    # Plans and scores; defaults to the observation database.
+    plan_store_url: str | None = Field(default=None)
+
+    # WhatsApp Business Cloud API (Meta). See docs/whatsapp-setup.md.
+    whatsapp_token: SecretStr | None = Field(default=None)
+    whatsapp_phone_number_id: str | None = Field(default=None)
+    whatsapp_api_version: str = Field(default="v23.0")
+    whatsapp_template_name: str = Field(default="vaticore_daily_plan")
+    whatsapp_template_language: str = Field(default="en")
+    # Webhook security: the app secret signs every callback; the verify token
+    # is the shared word Meta sends when the webhook is first registered.
+    whatsapp_app_secret: SecretStr | None = Field(default=None)
+    whatsapp_verify_token: SecretStr | None = Field(default=None)
+
+    # Bearer token for the API's plan and scorecard endpoints. Required in
+    # production: plans are operator data.
+    api_token: SecretStr | None = Field(default=None)
 
 
 def get_settings() -> Settings:

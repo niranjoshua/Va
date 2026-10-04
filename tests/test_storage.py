@@ -87,3 +87,22 @@ def test_factory_builds_duckdb() -> None:
 
     repo = get_repository(Settings(database_url="duckdb:///:memory:"))
     assert isinstance(repo, DuckDBRepository)
+
+
+def test_grid_record_round_trips_and_survives_feeds_without_it(repo: DuckDBRepository) -> None:
+    from vaticore.schemas import GRID_AVAILABLE
+
+    site = make_synthetic_site("op1", "siteA", days=2, seed=1, gap_fraction=0.0)
+    site[GRID_AVAILABLE] = [1.0, 0.0] * (len(site) // 2)
+    repo.upsert(site)
+    stored = repo.read_history("op1", "siteA")
+    assert stored[GRID_AVAILABLE].tolist() == site[GRID_AVAILABLE].tolist()
+
+    # A later feed without a grid column updates load but keeps the grid record.
+    repo.upsert(site.drop(columns=[GRID_AVAILABLE]).assign(load_kw=1.0))
+    again = repo.read_history("op1", "siteA")
+    assert (again["load_kw"] == 1.0).all()
+    assert again[GRID_AVAILABLE].tolist() == site[GRID_AVAILABLE].tolist()
+
+    with pytest.raises(ValueError, match="grid_available"):
+        repo.upsert(site.assign(**{GRID_AVAILABLE: 0.5}))

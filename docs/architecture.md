@@ -82,6 +82,8 @@ Data only moves left to right. Each layer has one job and one contract.
 | `api/` | FastAPI service | `/forecast`, `/advisory`, `/plan` | Done |
 | `dashboard/` | Streamlit operator view | Site today, track record | Done; to be hosted |
 | `copilot/` | Plain-language explanations grounded on engine numbers | `explain_advisory` | Optional |
+| `pipeline/` | The daily loop: data health, model choice and fallback, plan, store, score | `run_portfolio`, `PlanStore`, `score_due`, `scorecard` | Done (`docs/pipeline.md`) |
+| `delivery/` | Plans to people: the morning message, WhatsApp, replies and opt-outs | `WhatsAppChannel`, `plan_message`, `handle_webhook` | Done (`docs/whatsapp-setup.md`) |
 
 ## Contracts
 
@@ -170,22 +172,24 @@ command. The protocol is in [`docs/research/README.md`](research/README.md).
 
 ## Deployment
 
-- One Docker image serves the API and the dashboard.
-- TimescaleDB is the production store.
-- A Render blueprint is in `render.yaml` (see `DEPLOY.md`).
-
-Planned: a scheduled pipeline that, each hour, ingests new readings, re-plans
-every site and publishes plans and alerts.
+- One Docker image serves the API, the dashboard and the daily pipeline.
+- TimescaleDB is the production store, shared by the API (which receives
+  WhatsApp webhooks) and the scheduled pipeline.
+- A Render blueprint is in `render.yaml` (see `DEPLOY.md`): the web service and
+  a daily job that scores finished days, then plans every site and sends the
+  plans on WhatsApp (`docs/pipeline.md`).
 
 ## What comes next architecturally
 
 In order of how much each unblocks the product:
 
-1. **Scheduled pipeline and plan store.**
-   - Hourly ingest, forecast and plan per site.
-   - Plans are stored, so every recommendation can later be scored against
-     what happened. This turns pilots into evidence automatically.
-2. **Site data connectors.**
+1. **Scheduled pipeline and plan store (built).**
+   - Daily per site: data health, forecast with fallback, plan, store,
+     WhatsApp delivery, and scoring against what happened, with Chronos-2 or
+     the GBM in shadow. Pilots now produce evidence automatically.
+   - Next: intraday re-planning when the grid or load departs from the plan.
+2. **Site data connectors.** (Most urgent now: they feed the pipeline.)
+   - The battery's state of charge first: plans assume 50% until it arrives.
    - Remote monitoring (RMS) exports from tower and hybrid controller vendors.
    - Battery management systems.
    - Generator controllers and fuel-level sensors.
