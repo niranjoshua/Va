@@ -1,14 +1,15 @@
 # The daily pipeline
 
-Every morning, for every site, Vaticore checks the data, forecasts, plans, stores
-everything, sends the plan on WhatsApp or email, and scores yesterday's plan
-against what happened. This page explains what runs, why, and how to operate it. The
+Every evening, for every site, Vaticore checks the data, forecasts, plans the
+next local day (midnight to midnight on the site's clock), stores everything,
+sends the plan on WhatsApp or email, and scores the finished day against what
+happened. This page explains what runs, why, and how to operate it. The
 code is in `vaticore/pipeline/` and `vaticore/delivery/`.
 
 ## The daily loop
 
 ```
- 04:40 UTC (05:40 Lagos)                                        06:00 Lagos
+ 17:00 UTC (18:00 Lagos)                         00:00 Lagos: the plan starts
  ---------------------------------------------------------------------------
  ingest    pull new readings from each site's monitoring platform
            (docs/data-connectors.md); one failing source never stops
@@ -17,13 +18,15 @@ code is in `vaticore/pipeline/` and `vaticore/delivery/`.
            outages and cost had the plan been followed, against the
            baseline and a perfect-forecast bound
  run       for each site in the portfolio:
-             1. read history up to the plan start (never after it)
+             1. read history up to now, the issue time (never after it,
+                and never past the plan start)
              2. check data health: stale, missing, stuck meter, no grid
                 record; if broken, tell the site there is no plan and why
              3. forecast net load with the right model, falling back if
                 a model fails; run the other model in shadow
              4. start from the battery's measured charge if a reading is
-                under 3 hours old, otherwise assume one and say so
+                under 3 hours old, carried forward to midnight on the
+                forecast; otherwise assume one and say so
              5. plan the generator on P90 net load, the grid on P10
                 availability; plan the persistence baseline too
              6. store forecasts, plan and message
@@ -32,8 +35,17 @@ code is in `vaticore/pipeline/` and `vaticore/delivery/`.
  webhook   all day: delivered and read receipts, replies (1, 2, STOP)
 ```
 
-A plan covers 24 hours from the site's `plan_start_hour` (06:00 local by
-default; set it per site in the portfolio TOML).
+A plan covers the site's local day, midnight to midnight on its own clock, and
+arrives the evening before, so the site manager knows tomorrow's generator
+runs before the day starts. The run plans each site's next day that has not
+started yet. A site can set `plan_start_hour` in the portfolio TOML (6 plans
+06:00 to 06:00 and, run at 05:40, sends it that morning).
+
+The hours between the plan being issued and midnight are forecast like the
+rest, and the battery's measured charge is carried through them, on the
+median forecast and the same planning rules, to give the charge at midnight.
+Replaying an old day (`run --date`) uses only readings from before the issue
+time, so a replay never sees the day it plans.
 
 ## Which model plans
 
@@ -145,6 +157,7 @@ database). DuckDB for local use, Postgres or TimescaleDB in production.
 | `model_status` | site and model | suspended or reinstated, why, since when |
 | `site_weather` | site and hour | latest weather (the weather model's cache) |
 | `weather_issued` | site, day, hour | the weather forecast as it stood when the plan was made |
+| `fuel_deliveries` | site and delivery time | litres delivered and the delivery note |
 
 Re-running a day replaces that day's forecasts and plan. Once a plan has been
 sent, a re-run resends the stored plan instead of making a new one, so a site
@@ -188,6 +201,9 @@ uv run python -m vaticore.pipeline run --site OPERATOR/SITE --date 2026-10-06
 uv run python -m vaticore.pipeline score                 # score finished days
 uv run python -m vaticore.pipeline scorecard --days 30   # each site's track record
 uv run python -m vaticore.pipeline monitor --weeks 8     # each model, week by week
+uv run python -m vaticore.pipeline fuel add --site OPERATOR/SITE --litres 500 --at 2026-10-06T10:30+01:00
+uv run python -m vaticore.pipeline fuel import --csv deliveries.csv
+uv run python -m vaticore.pipeline fuel report --days 30  # delivered against burned
 uv run python -m vaticore.pipeline apikey create --operator OPERATOR --name "ops team"
 uv run python -m vaticore.pipeline optout --email someone@example.com   # or --phone; --undo
 uv run python -m vaticore.pipeline whatsapp-test --to +234...
@@ -206,6 +222,8 @@ operator's site answers 403). Keys are stored hashed and shown once.
 - `GET /sites/{operator_id}/{site_id}/scorecard?days=30`
 - `GET /sites/{operator_id}/{site_id}/health?days=30`
 - `GET /sites/{operator_id}/{site_id}/models?weeks=8`: monitoring, per model
+- `POST /sites/{operator_id}/{site_id}/fuel/deliveries` and
+  `GET /sites/{operator_id}/{site_id}/fuel?days=30`: fuel (docs/fuel.md)
 - `POST /ingest/{operator_id}/{site_id}`: push readings (docs/data-connectors.md)
 - `GET` and `POST /webhooks/whatsapp` (Meta's webhook; signed)
 
@@ -246,8 +264,8 @@ refused address) are stored as failed at once.
 6. **Weather:** an Open-Meteo API key (`VATICORE_WEATHER_API_KEY`) for
    commercial use; without it production plans run without live weather.
 7. **Schedule:** `render.yaml` defines the job (`vaticore-daily-plans`,
-   04:40 UTC daily: ingest, score, run). Any scheduler that runs the three
-   commands works.
+   17:00 UTC daily, 18:00 in Lagos: ingest, score, run). Any scheduler that
+   runs the three commands works.
 
 ## Safety
 
@@ -268,4 +286,5 @@ refused address) are stored as failed at once.
 - The weather model has no backtest yet: there were no archived forecasts
   for these sites. It earns its place in shadow, against the default model,
   on each site's own scored days, and is promoted only on that evidence.
-- Next: local-day planning and fuel reconciliation.
+- Next: production basics (sign-in for the dashboard, staging, migrations,
+  error tracking, tested backups).

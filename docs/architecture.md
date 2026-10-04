@@ -83,7 +83,8 @@ Data only moves left to right. Each layer has one job and one contract.
 | `dashboard/` | Streamlit operator view | Site today, track record | Done; to be hosted |
 | `copilot/` | Plain-language explanations grounded on engine numbers | `explain_advisory` | Optional |
 | `pipeline/` | The daily loop: data health, model choice and fallback, plan, store, score; the site health report | `run_portfolio`, `PlanStore`, `score_due`, `site_health_report` | Done (`docs/pipeline.md`) |
-| `delivery/` | Plans to people: the morning message on WhatsApp and email, replies and opt-outs | `WhatsAppChannel`, `EmailChannel`, `plan_message`, `handle_webhook` | Done (`docs/whatsapp-setup.md`) |
+| `delivery/` | Plans to people: the daily message on WhatsApp and email, replies and opt-outs | `WhatsAppChannel`, `EmailChannel`, `plan_message`, `handle_webhook` | Done (`docs/whatsapp-setup.md`) |
+| `fuel/` | Diesel delivered against burned: flags for checking | `reconcile`, `FuelReport` | Done (`docs/fuel.md`) |
 
 ## Contracts
 
@@ -205,10 +206,12 @@ In order of how much each unblocks the product:
      forecast is archived as issued, for honest weather backtests.
    - Next: a weather backtest once the archive (or Open-Meteo's historical
      forecast API) covers a held-out period.
-4. **Fuel module.**
-   - Expected fuel use from generator runtime and load, reconciled against
-     deliveries and tank levels.
-   - Flags likely pilferage and plans refuelling runs.
+4. **Fuel module (built).**
+   - Expected burn from generator output, reconciled against deliveries and
+     tank levels; flags short deliveries, falls while the generator is off and
+     unexplained losses, with litres and money (`docs/fuel.md`).
+   - Next: measured fuel curves per generator, runtime counters, refuelling
+     runs planned from the forecast.
 5. **Sizing studies (built).**
    - The same simulator, swept over solar and battery sizes, answers "what
      should this site add, and what will it save?".

@@ -6,6 +6,8 @@
     uv run python -m vaticore.pipeline score                    # score finished days
     uv run python -m vaticore.pipeline scorecard                # track record per site
     uv run python -m vaticore.pipeline monitor                  # each model, week by week
+    uv run python -m vaticore.pipeline fuel add --site OP/SITE --litres 500 --at 2026-10-06T10:30+01:00
+    uv run python -m vaticore.pipeline fuel report --days 30    # delivered against burned
     uv run python -m vaticore.pipeline health --days 30         # data health per site
     uv run python -m vaticore.pipeline apikey create --operator example-towerco --name ops
     uv run python -m vaticore.pipeline optout --email someone@example.com
@@ -74,6 +76,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     store = PlanStore(settings.plan_store_url or settings.database_url)
     try:
+        if args.command == "fuel" and args.action in ("add", "import"):
+            return _fuel_record(args, store)
         if args.command == "apikey":
             return _apikey(args, store)
         if args.command == "optout":
@@ -102,6 +106,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                         f"baseline {record.fuel_baseline_l:.0f} L"
                     )
                 return 0
+            if args.command == "fuel":
+                return _fuel_report(args, portfolio, repo, store)
             if args.command == "monitor":
                 for site in portfolio.sites:
                     _monitor(store, site.operator_id, site.site_id, args.weeks)
@@ -245,6 +251,68 @@ def _apikey(args: argparse.Namespace, store: PlanStore) -> int:
     return 0
 
 
+def _fuel_record(args: argparse.Namespace, store: PlanStore) -> int:
+    now = datetime.now(tz=UTC)
+    if args.action == "add":
+        if not args.site or args.litres is None or not args.at:
+            raise SystemExit("fuel add needs --site OPERATOR/SITE, --litres and --at")
+        operator_id, site_id = _site_key(args.site[0])
+        at = _when(args.at, args.timezone)
+        store.add_delivery(operator_id, site_id, at, args.litres, args.reference, now)
+        print(f"recorded {args.litres:,.0f} L for {operator_id}/{site_id} at {at.isoformat()}")
+        return 0
+    if not args.csv:
+        raise SystemExit("fuel import needs --csv (operator_id, site_id, delivered_at, litres)")
+    rows = pd.read_csv(args.csv)
+    missing = {"operator_id", "site_id", "delivered_at", "litres"} - set(rows.columns)
+    if missing:
+        raise SystemExit(f"fuel import: the file has no column(s) {sorted(missing)}")
+    for row in rows.to_dict("records"):
+        reference = row.get("reference")
+        store.add_delivery(
+            str(row["operator_id"]),
+            str(row["site_id"]),
+            _when(str(row["delivered_at"]), args.timezone),
+            float(row["litres"]),
+            None if reference is None or pd.isna(reference) else str(reference),
+            now,
+        )
+    print(f"recorded {len(rows)} deliveries")
+    return 0
+
+
+def _when(text: str, timezone: str | None) -> datetime:
+    ts = pd.Timestamp(text)
+    if ts.tzinfo is None:
+        if not timezone:
+            raise SystemExit(f"{text!r} has no UTC offset: add one, or pass --timezone")
+        ts = ts.tz_localize(timezone)
+    return ts.tz_convert("UTC").to_pydatetime()
+
+
+def _fuel_report(
+    args: argparse.Namespace, portfolio: Portfolio, repo: object, store: PlanStore
+) -> int:
+    from vaticore.fuel import Severity, reconcile
+
+    end = pd.Timestamp(datetime.now(tz=UTC))
+    start = end - pd.Timedelta(days=args.days)
+    chosen = {_site_key(s) for s in args.site} if args.site else None
+    worst = 0
+    for site in portfolio.sites:
+        if site.generator is None or (chosen is not None and site.key not in chosen):
+            continue
+        readings = repo.read_history(site.operator_id, site.site_id, start, end)  # type: ignore[attr-defined]
+        deliveries = store.deliveries_for(
+            site.operator_id, site.site_id, start.to_pydatetime(), end.to_pydatetime()
+        )
+        report = reconcile(site, readings, deliveries, start=start, end=end)
+        print(report.to_text(site.timezone) + "\n")
+        if report.status is Severity.ALERT:
+            worst = 1
+    return worst
+
+
 def _optout(args: argparse.Namespace, store: PlanStore) -> int:
     if not args.phone and not args.email:
         raise SystemExit("optout needs --phone or --email")
@@ -290,6 +358,17 @@ def _parser() -> argparse.ArgumentParser:
 
     ingest = sub.add_parser("ingest", help="pull new readings from monitoring platforms")
     ingest.add_argument("--sources", type=Path, help="sources TOML (default from settings)")
+
+    fuel = sub.add_parser("fuel", help="diesel deliveries and reconciliation")
+    fuel.add_argument("action", choices=["add", "import", "report"])
+    _portfolio_arg(fuel)
+    fuel.add_argument("--site", action="append", help="operator_id/site_id")
+    fuel.add_argument("--litres", type=float)
+    fuel.add_argument("--at", help="delivery time, ISO 8601 (with offset, or --timezone)")
+    fuel.add_argument("--reference", help="delivery note or invoice number")
+    fuel.add_argument("--timezone", help="for times without an offset, e.g. Africa/Lagos")
+    fuel.add_argument("--csv", type=Path, help="deliveries file for import")
+    fuel.add_argument("--days", type=int, default=30)
 
     key = sub.add_parser("apikey", help="operator API keys: create, list, revoke")
     key.add_argument("action", choices=["create", "list", "revoke"])

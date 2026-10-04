@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, date, datetime
+from datetime import date
 
 import numpy as np
 import pandas as pd
@@ -125,7 +125,7 @@ def test_the_daily_run_fetches_caches_and_archives_weather() -> None:
     repo, store = DuckDBRepository(":memory:"), PlanStore("duckdb:///:memory:")
     repo.upsert(readings)
     provider = FakeWeather(weather)
-    now = datetime(2026, 3, 30, 4, 40, tzinfo=UTC)
+    now = (start - pd.Timedelta(hours=6)).to_pydatetime()  # 18:00 the evening before
 
     run = run_site(site, repo, store, plan_date=DAY, now=now, weather=provider)
     assert run.status == "planned" and (run.model or "").startswith(runner.GBM)

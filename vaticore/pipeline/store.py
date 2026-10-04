@@ -166,6 +166,15 @@ CREATE TABLE IF NOT EXISTS weather_issued (
     issued_at TIMESTAMPTZ NOT NULL,
     PRIMARY KEY (operator_id, site_id, plan_date, timestamp)
 );
+CREATE TABLE IF NOT EXISTS fuel_deliveries (
+    operator_id TEXT NOT NULL,
+    site_id TEXT NOT NULL,
+    delivered_at TIMESTAMPTZ NOT NULL,
+    litres {DOUBLE} NOT NULL,
+    reference TEXT,
+    recorded_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (operator_id, site_id, delivered_at)
+);
 CREATE TABLE IF NOT EXISTS feedback (
     provider_message_id TEXT PRIMARY KEY,
     received_at TIMESTAMPTZ NOT NULL,
@@ -588,6 +597,48 @@ class PlanStore:
             },
             ("operator_id", "site_id", "model"),
         )
+
+    # -- fuel deliveries -----------------------------------------------------
+
+    def add_delivery(
+        self,
+        operator_id: str,
+        site_id: str,
+        delivered_at: datetime,
+        litres: float,
+        reference: str | None,
+        at: datetime,
+    ) -> None:
+        """Record a diesel delivery; recording the same time again corrects it."""
+        if litres <= 0:
+            raise ValueError("a delivery must be a positive number of litres")
+        if delivered_at.tzinfo is None:
+            raise ValueError("delivery times need a timezone")
+        self._upsert(
+            "fuel_deliveries",
+            {
+                "operator_id": operator_id,
+                "site_id": site_id,
+                "delivered_at": delivered_at,
+                "litres": float(litres),
+                "reference": reference,
+                "recorded_at": at,
+            },
+            ("operator_id", "site_id", "delivered_at"),
+        )
+
+    def deliveries_for(
+        self, operator_id: str, site_id: str, start: datetime, end: datetime
+    ) -> pd.DataFrame:
+        frame = self._df(
+            "SELECT delivered_at, litres, reference FROM fuel_deliveries"
+            " WHERE operator_id = ? AND site_id = ? AND delivered_at >= ? AND delivered_at < ?"
+            " ORDER BY delivered_at",
+            (operator_id, site_id, start, end),
+        )
+        if not frame.empty:
+            frame["delivered_at"] = pd.to_datetime(frame["delivered_at"], utc=True)
+        return frame
 
     # -- weather -------------------------------------------------------------
 

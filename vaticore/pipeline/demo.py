@@ -119,7 +119,8 @@ def run_demo(
                 channels=[console if last_day else silent],
                 recipients=people,
                 config=config,
-                now=start.to_pydatetime(),
+                # Issued at 18:00 the evening before, as in production.
+                now=(start - pd.Timedelta(hours=6)).to_pydatetime(),
             )
         score_due(portfolio, repo, store, now=datetime.now(tz=UTC))
 

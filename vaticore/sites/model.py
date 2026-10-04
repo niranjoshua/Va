@@ -74,6 +74,9 @@ class Generator(_Strict):
     fuel_intercept_l_per_kw_h: float = Field(default=0.08145, ge=0)
     fuel_slope_l_per_kwh: float = Field(default=0.246, ge=0)
     fuel_price_per_l: float = Field(ge=0)
+    tank_l: float | None = Field(
+        default=None, gt=0, description="Fuel tank capacity in litres, for fuel reconciliation"
+    )
 
 
 class GridConnection(_Strict):
@@ -110,7 +113,11 @@ class Site(_Strict):
     grid: GridConnection | None = None
     tags: dict[str, str] = Field(default_factory=dict)
     plan_start_hour: int = Field(
-        default=6, ge=0, le=23, description="Local hour each daily plan starts and is sent"
+        default=0,
+        ge=0,
+        le=23,
+        description="Local hour each daily plan starts: 0 plans the local day, midnight to "
+        "midnight, issued the evening before",
     )
 
     @field_validator("timezone")

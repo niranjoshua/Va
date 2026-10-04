@@ -108,8 +108,12 @@ class PlanMessage:
 
 
 def day_label(start: pd.Timestamp, end: pd.Timestamp, timezone: str) -> str:
-    """'Tue 18 Nov, 06:00 to 06:00 Wed' in the site's clock."""
+    """'Tue 18 Nov' for a whole local day, else 'Tue 18 Nov, 06:00 to 06:00 Wed'."""
     a, b = start.tz_convert(timezone), end.tz_convert(timezone)
+    if (a.hour, a.minute, b.hour, b.minute) == (0, 0, 0, 0) and b.date() == (
+        a + pd.Timedelta(days=1)
+    ).date():
+        return f"{a:%a} {a.day} {a:%b}"
     end_txt = f"{b:%H:%M}" if a.date() == b.date() else f"{b:%H:%M} {b:%a}"
     return f"{a:%a} {a.day} {a:%b}, {a:%H:%M} to {end_txt}"
 
