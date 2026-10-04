@@ -9,7 +9,6 @@ One opt-in test runs the real weights when VATICORE_FOUNDATION_TESTS=1.
 from __future__ import annotations
 
 import os
-from types import SimpleNamespace
 from typing import Any
 
 import numpy as np
@@ -18,11 +17,7 @@ import pytest
 
 from vaticore.forecasting import Forecaster
 from vaticore.forecasting.base import InsufficientHistoryError, NotFittedError, quantile_column
-from vaticore.forecasting.foundation import (
-    TIMESFM_3_MODEL,
-    ChronosForecaster,
-    TimesFMForecaster,
-)
+from vaticore.forecasting.foundation import ChronosForecaster, TimesFMForecaster
 from vaticore.schemas import LOAD_KW, TIMESTAMP
 
 
@@ -77,14 +72,6 @@ class FakeTimesFM:
         return np.zeros((1, horizon)), np.tile(row, (1, horizon, 1))
 
 
-class FakeTimesFM3:
-    """TimesFM 3.0 style: predict() returns an object with the deciles."""
-
-    def predict(self, context: np.ndarray, horizon: int, return_quantiles: bool) -> Any:
-        levels = np.asarray(TimesFMForecaster.model_quantiles)
-        return SimpleNamespace(quantiles=np.tile(-5.0 + 10.0 * levels, (horizon, 1)))
-
-
 def _site(hours: int = 24 * 10) -> pd.DataFrame:
     index = pd.date_range("2024-01-01", periods=hours, freq="h", tz="UTC")
     return pd.DataFrame({TIMESTAMP: index, LOAD_KW: 100.0 + np.arange(hours) % 24})
@@ -114,11 +101,12 @@ def test_quantiles_between_model_levels_are_interpolated() -> None:
     np.testing.assert_allclose(forecast.iloc[0].to_numpy(), [-2.5, 0.0, 3.5])
 
 
-def test_timesfm_3_research_model_is_supported() -> None:
-    model = TimesFMForecaster(
-        LOAD_KW, model_id=TIMESFM_3_MODEL, pipeline=FakeTimesFM3(), nonnegative=False
-    ).fit(_site())
-    np.testing.assert_allclose(model.predict_quantiles(1, (0.1, 0.9)).iloc[0], [-4.0, 4.0])
+@pytest.mark.parametrize(
+    "model_id", ["google/timesfm-3.0-pytorch", "google/TimesFM-3.0-jax", "my-org/timesfm-3-tuned"]
+)
+def test_non_commercial_timesfm_weights_are_refused(model_id: str) -> None:
+    with pytest.raises(ValueError, match="non-commercial"):
+        TimesFMForecaster(LOAD_KW, model_id=model_id, pipeline=FakeTimesFM())
 
 
 def test_nonnegative_clips_and_signed_targets_do_not() -> None:
