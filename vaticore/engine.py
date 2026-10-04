@@ -24,7 +24,11 @@ from vaticore.evaluation.calibration import (
 )
 from vaticore.evaluation.value import PolicySource, ValueReport, value_backtest
 from vaticore.forecasting import Forecaster, PersistenceForecaster, QuantileGBMForecaster
-from vaticore.forecasting.base import DEFAULT_QUANTILES, quantile_column
+from vaticore.forecasting.base import (
+    DEFAULT_QUANTILES,
+    InsufficientHistoryError,
+    quantile_column,
+)
 from vaticore.forecasting.conformal import ConformalQuantileForecaster
 from vaticore.forecasting.foundation import ChronosForecaster
 from vaticore.forecasting.grid_availability import GridAvailabilityForecaster
@@ -68,6 +72,15 @@ _MODELS: dict[str, ModelFactory] = {
 
 # Model used for day ahead planning and the value backtest.
 PLANNING_MODEL = "quantile_gbm_day_ahead"
+
+# The day-ahead GBM with live weather (radiation, cloud, temperature) as
+# features: the challenger for solar sites, where weather is the largest
+# accuracy gap measured (research note 2). It runs on net load through
+# net_load_forecast, given the site's weather.
+WEATHER_MODEL = "quantile_gbm_weather"
+WEATHER_FEATURES = ("shortwave_radiation", "cloud_cover", "temperature_2m")
+# Weather history the weather model needs before it is trusted to train.
+MIN_WEATHER_DAYS = 14
 
 
 def available_models() -> list[str]:
@@ -191,6 +204,14 @@ def _net_load_model(
     model: str, quantiles: tuple[float, ...], exog: tuple[str, ...] = ()
 ) -> Callable[[], Forecaster]:
     """Factory for a model forecasting signed net load (no clipping at zero)."""
+    if model == WEATHER_MODEL:
+        return lambda: QuantileGBMForecaster(
+            target=NET_LOAD_KW,
+            quantiles=quantiles,
+            lags=DAY_AHEAD_LAGS,
+            exog_features=exog or WEATHER_FEATURES,
+            nonnegative=False,
+        )
     if model in ("quantile_gbm", "quantile_gbm_day_ahead"):
         lags = DAY_AHEAD_LAGS if model == "quantile_gbm_day_ahead" else (1, 2, 3, 24, 48, 168)
         return lambda: QuantileGBMForecaster(
@@ -390,14 +411,25 @@ def net_load_forecast(
     model: str = PLANNING_MODEL,
     quantiles: tuple[float, ...] = DEFAULT_QUANTILES,
     calibrate: bool = True,
+    weather: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     """Quantile forecast of net load for the hours after the history ends.
 
     With calibrate=True the bands are corrected on the site's own recent misses
     (conformalized quantile regression over the last week).
+
+    The weather model (WEATHER_MODEL) needs `weather`: hourly
+    WEATHER_FEATURES by UTC timestamp, covering the history it trains on and
+    every forecast hour. It trains only on hours that have weather, and refuses
+    to forecast hours that have none rather than guessing.
     """
     data = with_net_load(history)
-    make = _net_load_model(model, quantiles)
+    future: pd.DataFrame | None = None
+    exog: tuple[str, ...] = ()
+    if model == WEATHER_MODEL:
+        data, future = _with_weather(data, weather, horizon)
+        exog = WEATHER_FEATURES
+    make = _net_load_model(model, quantiles, exog)
     forecaster: Forecaster
     if calibrate:
         forecaster = ConformalQuantileForecaster(
@@ -409,7 +441,47 @@ def net_load_forecast(
         )
     else:
         forecaster = make()
-    return forecaster.fit(data).predict_quantiles(horizon=horizon, quantiles=quantiles)
+    fitted = forecaster.fit(data)
+    if future is not None:
+        return fitted.predict_quantiles(  # type: ignore[call-arg]
+            horizon=horizon, quantiles=quantiles, future_exog=future
+        )
+    return fitted.predict_quantiles(horizon=horizon, quantiles=quantiles)
+
+
+def _with_weather(
+    data: pd.DataFrame, weather: pd.DataFrame | None, horizon: int
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """History joined with weather (from the first weather hour), and the future weather."""
+    if weather is None or weather.empty:
+        raise ValueError("the weather model needs the site's weather")
+    missing = [c for c in WEATHER_FEATURES if c not in weather.columns]
+    if missing:
+        raise ValueError(f"weather is missing {missing}")
+    table = weather[[TIMESTAMP, *WEATHER_FEATURES]].copy()
+    table[TIMESTAMP] = pd.DatetimeIndex(pd.to_datetime(table[TIMESTAMP], utc=True))
+    table = table.dropna(subset=list(WEATHER_FEATURES)).drop_duplicates(TIMESTAMP)
+    end = _history_end(data)
+    past = data[data[TIMESTAMP] >= table[TIMESTAMP].min()].drop(
+        columns=[c for c in WEATHER_FEATURES if c in data.columns]
+    )
+    joined = past.merge(table, on=TIMESTAMP, how="left")
+    covered = joined.dropna(subset=list(WEATHER_FEATURES))
+    if covered.empty or (
+        _history_end(covered) - pd.Timestamp(covered[TIMESTAMP].min())
+    ) < pd.Timedelta(days=MIN_WEATHER_DAYS):
+        raise InsufficientHistoryError(
+            f"the weather model needs {MIN_WEATHER_DAYS} days of history with weather"
+        )
+    wanted = pd.date_range(end + pd.Timedelta(hours=1), periods=horizon, freq="1h")
+    future = table.set_index(TIMESTAMP).reindex(wanted)
+    if future.isna().any().any():
+        raise ValueError(
+            f"no weather forecast for {int(future.isna().any(axis=1).sum())} of the "
+            f"{horizon} forecast hours"
+        )
+    future.index.name = TIMESTAMP
+    return joined, future.reset_index()
 
 
 def grid_plan(

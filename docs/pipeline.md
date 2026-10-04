@@ -44,14 +44,66 @@ From research note 3:
 | Under 8 weeks | Chronos-2, calibrated | Day-ahead GBM |
 | 8 weeks or more | Day-ahead GBM, calibrated (the published planning model) | Chronos-2 |
 
-The shadow model's forecasts are stored and scored like the primary's, so
-every pilot compares the two on real data without anyone running a study.
+Where the site has live weather, the **weather model** (the day-ahead GBM
+with radiation, cloud cover and temperature as features) also runs in shadow.
+Shadow forecasts are stored and scored like the primary's, so every pilot
+compares the models on real data without anyone running a study.
 
 If a model fails (missing package, too little history, an error), the run
-falls back: primary calibrated, primary uncalibrated, the other model, then
+falls back: primary calibrated, primary uncalibrated, the next model, then
 persistence. A site always gets a plan if its data allows one, and the stored
 run says why a fallback happened. Chronos-2 needs the `foundation` extra;
 without it the GBM plans every site and the run records that.
+
+## Model monitoring
+
+Before each plan, every model's record at the site over the last 14 scored
+days is checked (`vaticore/pipeline/monitoring.py`):
+
+| Rule | Limit | Action |
+|---|---|---|
+| Range held (P10 to P90; target 80%) | under 65% or over 95% | suspend |
+| Pinball loss against persistence, same days | more than 10% worse | suspend |
+| Suspended model: range held and pinball | 70% to 90%, and no worse than persistence | reinstate |
+| Challenger (weather model) against the default model | 5% lower pinball, range 70% to 90%, full window | promote to plan first |
+| Fewer than 120 scored hours | | not judged yet |
+
+A suspended model is skipped, so the plan falls down the chain, Chronos-2 to
+the GBM to persistence, and a site never goes without a plan. Suspended
+models keep running in shadow, so they are scored every day and come back on
+their own once their record recovers. The gap between the suspend and
+reinstate limits stops a model flapping in and out on noise. Persistence is
+the floor and is never suspended.
+
+Every change of status is stored (`model_status`), printed by `run` as an
+`ALERT` line, logged as a warning, and emailed to `VATICORE_OPS_EMAIL` when
+SMTP is set. The week-by-week record per model is in `monitor` and
+`GET /sites/{op}/{site}/models`.
+
+## Weather
+
+With live weather on, each run fetches the site's weather from Open-Meteo:
+the days since the last fetch (two days are fetched again, since recent hours
+are revised) and the coming days. The weather is cached per site
+(`site_weather`), so an outage at Open-Meteo leaves the history in place; the
+weather model then runs only if the cache still covers the plan day, and the
+run notes the failure either way. Plans never wait on weather.
+
+The past hours come from Open-Meteo's forecast endpoint (its short-range
+forecasts stitched together), not reanalysis, so the model trains on the same
+kind of input it is given for the coming day. The weather model trains only
+on hours that have weather, needs 14 days of them, and refuses to forecast an
+hour without a weather forecast rather than guessing.
+
+The weather forecast for each plan day is also kept as issued
+(`weather_issued`). That archive is what an honest weather backtest needs
+(research question 3), and it grows with every day the pipeline runs.
+
+**Licence.** Open-Meteo's free API is for non-commercial use. Commercial use
+needs an Open-Meteo API subscription: set `VATICORE_WEATHER_API_KEY`, and
+requests go to the customer endpoints. Without a key, production runs skip
+live weather and say so; local and staging runs use the free API. Turn
+weather off with `VATICORE_WEATHER_PROVIDER=none` or `run --no-weather`.
 
 ## Data health
 
@@ -90,6 +142,9 @@ database). DuckDB for local use, Postgres or TimescaleDB in production.
 | `deliveries` | site, day, channel, person | sent, delivered, read or failed, with the provider's message id |
 | `recipient_prefs` | person | opted out (STOP) or not |
 | `feedback` | reply | followed, not followed, STOP, START or free text |
+| `model_status` | site and model | suspended or reinstated, why, since when |
+| `site_weather` | site and hour | latest weather (the weather model's cache) |
+| `weather_issued` | site, day, hour | the weather forecast as it stood when the plan was made |
 
 Re-running a day replaces that day's forecasts and plan. Once a plan has been
 sent, a re-run resends the stored plan instead of making a new one, so a site
@@ -132,6 +187,7 @@ uv run python -m vaticore.pipeline run --channel whatsapp --channel email
 uv run python -m vaticore.pipeline run --site OPERATOR/SITE --date 2026-10-06
 uv run python -m vaticore.pipeline score                 # score finished days
 uv run python -m vaticore.pipeline scorecard --days 30   # each site's track record
+uv run python -m vaticore.pipeline monitor --weeks 8     # each model, week by week
 uv run python -m vaticore.pipeline apikey create --operator OPERATOR --name "ops team"
 uv run python -m vaticore.pipeline optout --email someone@example.com   # or --phone; --undo
 uv run python -m vaticore.pipeline whatsapp-test --to +234...
@@ -149,6 +205,7 @@ operator's site answers 403). Keys are stored hashed and shown once.
 - `GET /sites/{operator_id}/{site_id}/plans/{date}`
 - `GET /sites/{operator_id}/{site_id}/scorecard?days=30`
 - `GET /sites/{operator_id}/{site_id}/health?days=30`
+- `GET /sites/{operator_id}/{site_id}/models?weeks=8`: monitoring, per model
 - `POST /ingest/{operator_id}/{site_id}`: push readings (docs/data-connectors.md)
 - `GET` and `POST /webhooks/whatsapp` (Meta's webhook; signed)
 
@@ -184,8 +241,11 @@ refused address) are stored as failed at once.
 3. **Portfolio and recipients** as secret files (`portfolio.toml`,
    `recipients.toml`), never in the repository.
 4. **WhatsApp:** follow `docs/whatsapp-setup.md`.
-5. **Email (optional):** the SMTP settings above.
-6. **Schedule:** `render.yaml` defines the job (`vaticore-daily-plans`,
+5. **Email (optional):** the SMTP settings above; `VATICORE_OPS_EMAIL` for
+   monitoring alerts.
+6. **Weather:** an Open-Meteo API key (`VATICORE_WEATHER_API_KEY`) for
+   commercial use; without it production plans run without live weather.
+7. **Schedule:** `render.yaml` defines the job (`vaticore-daily-plans`,
    04:40 UTC daily: ingest, score, run). Any scheduler that runs the three
    commands works.
 
@@ -205,5 +265,7 @@ refused address) are stored as failed at once.
 - Messages are in English. Pidgin, Hausa and Yoruba versions need approved
   templates in each language.
 - Email replies are read by a person, not parsed.
-- Next: model monitoring with automatic fallback, weather in live solar
-  forecasts, local-day planning and fuel reconciliation.
+- The weather model has no backtest yet: there were no archived forecasts
+  for these sites. It earns its place in shadow, against the default model,
+  on each site's own scored days, and is promoted only on that evidence.
+- Next: local-day planning and fuel reconciliation.

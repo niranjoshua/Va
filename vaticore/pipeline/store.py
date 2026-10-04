@@ -136,6 +136,36 @@ CREATE TABLE IF NOT EXISTS api_keys (
     created_at TIMESTAMPTZ NOT NULL,
     revoked_at TIMESTAMPTZ
 );
+CREATE TABLE IF NOT EXISTS model_status (
+    operator_id TEXT NOT NULL,
+    site_id TEXT NOT NULL,
+    model TEXT NOT NULL,
+    status TEXT NOT NULL,
+    reason TEXT,
+    since TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (operator_id, site_id, model)
+);
+CREATE TABLE IF NOT EXISTS site_weather (
+    operator_id TEXT NOT NULL,
+    site_id TEXT NOT NULL,
+    timestamp TIMESTAMPTZ NOT NULL,
+    shortwave_radiation {DOUBLE},
+    cloud_cover {DOUBLE},
+    temperature_2m {DOUBLE},
+    issued_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (operator_id, site_id, timestamp)
+);
+CREATE TABLE IF NOT EXISTS weather_issued (
+    operator_id TEXT NOT NULL,
+    site_id TEXT NOT NULL,
+    plan_date DATE NOT NULL,
+    timestamp TIMESTAMPTZ NOT NULL,
+    shortwave_radiation {DOUBLE},
+    cloud_cover {DOUBLE},
+    temperature_2m {DOUBLE},
+    issued_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (operator_id, site_id, plan_date, timestamp)
+);
 CREATE TABLE IF NOT EXISTS feedback (
     provider_message_id TEXT PRIMARY KEY,
     received_at TIMESTAMPTZ NOT NULL,
@@ -532,6 +562,117 @@ class PlanStore:
             " ORDER BY operator_id, created_at"
         )
 
+    # -- model monitoring ----------------------------------------------------
+
+    def model_statuses(self, operator_id: str, site_id: str) -> dict[str, dict[str, Any]]:
+        """Models monitoring has ever suspended at a site, with their current status."""
+        frame = self._df(
+            "SELECT model, status, reason, since FROM model_status"
+            " WHERE operator_id = ? AND site_id = ?",
+            (operator_id, site_id),
+        )
+        return {str(r["model"]): {str(k): v for k, v in r.items()} for _, r in frame.iterrows()}
+
+    def set_model_status(
+        self, operator_id: str, site_id: str, model: str, status: str, reason: str, at: datetime
+    ) -> None:
+        self._upsert(
+            "model_status",
+            {
+                "operator_id": operator_id,
+                "site_id": site_id,
+                "model": model,
+                "status": status,
+                "reason": reason,
+                "since": at,
+            },
+            ("operator_id", "site_id", "model"),
+        )
+
+    # -- weather -------------------------------------------------------------
+
+    def save_weather(
+        self, operator_id: str, site_id: str, weather: pd.DataFrame, issued_at: datetime
+    ) -> None:
+        """Keep the latest weather per hour: the cache the weather model trains on."""
+        frame = _weather_frame(weather).dropna(subset=["timestamp"])
+        if frame.empty:
+            return
+        frame["issued_at"] = issued_at
+        names = ["operator_id", "site_id", *frame.columns]
+        rows = [
+            [_py(v) for v in (operator_id, site_id, *values)]
+            for values in frame.itertuples(index=False, name=None)
+        ]
+        query = self._sql(
+            f"INSERT INTO site_weather ({', '.join(names)}) VALUES ({', '.join('?' * len(names))})"
+        )
+        with self._transaction():
+            self._exec(
+                "DELETE FROM site_weather WHERE operator_id = ? AND site_id = ?"
+                " AND timestamp >= ? AND timestamp <= ?",
+                (
+                    operator_id,
+                    site_id,
+                    frame["timestamp"].min().to_pydatetime(),
+                    frame["timestamp"].max().to_pydatetime(),
+                ),
+            )
+            if self._postgres:
+                with self._con.cursor() as cur:
+                    cur.executemany(query, rows)
+            else:
+                self._con.executemany(query, rows)
+
+    def weather(
+        self, operator_id: str, site_id: str, start: datetime, end: datetime
+    ) -> pd.DataFrame:
+        return self._df(
+            "SELECT timestamp, shortwave_radiation, cloud_cover, temperature_2m"
+            " FROM site_weather WHERE operator_id = ? AND site_id = ?"
+            " AND timestamp >= ? AND timestamp < ? ORDER BY timestamp",
+            (operator_id, site_id, start, end),
+        ).pipe(_utc_timestamps)
+
+    def last_weather_at(self, operator_id: str, site_id: str) -> pd.Timestamp | None:
+        frame = self._df(
+            "SELECT max(timestamp) AS last FROM site_weather WHERE operator_id = ? AND site_id = ?",
+            (operator_id, site_id),
+        )
+        last = frame.iloc[0]["last"] if not frame.empty else None
+        return None if last is None or pd.isna(last) else pd.Timestamp(last).tz_convert("UTC")
+
+    def save_issued_weather(
+        self,
+        operator_id: str,
+        site_id: str,
+        plan_date: date,
+        weather: pd.DataFrame,
+        issued_at: datetime,
+    ) -> None:
+        """The weather forecast as it stood when a plan was made, kept for research.
+
+        Backtests that use weather need forecasts as issued, not what the
+        weather turned out to be; this table builds that archive day by day.
+        """
+        frame = _weather_frame(weather)
+        frame["issued_at"] = issued_at
+        key = (operator_id, site_id, plan_date)
+        with self._transaction():
+            self._exec(
+                "DELETE FROM weather_issued WHERE operator_id = ? AND site_id = ? AND plan_date = ?",
+                key,
+            )
+            self._insert_frame("weather_issued", key, frame)
+
+    def issued_weather(self, operator_id: str, site_id: str, plan_date: date) -> pd.DataFrame:
+        return self._df(
+            "SELECT timestamp, shortwave_radiation, cloud_cover, temperature_2m, issued_at"
+            " FROM weather_issued WHERE operator_id = ? AND site_id = ? AND plan_date = ?"
+            " ORDER BY timestamp",
+            (operator_id, site_id, plan_date),
+        ).pipe(_utc_timestamps)
+
     def close(self) -> None:
         self._con.close()
 
@@ -589,6 +730,22 @@ class PlanStore:
                 self._con.execute("ROLLBACK")
                 raise
             self._con.execute("COMMIT")
+
+
+WEATHER_COLUMNS = ("shortwave_radiation", "cloud_cover", "temperature_2m")
+
+
+def _weather_frame(weather: pd.DataFrame) -> pd.DataFrame:
+    frame = pd.DataFrame({"timestamp": pd.DatetimeIndex(weather["timestamp"]).tz_convert("UTC")})
+    for column in WEATHER_COLUMNS:
+        frame[column] = weather[column].to_numpy(dtype=float) if column in weather else float("nan")
+    return frame
+
+
+def _utc_timestamps(frame: pd.DataFrame) -> pd.DataFrame:
+    if not frame.empty:
+        frame["timestamp"] = pd.to_datetime(frame["timestamp"], utc=True)
+    return frame
 
 
 def _key_hash(secret: str) -> str:

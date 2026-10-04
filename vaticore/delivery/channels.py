@@ -124,20 +124,32 @@ class EmailChannel:
         return person.email
 
     def send(self, to: str, message: PlanMessage) -> SendResult:
-        mail = EmailMessage()
-        mail["Subject"] = message.email_subject
-        mail["From"] = self._sender
-        mail["To"] = to
-        mail["Reply-To"] = self._reply_to
+        mail = self._mail(to, message.email_subject)
         # Addresses may carry a display name ("Vaticore <plans@vaticore.com>").
         unsubscribe = parseaddr(self._reply_to)[1] or self._reply_to
         mail["List-Unsubscribe"] = f"<mailto:{unsubscribe}?subject=unsubscribe>"
-        domain = parseaddr(self._sender)[1].rpartition("@")[2]
-        message_id = make_msgid(domain=domain or None)
-        mail["Message-ID"] = message_id
         mail.set_content(message.email_text)
         mail.add_alternative(message.email_html, subtype="html")
+        return self._deliver(mail)
 
+    def send_text(self, to: str, subject: str, body: str) -> SendResult:
+        """A plain internal email, such as an alert to Vaticore's own team."""
+        mail = self._mail(to, subject)
+        mail.set_content(body)
+        return self._deliver(mail)
+
+    def _mail(self, to: str, subject: str) -> EmailMessage:
+        mail = EmailMessage()
+        mail["Subject"] = subject
+        mail["From"] = self._sender
+        mail["To"] = to
+        mail["Reply-To"] = self._reply_to
+        domain = parseaddr(self._sender)[1].rpartition("@")[2]
+        mail["Message-ID"] = make_msgid(domain=domain or None)
+        return mail
+
+    def _deliver(self, mail: EmailMessage) -> SendResult:
+        message_id = str(mail["Message-ID"])
         error = "not sent"
         for attempt in range(1, self._max_attempts + 1):
             try:
