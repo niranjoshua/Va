@@ -12,8 +12,8 @@ Two backends are wrapped:
   TimesFMForecaster   Google's TimesFM (default "google/timesfm-2.5-200m-pytorch").
 
 Licences matter: Chronos-2 and TimesFM 2.5 are Apache 2.0 and can be used
-commercially. TimesFM 3.0 is released under a non-commercial licence, so it is
-supported for research benchmarks only and must not serve customers.
+commercially. TimesFM 3.0's weights are under a non-commercial licence, so
+Vaticore cannot use them, and TimesFMForecaster refuses to load them.
 
 Both are challengers, not the planning default. They earn production only by
 beating the current model on pinball loss, calibration and value in the
@@ -58,7 +58,8 @@ from vaticore.schemas import TIMESTAMP
 
 CHRONOS_MODEL = "amazon/chronos-2"
 TIMESFM_MODEL = "google/timesfm-2.5-200m-pytorch"  # Apache 2.0
-TIMESFM_3_MODEL = "google/timesfm-3.0-pytorch"  # non-commercial licence: research only
+# Model names whose weights forbid commercial use. Checked before loading.
+NON_COMMERCIAL_MODELS: tuple[str, ...] = ("timesfm-3",)
 
 # Hours of history given to the model by default: 12 weeks, enough to show
 # daily and weekly patterns without making each forecast slow on a CPU.
@@ -245,24 +246,21 @@ class TimesFMForecaster(FoundationForecaster):
         model_id: str = TIMESFM_MODEL,
         **kwargs: Any,
     ) -> None:
+        blocked = [name for name in NON_COMMERCIAL_MODELS if name in model_id.lower()]
+        if blocked:
+            raise ValueError(
+                f"{model_id!r} is released under a non-commercial licence and cannot be "
+                f"used by Vaticore; use {TIMESFM_MODEL!r} (Apache 2.0)"
+            )
         super().__init__(target, model_id=model_id, **kwargs)
 
-    @property
-    def is_version_3(self) -> bool:
-        return "timesfm-3" in self.model_id
-
     def _load(self) -> Any:
-        if self.is_version_3:
-            return _load_timesfm_3(self.model_id, self.device)
         return _load_timesfm_2p5(self.model_id, _round_up(self.context_length, 32))
 
     def _predict(self, context: np.ndarray, horizon: int) -> np.ndarray:
         # Leading missing values carry no information; TimesFM drops them too.
         observed = np.flatnonzero(~np.isnan(context))
         trimmed = (context[observed[0] :] if observed.size else context).astype(np.float32)
-        if self.is_version_3:
-            output = self.pipeline.predict(trimmed, horizon=horizon, return_quantiles=True)
-            return np.asarray(output.quantiles, dtype=float)
         if horizon > _TIMESFM_MAX_HORIZON:
             raise ValueError(f"horizon is limited to {_TIMESFM_MAX_HORIZON} steps")
         _point, quantiles = self.pipeline.forecast(horizon=horizon, inputs=[trimmed])
@@ -308,8 +306,3 @@ def _load_timesfm_2p5(model_id: str, max_context: int) -> Any:
         )
     )
     return model
-
-
-@lru_cache(maxsize=4)
-def _load_timesfm_3(model_id: str, device: str) -> Any:
-    return _import_timesfm().TimesFM3Forecaster.from_pretrained(model_id, device=device)
