@@ -78,6 +78,9 @@ class PlanRequest(BaseModel):
     genset_kw: float = Field(ge=0.0)
     soc_kwh: float = Field(ge=0.0, description="Battery charge right now")
     min_soc_kwh: float = Field(default=0.0, ge=0.0)
+    genset_min_run_hours: float = Field(
+        default=1.0, gt=0.0, le=24.0, description="Shortest generator run once started"
+    )
     diesel_price_per_l: float = Field(default=1.10, ge=0.0)
     plan_quantile: float = Field(
         default=0.9, description="Net load quantile to plan on; 0.9 holds on a bad day"
@@ -129,6 +132,7 @@ class PlanResponse(BaseModel):
     grid_windows: list[str]
     expected_fuel_l: float
     expected_genset_hours: float
+    expected_genset_starts: int
     expected_unserved_kwh: float
     hours: list[PlanHour]
     advisory_only: bool = True

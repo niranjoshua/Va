@@ -164,6 +164,9 @@ def main() -> None:
         battery_kw = st.number_input("Battery power (kW)", min_value=1.0, value=150.0, step=10.0)
         soc = st.slider("Battery charge now (kWh)", 0.0, float(battery), float(battery) / 2)
         genset_kw = st.number_input("Generator size (kW)", min_value=0.0, value=100.0, step=10.0)
+        min_run = st.number_input(
+            "Shortest generator run (hours)", min_value=1.0, max_value=12.0, value=2.0, step=1.0
+        )
         timezone = st.selectbox("Site clock", ["Africa/Lagos", "UTC", "Europe/London"])
         st.header("Forecast view")
         target_label = st.radio("Target", ["Load", "Solar generation"])
@@ -180,7 +183,12 @@ def main() -> None:
     # Site Today: lead with the schedule an operator acts on, then the chart,
     # then the evidence. Answers first, jargon later. Advisory only.
     st.subheader(f"Site today: {site_id}")
-    assets = SiteAssets(battery_kwh=battery, battery_power_kw=battery_kw, genset_kw=genset_kw)
+    assets = SiteAssets(
+        battery_kwh=battery,
+        battery_power_kw=battery_kw,
+        genset_kw=genset_kw,
+        genset_min_run_hours=min_run,
+    )
     try:
         with st.spinner("Planning the next 24 hours..."):
             plan = engine.dispatch_plan_for_site(

@@ -68,6 +68,9 @@ class Battery(_Strict):
 class Generator(_Strict):
     rated_kw: float = Field(gt=0)
     min_load_fraction: float = Field(default=0.3, ge=0, le=1)
+    min_run_hours: float = Field(
+        default=1.0, gt=0, le=24, description="Shortest run once started, in hours"
+    )
     fuel_intercept_l_per_kw_h: float = Field(default=0.08145, ge=0)
     fuel_slope_l_per_kwh: float = Field(default=0.246, ge=0)
     fuel_price_per_l: float = Field(ge=0)
@@ -142,6 +145,7 @@ class Site(_Strict):
             discharge_efficiency=bat.discharge_efficiency,
             genset_kw=gen.rated_kw if gen else 0.0,
             genset_min_load=gen.min_load_fraction if gen else 0.3,
+            genset_min_run_hours=gen.min_run_hours if gen else 1.0,
             fuel_intercept_l_per_kw_h=gen.fuel_intercept_l_per_kw_h if gen else 0.08145,
             fuel_slope_l_per_kwh=gen.fuel_slope_l_per_kwh if gen else 0.246,
             diesel_price_per_l=gen.fuel_price_per_l if gen else 0.0,
