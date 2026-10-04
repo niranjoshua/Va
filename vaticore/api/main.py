@@ -24,6 +24,7 @@ from vaticore import __version__, engine
 from vaticore.api.schemas import (
     AdvisoryRequest,
     AdvisoryResponse,
+    DeliveryBatch,
     ForecastPoint,
     ForecastRequest,
     ForecastResponse,
@@ -39,6 +40,7 @@ from vaticore.datasets import make_synthetic_fleet
 from vaticore.decisions.dispatch import SiteAssets
 from vaticore.delivery.webhook import handle_webhook, verify_signature
 from vaticore.forecasting.base import ForecasterError, quantile_column
+from vaticore.fuel import reconcile
 from vaticore.pipeline import monitoring
 from vaticore.pipeline.health import site_health_report
 from vaticore.pipeline.scoring import scorecard
@@ -459,6 +461,51 @@ def create_app() -> FastAPI:
             has_battery=site is not None,
         )
         return {**report.to_dict(), "summary": report.to_text()}
+
+    @app.post("/sites/{operator_id}/{site_id}/fuel/deliveries", dependencies=[Depends(site_access)])
+    def record_deliveries(
+        operator_id: str,
+        site_id: str,
+        batch: DeliveryBatch,
+        store: PlanStore = Depends(get_plan_store),
+    ) -> dict[str, int]:
+        """Record diesel deliveries (supplier notes, invoices). Times need an offset."""
+        now = pd.Timestamp.now(tz="UTC").to_pydatetime()
+        stamps = []
+        for d in batch.deliveries:
+            try:
+                ts = pd.Timestamp(d.delivered_at)
+            except ValueError as exc:
+                raise HTTPException(422, f"unreadable time {d.delivered_at!r}") from exc
+            if ts.tzinfo is None:
+                raise HTTPException(422, f"{d.delivered_at!r} needs a UTC offset")
+            stamps.append(ts.tz_convert("UTC").to_pydatetime())
+        for d, at in zip(batch.deliveries, stamps, strict=True):
+            store.add_delivery(operator_id, site_id, at, d.litres, d.reference, now)
+        return {"recorded": len(stamps)}
+
+    @app.get("/sites/{operator_id}/{site_id}/fuel", dependencies=[Depends(site_access)])
+    def site_fuel(
+        operator_id: str,
+        site_id: str,
+        days: int = Query(default=30, ge=1, le=366),
+        repo: TimeSeriesRepository = Depends(get_repository),
+        store: PlanStore = Depends(get_plan_store),
+    ) -> dict[str, object]:
+        """Diesel delivered against diesel burned, with anything worth checking flagged."""
+        site = _registered_site(operator_id, site_id)
+        if site is None or site.generator is None:
+            raise HTTPException(404, "fuel needs a registered site with a generator")
+        end = pd.Timestamp.now(tz="UTC")
+        start = end - pd.Timedelta(days=days)
+        report = reconcile(
+            site,
+            repo.read_history(operator_id, site_id, start, end),
+            store.deliveries_for(operator_id, site_id, start.to_pydatetime(), end.to_pydatetime()),
+            start=start,
+            end=end,
+        )
+        return {**report.to_dict(), "summary": report.to_text(site.timezone)}
 
     @app.get("/webhooks/whatsapp", response_class=PlainTextResponse)
     def whatsapp_verify(

@@ -6,7 +6,7 @@ model for speed, and one runs the published planning model.
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 
 import numpy as np
 import pandas as pd
@@ -105,12 +105,47 @@ def _people(site: Site, consent: bool = True) -> list[Recipient]:
 # -- the plan window ---------------------------------------------------------
 
 
-def test_plan_window_starts_at_the_local_plan_hour() -> None:
+def test_plans_cover_the_local_day_midnight_to_midnight() -> None:
     start, end = plan_window(_tower(), DAY)
-    assert start == pd.Timestamp("2026-03-10 05:00", tz="UTC")  # 06:00 in Lagos
-    assert end - start == pd.Timedelta(hours=24)
-    late, _ = plan_window(_tower(plan_start_hour=22), DAY)
-    assert late == pd.Timestamp("2026-03-10 21:00", tz="UTC")
+    assert start == pd.Timestamp("2026-03-09 23:00", tz="UTC")  # midnight in Lagos
+    assert end == pd.Timestamp("2026-03-10 23:00", tz="UTC")  # the next midnight
+    six, _ = plan_window(_tower(plan_start_hour=6), DAY)
+    assert six == pd.Timestamp("2026-03-10 05:00", tz="UTC")  # sites may choose 06:00
+
+
+def test_the_next_plan_is_the_first_that_has_not_started() -> None:
+    evening = datetime(2026, 3, 9, 17, 0, tzinfo=UTC)  # 18:00 in Lagos
+    assert runner.next_plan_date(_tower(), evening) == DAY  # tomorrow, local
+    early = datetime(2026, 3, 10, 4, 40, tzinfo=UTC)  # 05:40 in Lagos
+    assert runner.next_plan_date(_tower(plan_start_hour=6), early) == DAY  # today at 06:00
+    assert runner.next_plan_date(_tower(), early) == date(2026, 3, 11)
+
+
+def test_an_evening_plan_uses_only_what_was_known_at_issue(
+    repo: DuckDBRepository, store: PlanStore
+) -> None:
+    site = _tower()
+    start, _ = plan_window(site, DAY)
+    history = synthetic_history(site, start + pd.Timedelta(days=2), 30, seed=3)
+    history[BATTERY_SOC_PCT] = 90.0  # the battery reports its charge every hour
+    repo.upsert(history)
+    issued = start - pd.Timedelta(hours=6)  # 18:00 the evening before
+    run = run_site(site, repo, store, plan_date=DAY, config=FAST, now=issued.to_pydatetime())
+    record = store.get_run("op", "tower-1", DAY)
+    assert run.status == "planned" and record is not None
+    # Measured at 18:00 (90% of 30 kWh = 27 kWh), then carried through the
+    # evening on the forecast: the evening load draws the battery down.
+    assert record.soc_assumed is False
+    assert record.soc_start_kwh is not None and record.soc_start_kwh < 27.0
+    hours = store.plan_hours("op", "tower-1", DAY)
+    assert pd.Timestamp(hours["timestamp"].min()) == start and len(hours) == 24
+    assert run.message is not None and run.message.day == "Tue 10 Mar"
+
+    # Readings after the issue time exist in the store, but the plan never used
+    # them: re-running at the same moment gives the same plan.
+    again = run_site(site, repo, store, plan_date=DAY, config=FAST, now=issued.to_pydatetime())
+    assert again.plan is not None and run.plan is not None
+    assert list(again.plan.genset_on) == list(run.plan.genset_on)
 
 
 # -- planning -----------------------------------------------------------------
@@ -133,7 +168,7 @@ def test_a_site_is_planned_stored_and_messaged(repo: DuckDBRepository, store: Pl
     assert roles == {"primary", "baseline"}
 
     assert run.message is not None
-    assert run.message.text.startswith("Vaticore plan for Tower One, Tue 10 Mar, 06:00")
+    assert run.message.text.startswith("Vaticore plan for Tower One, Tue 10 Mar.\n")
     assert len(run.message.params) == 6
     assert all("\n" not in p and len(p) <= 200 for p in run.message.params)
 
@@ -385,20 +420,26 @@ def test_the_plan_starts_from_the_measured_battery_charge(
 ) -> None:
     site = _tower()
     start, _ = plan_window(site, DAY)
-    history = synthetic_history(site, start, 30, seed=3)  # last reading 6 h before the plan
+    history = synthetic_history(site, start, 30, seed=3)
+    history = history[history[TIMESTAMP] < start].copy()  # last reading at 23:00 local
     history[BATTERY_SOC_PCT] = np.nan
     history.loc[history.index[-1], BATTERY_SOC_PCT] = 80.0
     repo.upsert(history)
-    recent = PipelineConfig(model_order=("persistence",), shadow=False, soc_max_age_hours=8)
-    run = run_site(site, repo, store, plan_date=DAY, config=recent)
+    run = run_site(site, repo, store, plan_date=DAY, config=FAST, now=start.to_pydatetime())
     record = store.get_run("op", "tower-1", DAY)
     assert run.status == "planned" and record is not None
+    # Read an hour before midnight, nothing to carry forward: 80% of 30 kWh.
     assert record.soc_assumed is False and record.soc_start_kwh == pytest.approx(24.0)
 
     # A reading older than the limit (3 h by default) is not trusted: the plan
     # assumes a charge and says so.
-    run_site(site, repo, store, plan_date=DAY, config=FAST)
-    record = store.get_run("op", "tower-1", DAY)
+    history[BATTERY_SOC_PCT] = np.nan
+    history.loc[history.index[-5], BATTERY_SOC_PCT] = 80.0
+    store_two = PlanStore("duckdb:///:memory:")
+    repo_two = DuckDBRepository(":memory:")
+    repo_two.upsert(history)
+    run_site(site, repo_two, store_two, plan_date=DAY, config=FAST, now=start.to_pydatetime())
+    record = store_two.get_run("op", "tower-1", DAY)
     assert record is not None and record.soc_assumed is True
     assert record.soc_start_kwh == pytest.approx(6.0 + 0.5 * 24.0)
 
@@ -428,7 +469,9 @@ def test_a_finished_day_is_scored_against_baseline_and_bound(
 
 def test_scoring_waits_for_readings(repo: DuckDBRepository, store: PlanStore) -> None:
     site = _tower()
-    _fill(repo, site, extra_days=0)  # readings stop when the plan starts
+    start, _ = plan_window(site, DAY)
+    history = synthetic_history(site, start, 30, seed=3)
+    repo.upsert(history[history[TIMESTAMP] < start])  # readings stop when the plan starts
     run_site(site, repo, store, plan_date=DAY, config=FAST)
     _, end = plan_window(site, DAY)
     soon = (end + pd.Timedelta(hours=2)).to_pydatetime()

@@ -26,14 +26,15 @@ services:
         sync: false
 
   # The daily pipeline: pull new readings, score finished days, then plan every
-  # site and send the plans on WhatsApp. 04:40 UTC is 05:40 in Lagos, before the
-  # 06:00 plan start. Shares the web service's Postgres (the webhook writes
-  # replies to it). Add "--channel email" to the run once SMTP is set.
+  # site's next local day (midnight to midnight) and send the plans on WhatsApp.
+  # 17:00 UTC is 18:00 in Lagos: the plan for tomorrow arrives the evening
+  # before. Shares the web service's Postgres (the webhook writes replies to
+  # it). Add "--channel email" to the run once SMTP is set.
   - type: cron
     name: vaticore-daily-plans
     runtime: docker
     dockerfilePath: ./Dockerfile
-    schedule: "40 4 * * *"
+    schedule: "0 17 * * *"
     dockerCommand: >-
       sh -c "uv run python -m vaticore.pipeline ingest;
       uv run python -m vaticore.pipeline score;

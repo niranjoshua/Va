@@ -1,8 +1,11 @@
 """The daily pipeline: for every site, check the data, forecast, plan, store, send.
 
-One run per site per plan day. The plan covers the 24 hours from the site's
-plan start hour (06:00 local by default) and uses only readings from before
-that moment, so a run is reproducible and never sees the future.
+One run per site per plan day. The plan covers the site's local day,
+midnight to midnight on its own clock by default (a site can set another
+plan start hour), and is made the evening before from the readings available
+at that moment. A run therefore never sees the future: history stops at the
+issue time, the hours between issue and midnight are forecast like the rest,
+and the battery's charge is carried forward to midnight on that forecast.
 
 For each site:
   1. Read its history and check the data (health.py). If the data is too
@@ -36,7 +39,7 @@ import logging
 import traceback
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
 import numpy as np
 import pandas as pd
@@ -125,6 +128,17 @@ def site_today(site: Site, now: datetime) -> date:
     return pd.Timestamp(now).tz_convert(site.timezone).date()
 
 
+def next_plan_date(site: Site, now: datetime) -> date:
+    """The first plan day that has not started yet at `now`.
+
+    Run in the evening, this is tomorrow for a midnight-to-midnight site; run
+    at 05:40 for a site whose plans start at 06:00, it is today.
+    """
+    today = site_today(site, now)
+    start, _ = plan_window(site, today)
+    return today if start > pd.Timestamp(now) else today + timedelta(days=1)
+
+
 def run_site(
     site: Site,
     repo: TimeSeriesRepository,
@@ -144,12 +158,15 @@ def run_site(
     config = config or PipelineConfig()
     now = now or datetime.now(tz=UTC)
     start, end = plan_window(site, plan_date)
+    # Readings are used up to the moment the plan is issued, and never past
+    # the plan start: replaying an old day sees only what was known then.
+    issued = min(start, pd.Timestamp(now).tz_convert("UTC"))
     result = SiteRun(site.operator_id, site.site_id, plan_date, status="failed")
     try:
-        history = _prepare_history(site, repo, start, config)
+        history = _prepare_history(site, repo, issued, config)
         health = check_health(
             history,
-            start,
+            issued,
             has_grid=site.grid is not None,
             grid_reliable=bool(site.grid and site.grid.reliable),
             has_solar=site.solar is not None,
@@ -167,7 +184,9 @@ def run_site(
             )
             store.save_run(_record(site, result, start, end, now))
             return result
-        _plan(site, history, health, store, result, start, end, config, soc_kwh, now, weather)
+        _plan(
+            site, history, health, store, result, start, end, config, soc_kwh, now, weather, issued
+        )
     except Exception as exc:  # stored, reported, and the next site still runs
         log.exception("site %s/%s failed", site.operator_id, site.site_id)
         result.status = "failed"
@@ -196,7 +215,7 @@ def run_portfolio(
     chosen = [s for s in portfolio.sites if sites is None or s.key in set(sites)]
     runs = []
     for site in chosen:
-        day = plan_date or site_today(site, now)
+        day = plan_date or next_plan_date(site, now)
         if not force and channels:
             existing = store.get_run(site.operator_id, site.site_id, day)
             if existing is not None and existing.status == "planned":
@@ -281,14 +300,14 @@ def deliver(
 
 
 def _prepare_history(
-    site: Site, repo: TimeSeriesRepository, start: pd.Timestamp, config: PipelineConfig
+    site: Site, repo: TimeSeriesRepository, cutoff: pd.Timestamp, config: PipelineConfig
 ) -> pd.DataFrame:
-    """Hourly history strictly before the plan start, with solar handled."""
+    """Hourly history strictly before the cutoff (the issue time), with solar handled."""
     raw = repo.read_history(
         site.operator_id,
         site.site_id,
-        start - pd.Timedelta(days=config.history_days),
-        start - pd.Timedelta(microseconds=1),
+        cutoff - pd.Timedelta(days=config.history_days),
+        cutoff - pd.Timedelta(microseconds=1),
     )
     if raw.empty:
         return raw
@@ -321,8 +340,10 @@ def _plan(
     soc_kwh: float | None,
     now: datetime,
     provider: LiveWeather | None = None,
+    issued: pd.Timestamp | None = None,
 ) -> None:
     assets = site.dispatch_assets()
+    issued = start if issued is None else issued
     # Forecasts start the hour after the history ends.
     last = pd.Timestamp(history[TIMESTAMP].max())
     horizon = int((end - last) / pd.Timedelta(hours=1)) - 1
@@ -362,8 +383,12 @@ def _plan(
 
     if soc_kwh is None:
         soc_kwh = measured_soc_kwh(
-            history, assets, start, pd.Timedelta(hours=config.soc_max_age_hours)
+            history, assets, issued, pd.Timedelta(hours=config.soc_max_age_hours)
         )
+        if soc_kwh is not None:
+            # Carry the measured charge forward to the plan start through the
+            # hours between the last reading and midnight, on the median forecast.
+            soc_kwh = _carry_forward(site, history, forecast, soc_kwh, start, assets, config)
     soc_assumed = soc_kwh is None
     soc = (
         assets.min_soc_kwh + config.assumed_soc_fraction * (assets.battery_kwh - assets.min_soc_kwh)
@@ -444,9 +469,11 @@ def _plan(
     )
     result.status = "planned"
     if weather is not None:
-        issued = weather[(weather[TIMESTAMP] >= start) & (weather[TIMESTAMP] < end)]
-        if not issued.empty:
-            store.save_issued_weather(site.operator_id, site.site_id, result.plan_date, issued, now)
+        plan_weather = weather[(weather[TIMESTAMP] >= start) & (weather[TIMESTAMP] < end)]
+        if not plan_weather.empty:
+            store.save_issued_weather(
+                site.operator_id, site.site_id, result.plan_date, plan_weather, now
+            )
     store.save_run(
         _record(site, result, start, end, now, soc=soc, soc_assumed=soc_assumed, assets=assets),
         forecasts=pd.concat(frames, ignore_index=True),
@@ -503,6 +530,34 @@ def _forecast_with_fallback(
                 f"({type(exc).__name__}: {str(exc)[:120]})"
             )
     raise RuntimeError("no model could forecast this site")
+
+
+def _carry_forward(
+    site: Site,
+    history: pd.DataFrame,
+    forecast: pd.DataFrame,
+    soc_kwh: float,
+    start: pd.Timestamp,
+    assets: SiteAssets,
+    config: PipelineConfig,
+) -> float:
+    """Expected battery charge at the plan start, from a charge measured before it.
+
+    Applies the same planning rules to the bridge hours (from the hour after
+    the last reading up to the plan start) on the median net load forecast.
+    With no bridge hours the measured charge is returned as is.
+    """
+    bridge = forecast[forecast.index < start]
+    if bridge.empty:
+        return soc_kwh
+    index = pd.DatetimeIndex(bridge.index)
+    plan = plan_dispatch(
+        bridge[quantile_column(0.5)],
+        soc_kwh=soc_kwh,
+        assets=assets,
+        planned_grid_available=_grid_plan(site, history, index, assets, config),
+    )
+    return float(plan.expected.soc_end_kwh)
 
 
 def _grid_plan(

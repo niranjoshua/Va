@@ -110,7 +110,8 @@ vaticore/
   dashboard/     # Streamlit app
   copilot/       # LLM explanations grounded on the engine's numbers
   pipeline/      # the daily loop: data health, plan, store, score (docs/pipeline.md)
-  delivery/      # morning messages on WhatsApp and email, replies, opt-outs
+  delivery/      # daily plans on WhatsApp and email, replies, opt-outs
+  fuel/          # diesel delivered against burned, flags for checking (docs/fuel.md)
   storage/       # multi-tenant, multi-site persistence
   engine.py      # orchestration facade used by api and dashboard
   datasets.py    # synthetic demo data

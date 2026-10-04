@@ -70,7 +70,7 @@ Vaticore uses one template for every plan.
 
 5. **Sample values** (Meta asks for one per variable):
    1. `Macro tower, Ikorodu`
-   2. `Tue 10 Mar, 06:00 to 06:00 Wed`
+   2. `Tue 10 Mar`
    3. `19:00 to 21:00 (2 h in 1 run, about 7 L).`
    4. `counted on 06:00 to 14:00; run the generator if it fails.`
    5. `starts about 60%, ends about 41%.`
@@ -152,8 +152,8 @@ uv run python -m vaticore.pipeline run --site example-towerco/lag-ikd-0142 --cha
     --recipients /secure/recipients.toml
 ```
 
-After that, the scheduled job in `render.yaml` sends every site's plan at
-05:40 Lagos time each morning.
+After that, the scheduled job in `render.yaml` sends every site's plan for
+the next day at 18:00 Lagos time each evening.
 
 ## Costs and limits
 

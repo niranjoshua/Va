@@ -370,3 +370,38 @@ def test_model_monitoring_endpoint() -> None:
     chronos = [w for w in body["weekly"] if w["model"] == "chronos_2"]
     assert sum(w["days"] for w in chronos) == 3 and chronos[0]["range_held"] == 0.5
     assert client.get("/sites/op/s1/models").status_code == 401
+
+
+def test_fuel_deliveries_and_report(tmp_path: object, monkeypatch: pytest.MonkeyPatch) -> None:
+    from pathlib import Path
+
+    from vaticore.api.main import get_repository
+    from vaticore.storage import DuckDBRepository
+
+    portfolio = Path(str(tmp_path)) / "sites.toml"
+    portfolio.write_text(
+        '[[site]]\noperator_id = "op"\nsite_id = "s1"\nname = "Site One"\n'
+        'site_type = "telecom_tower"\nlatitude = 6.5\nlongitude = 3.4\n'
+        'timezone = "Africa/Lagos"\ncurrency = "NGN"\nvalue_of_lost_load_per_kwh = 5000.0\n'
+        "[site.battery]\nusable_kwh = 20.0\npower_kw = 10.0\n"
+        "[site.generator]\nrated_kw = 15.0\nfuel_price_per_l = 1250.0\ntank_l = 300.0\n"
+    )
+    monkeypatch.setenv("VATICORE_PORTFOLIO_FILE", str(portfolio))
+    client, _ = _pipeline_client(api_token="admin")
+    repo = DuckDBRepository(":memory:")
+    client.app.dependency_overrides[get_repository] = lambda: repo  # type: ignore[attr-defined]
+    auth = {"Authorization": "Bearer admin"}
+
+    batch = {"deliveries": [{"delivered_at": "2026-10-01T10:30+01:00", "litres": 400,
+                             "reference": "INV-1"}]}  # fmt: skip
+    resp = client.post("/sites/op/s1/fuel/deliveries", json=batch, headers=auth)
+    assert resp.status_code == 200 and resp.json() == {"recorded": 1}
+    naive = {"deliveries": [{"delivered_at": "2026-10-01 10:30", "litres": 400}]}
+    assert client.post("/sites/op/s1/fuel/deliveries", json=naive, headers=auth).status_code == 422
+
+    report = client.get("/sites/op/s1/fuel?days=30", headers=auth)
+    assert report.status_code == 200
+    body = report.json()
+    assert body["currency"] == "NGN" and "summary" in body
+    assert client.get("/sites/op/nope/fuel", headers=auth).status_code == 404
+    assert client.get("/sites/op/s1/fuel").status_code == 401
