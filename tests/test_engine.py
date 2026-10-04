@@ -13,6 +13,7 @@ def test_available_models_includes_core() -> None:
     models = engine.available_models()
     assert "persistence" in models
     assert "quantile_gbm" in models
+    assert "chronos_2" in models
 
 
 def test_select_site_scopes_by_operator_and_site() -> None:

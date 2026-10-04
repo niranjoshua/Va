@@ -186,3 +186,20 @@ def test_real_weights_forecast_a_daily_cycle(cls: type[ChronosForecaster]) -> No
     forecast = cls(LOAD_KW).fit(site).predict_quantiles(24)
     expected = load[:24]
     assert np.mean(np.abs(forecast["q0.5"].to_numpy() - expected)) < 5.0
+
+
+@pytest.mark.skipif(
+    os.environ.get("VATICORE_FOUNDATION_TESTS") != "1",
+    reason="downloads model weights; set VATICORE_FOUNDATION_TESTS=1 to run",
+)
+def test_engine_plans_a_day_with_chronos() -> None:
+    from vaticore import engine
+    from vaticore.datasets import make_synthetic_fleet
+    from vaticore.decisions.dispatch import SiteAssets
+
+    fleet = make_synthetic_fleet(days=40, seed=1)
+    site = engine.select_site(fleet, "lagos-energy", "ikeja-minigrid")
+    assets = SiteAssets(battery_kwh=600.0, battery_power_kw=150.0, genset_kw=100.0)
+    plan = engine.dispatch_plan_for_site(site, assets=assets, soc_kwh=300.0, model="chronos_2")
+    assert len(plan.timestamps) == 24
+    assert isinstance(plan.summary(), str)

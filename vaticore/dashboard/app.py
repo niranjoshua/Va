@@ -169,7 +169,9 @@ def main() -> None:
         target_label = st.radio("Target", ["Load", "Solar generation"])
         target = LOAD_KW if target_label == "Load" else GENERATION_KW
         model = st.selectbox(
-            "Model", engine.available_models(), index=len(engine.available_models()) - 1
+            "Model",
+            engine.available_models(),
+            index=engine.available_models().index(engine.PLANNING_MODEL),
         )
         horizon = st.slider("Forecast horizon (hours)", 6, 48, 24, step=6)
 

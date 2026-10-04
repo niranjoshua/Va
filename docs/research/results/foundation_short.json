@@ -1,0 +1,135 @@
+{
+  "scores": [
+    {
+      "model": "persistence",
+      "pinball": 175.07636056929178,
+      "mae": 501.775706845238,
+      "rmse": 721.6980092973283,
+      "coverage_80": 0.7946428571428571,
+      "hours": 4368
+    },
+    {
+      "model": "quantile_gbm_day_ahead, full history",
+      "pinball": 94.9915641135771,
+      "mae": 287.32632254740616,
+      "rmse": 410.4549156513905,
+      "coverage_80": 0.6934523809523809,
+      "hours": 4368
+    },
+    {
+      "model": "persistence, 2 weeks",
+      "pinball": 189.0977047809829,
+      "mae": 516.8706433150182,
+      "rmse": 739.5963817444941,
+      "coverage_80": 0.7584706959706959,
+      "hours": 4368
+    },
+    {
+      "model": "chronos-2, 2 weeks",
+      "pinball": 83.97832072089152,
+      "mae": 258.31395155463025,
+      "rmse": 364.46933683988453,
+      "coverage_80": 0.7353479853479854,
+      "hours": 4368
+    },
+    {
+      "model": "timesfm-2.5, 2 weeks",
+      "pinball": 104.85964765052655,
+      "mae": 320.6838669549851,
+      "rmse": 449.76870482871254,
+      "coverage_80": 0.7156593406593407,
+      "hours": 4368
+    },
+    {
+      "model": "timesfm-3.0 (research only), 2 weeks",
+      "pinball": 83.11822236262545,
+      "mae": 256.36549644162807,
+      "rmse": 368.77298500347973,
+      "coverage_80": 0.8182234432234432,
+      "hours": 4368
+    },
+    {
+      "model": "persistence, 4 weeks",
+      "pinball": 182.72418371489627,
+      "mae": 509.37006238553124,
+      "rmse": 731.0551508059297,
+      "coverage_80": 0.7747252747252747,
+      "hours": 4368
+    },
+    {
+      "model": "quantile_gbm_day_ahead, 4 weeks",
+      "pinball": 136.10873495784116,
+      "mae": 367.65769800735006,
+      "rmse": 511.9429672465365,
+      "coverage_80": 0.4336080586080586,
+      "hours": 4368
+    },
+    {
+      "model": "chronos-2, 4 weeks",
+      "pinball": 75.99882775759669,
+      "mae": 235.32941183125143,
+      "rmse": 333.215451712916,
+      "coverage_80": 0.7646520146520146,
+      "hours": 4368
+    },
+    {
+      "model": "timesfm-2.5, 4 weeks",
+      "pinball": 98.69143321874525,
+      "mae": 298.16861693888796,
+      "rmse": 413.40777647474795,
+      "coverage_80": 0.6783424908424909,
+      "hours": 4368
+    },
+    {
+      "model": "timesfm-3.0 (research only), 4 weeks",
+      "pinball": 77.5771025791564,
+      "mae": 240.31795521495107,
+      "rmse": 348.97621408320356,
+      "coverage_80": 0.8088369963369964,
+      "hours": 4368
+    },
+    {
+      "model": "persistence, 8 weeks",
+      "pinball": 178.33273659569593,
+      "mae": 504.94447916666655,
+      "rmse": 724.9978972134211,
+      "coverage_80": 0.7891483516483516,
+      "hours": 4368
+    },
+    {
+      "model": "quantile_gbm_day_ahead, 8 weeks",
+      "pinball": 123.4695873047026,
+      "mae": 340.6602906603035,
+      "rmse": 471.6978549875874,
+      "coverage_80": 0.47023809523809523,
+      "hours": 4368
+    },
+    {
+      "model": "chronos-2, 8 weeks",
+      "pinball": 73.05346377045534,
+      "mae": 223.4772921942966,
+      "rmse": 320.55862900875474,
+      "coverage_80": 0.7657967032967034,
+      "hours": 4368
+    },
+    {
+      "model": "timesfm-2.5, 8 weeks",
+      "pinball": 89.37747120839772,
+      "mae": 271.2469109861493,
+      "rmse": 382.13226113613223,
+      "coverage_80": 0.7232142857142857,
+      "hours": 4368
+    },
+    {
+      "model": "timesfm-3.0 (research only), 8 weeks",
+      "pinball": 74.67823776897201,
+      "mae": 229.0821668956044,
+      "rmse": 337.9905245393091,
+      "coverage_80": 0.8129578754578755,
+      "hours": 4368
+    }
+  ],
+  "failures": [
+    "- quantile_gbm_day_ahead, 2 weeks: cannot run (not enough usable rows after building lag 168 features; provide more history)."
+  ]
+}
