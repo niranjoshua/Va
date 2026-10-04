@@ -383,6 +383,69 @@ def _log_value_backtest(
     )
 
 
+def net_load_forecast(
+    history: pd.DataFrame,
+    *,
+    horizon: int,
+    model: str = PLANNING_MODEL,
+    quantiles: tuple[float, ...] = DEFAULT_QUANTILES,
+    calibrate: bool = True,
+) -> pd.DataFrame:
+    """Quantile forecast of net load for the hours after the history ends.
+
+    With calibrate=True the bands are corrected on the site's own recent misses
+    (conformalized quantile regression over the last week).
+    """
+    data = with_net_load(history)
+    make = _net_load_model(model, quantiles)
+    forecaster: Forecaster
+    if calibrate:
+        forecaster = ConformalQuantileForecaster(
+            make,
+            target=NET_LOAD_KW,
+            quantiles=quantiles,
+            window_horizon=horizon,
+            nonnegative=False,
+        )
+    else:
+        forecaster = make()
+    return forecaster.fit(data).predict_quantiles(horizon=horizon, quantiles=quantiles)
+
+
+def grid_plan(
+    history: pd.DataFrame,
+    index: pd.DatetimeIndex,
+    *,
+    assets: SiteAssets,
+    quantile: float = 0.1,
+    assume_grid_always_on: bool = False,
+) -> np.ndarray | None:
+    """Hours (1 or 0) the plan may count on grid power; None for a site with no grid.
+
+    Forecast from the site's grid record at a low quantile (P10 by default, the
+    cautious choice): the plan counts on the grid only when it is on even in a
+    bad week.
+    """
+    if assets.grid_kw <= 0:
+        return None
+    if GRID_AVAILABLE in history.columns and history[GRID_AVAILABLE].notna().any():
+        forecaster = GridAvailabilityForecaster().fit(history)
+        steps = int((index[-1] - _history_end(history)) / pd.Timedelta(hours=1))
+        frame = forecaster.predict_quantiles(max(steps, len(index)), (quantile,))
+        return frame[quantile_column(quantile)].reindex(index).fillna(0.0).to_numpy(dtype=float)
+    if assume_grid_always_on:
+        return np.ones(len(index))
+    raise ValueError(
+        f"this site has a grid connection but no {GRID_AVAILABLE!r} history; record "
+        "grid on/off per hour, or pass assume_grid_always_on=True for a reliable grid"
+    )
+
+
+def _history_end(history: pd.DataFrame) -> pd.Timestamp:
+    """Last timestamp in a history frame."""
+    return pd.Timestamp(pd.DatetimeIndex(history[TIMESTAMP]).max())
+
+
 def dispatch_plan_for_site(
     history: pd.DataFrame,
     *,
@@ -408,39 +471,16 @@ def dispatch_plan_for_site(
     """
     if not any(abs(plan_quantile - q) < 1e-9 for q in quantiles):
         raise ValueError(f"plan_quantile {plan_quantile} is not among quantiles {quantiles}")
-    data = with_net_load(history)
-    make = _net_load_model(model, quantiles)
-    forecaster: Forecaster
-    if calibrate:
-        forecaster = ConformalQuantileForecaster(
-            make,
-            target=NET_LOAD_KW,
-            quantiles=quantiles,
-            window_horizon=horizon,
-            nonnegative=False,
-        )
-    else:
-        forecaster = make()
-    forecast = forecaster.fit(data).predict_quantiles(horizon=horizon, quantiles=quantiles)
-
-    planned_grid = None
-    if assets.grid_kw > 0:
-        if GRID_AVAILABLE in data.columns:
-            grid_fc = GridAvailabilityForecaster().fit(data)
-            planned_grid = (
-                grid_fc.predict_quantiles(horizon, (grid_plan_quantile,))[
-                    quantile_column(grid_plan_quantile)
-                ]
-                .reindex(forecast.index)
-                .to_numpy(dtype=float)
-            )
-        elif assume_grid_always_on:
-            planned_grid = np.ones(horizon)
-        else:
-            raise ValueError(
-                f"this site has a grid connection but no {GRID_AVAILABLE!r} history; record "
-                "grid on/off per hour, or pass assume_grid_always_on=True for a reliable grid"
-            )
+    forecast = net_load_forecast(
+        history, horizon=horizon, model=model, quantiles=quantiles, calibrate=calibrate
+    )
+    planned_grid = grid_plan(
+        history,
+        pd.DatetimeIndex(forecast.index),
+        assets=assets,
+        quantile=grid_plan_quantile,
+        assume_grid_always_on=assume_grid_always_on,
+    )
     return plan_dispatch(
         forecast[quantile_column(plan_quantile)],
         soc_kwh=soc_kwh,

@@ -17,11 +17,13 @@ import pandas as pd
 from vaticore import schemas
 from vaticore.schemas import (
     GENERATION_KW,
+    GRID_AVAILABLE,
     LOAD_KW,
     OPERATOR_ID,
     SITE_ID,
     TIMESTAMP,
 )
+from vaticore.storage.repository import with_grid_column
 
 _TABLE = "observations"
 
@@ -32,11 +34,13 @@ CREATE TABLE IF NOT EXISTS {_TABLE} (
     {TIMESTAMP}     TIMESTAMPTZ  NOT NULL,
     {LOAD_KW}       DOUBLE,
     {GENERATION_KW} DOUBLE,
+    {GRID_AVAILABLE} DOUBLE,
     PRIMARY KEY ({OPERATOR_ID}, {SITE_ID}, {TIMESTAMP})
 );
+ALTER TABLE {_TABLE} ADD COLUMN IF NOT EXISTS {GRID_AVAILABLE} DOUBLE;
 """
 
-_COLUMNS = [OPERATOR_ID, SITE_ID, TIMESTAMP, LOAD_KW, GENERATION_KW]
+_COLUMNS = [OPERATOR_ID, SITE_ID, TIMESTAMP, LOAD_KW, GENERATION_KW, GRID_AVAILABLE]
 
 
 def _path_from_url(url: str) -> str:
@@ -65,7 +69,7 @@ class DuckDBRepository:
         The frame is validated against the internal schema first, so malformed
         data never reaches the store.
         """
-        validated = schemas.validate(frame)[_COLUMNS]
+        validated = with_grid_column(schemas.validate(frame))[_COLUMNS]
         self._con.register("incoming", validated)
         try:
             self._con.execute(
@@ -74,7 +78,8 @@ class DuckDBRepository:
                 SELECT {", ".join(_COLUMNS)} FROM incoming
                 ON CONFLICT ({OPERATOR_ID}, {SITE_ID}, {TIMESTAMP}) DO UPDATE SET
                     {LOAD_KW} = excluded.{LOAD_KW},
-                    {GENERATION_KW} = excluded.{GENERATION_KW}
+                    {GENERATION_KW} = excluded.{GENERATION_KW},
+                    {GRID_AVAILABLE} = COALESCE(excluded.{GRID_AVAILABLE}, {_TABLE}.{GRID_AVAILABLE})
                 """
             )
         finally:
@@ -145,5 +150,6 @@ def _empty_frame() -> pd.DataFrame:
             TIMESTAMP: pd.Series([], dtype="datetime64[ns, UTC]"),
             LOAD_KW: pd.Series([], dtype="float64"),
             GENERATION_KW: pd.Series([], dtype="float64"),
+            GRID_AVAILABLE: pd.Series([], dtype="float64"),
         }
     )

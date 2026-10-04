@@ -12,8 +12,11 @@ Run with:
 
 from __future__ import annotations
 
+import hmac
+import json
+from datetime import date
 from functools import lru_cache
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
@@ -30,10 +33,19 @@ from vaticore.api.schemas import (
     RunWindow,
     SiteInfo,
 )
+from vaticore.config import Settings, get_settings
 from vaticore.datasets import make_synthetic_fleet
 from vaticore.decisions.dispatch import SiteAssets
+from vaticore.delivery.webhook import handle_webhook, verify_signature
 from vaticore.forecasting.base import ForecasterError, quantile_column
+from vaticore.pipeline.scoring import scorecard
+from vaticore.pipeline.store import PlanStore
 from vaticore.schemas import GENERATION_KW, LOAD_KW, OPERATOR_ID, SITE_ID, TIMESTAMP
+
+try:  # FastAPI resolves this annotation at runtime; it needs the service extra.
+    from fastapi import Request
+except ImportError:  # pragma: no cover - service extra not installed
+    Request = Any  # type: ignore[assignment,misc]
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
@@ -63,9 +75,22 @@ def get_fleet() -> pd.DataFrame:
     return get_repository().read_fleet()
 
 
+def get_app_settings() -> Settings:
+    """Settings dependency, overridable in tests."""
+    return get_settings()
+
+
+@lru_cache(maxsize=1)
+def get_plan_store() -> PlanStore:
+    """The pipeline's plan store (plans, scores, deliveries, replies)."""
+    settings = get_settings()
+    return PlanStore(settings.plan_store_url or settings.database_url)
+
+
 def create_app() -> FastAPI:
     """Application factory."""
-    from fastapi import Depends, FastAPI, HTTPException
+    from fastapi import Depends, FastAPI, Header, HTTPException, Query
+    from fastapi.responses import PlainTextResponse
 
     app = FastAPI(
         title="Vaticore",
@@ -229,6 +254,119 @@ def create_app() -> FastAPI:
             expected_unserved_kwh=expected.unserved_kwh,
             hours=hours,
         )
+
+    # -- daily pipeline: plans, track records and WhatsApp webhooks --------------
+
+    def require_token(
+        authorization: str | None = Header(default=None),
+        settings: Settings = Depends(get_app_settings),
+    ) -> None:
+        if settings.api_token is None:
+            if settings.environment == "production":
+                raise HTTPException(503, "set VATICORE_API_TOKEN to serve plan data")
+            return
+        expected = f"Bearer {settings.api_token.get_secret_value()}"
+        if not hmac.compare_digest(authorization or "", expected):
+            raise HTTPException(401, "missing or wrong bearer token")
+
+    @app.get(
+        "/sites/{operator_id}/{site_id}/plans/{plan_date}", dependencies=[Depends(require_token)]
+    )
+    def stored_plan(
+        operator_id: str,
+        site_id: str,
+        plan_date: date,
+        store: PlanStore = Depends(get_plan_store),
+    ) -> dict[str, Any]:
+        run = store.get_run(operator_id, site_id, plan_date)
+        if run is None:
+            raise HTTPException(404, "no plan stored for that site and date")
+        hours = store.plan_hours(operator_id, site_id, plan_date)
+        message = json.loads(run.message) if run.message else None
+        return {
+            "operator_id": run.operator_id,
+            "site_id": run.site_id,
+            "plan_date": str(run.plan_date),
+            "status": run.status,
+            "model": run.model,
+            "fallback": run.fallback,
+            "health": run.health,
+            "message": None if message is None else message["text"],
+            "expected_fuel_l": run.expected_fuel_l,
+            "expected_genset_hours": run.expected_genset_hours,
+            "expected_genset_starts": run.expected_genset_starts,
+            "expected_unserved_kwh": run.expected_unserved_kwh,
+            "hours": [
+                {
+                    "timestamp": pd.Timestamp(str(ts)).isoformat(),
+                    "planned_net_load_kw": float(str(net)),
+                    "genset_on": bool(gen),
+                    "grid_on": bool(grid),
+                }
+                for ts, net, gen, grid in hours[
+                    ["timestamp", "planned_net_load_kw", "genset_on", "grid_on"]
+                ].itertuples(index=False, name=None)
+            ],
+            "advisory_only": True,
+        }
+
+    @app.get("/sites/{operator_id}/{site_id}/scorecard", dependencies=[Depends(require_token)])
+    def site_scorecard(
+        operator_id: str,
+        site_id: str,
+        days: int = Query(default=30, ge=1, le=366),
+        store: PlanStore = Depends(get_plan_store),
+    ) -> dict[str, Any]:
+        card = scorecard(store, operator_id, site_id, days=days)
+        return {
+            "operator_id": operator_id,
+            "site_id": site_id,
+            "days": card.days,
+            "range_held": card.range_held,
+            "litres_saved": card.litres_saved,
+            "outage_kwh_avoided": card.outage_kwh_avoided,
+            "cost_saved": card.cost_saved,
+            "share_of_possible": card.share_of_possible,
+            "summary": card.summary(),
+            "models": card.models.reset_index().to_dict(orient="records"),
+            "basis": "if each plan had been followed, against planning from yesterday",
+        }
+
+    @app.get("/webhooks/whatsapp", response_class=PlainTextResponse)
+    def whatsapp_verify(
+        mode: str = Query(alias="hub.mode"),
+        token: str = Query(alias="hub.verify_token"),
+        challenge: str = Query(alias="hub.challenge"),
+        settings: Settings = Depends(get_app_settings),
+    ) -> str:
+        expected = settings.whatsapp_verify_token
+        if (
+            mode != "subscribe"
+            or expected is None
+            or not hmac.compare_digest(token, expected.get_secret_value())
+        ):
+            raise HTTPException(403, "verification failed")
+        return challenge
+
+    @app.post("/webhooks/whatsapp")
+    async def whatsapp_events(
+        request: Request,
+        settings: Settings = Depends(get_app_settings),
+        store: PlanStore = Depends(get_plan_store),
+    ) -> dict[str, int]:
+        if settings.whatsapp_app_secret is None:
+            raise HTTPException(503, "set VATICORE_WHATSAPP_APP_SECRET to accept webhooks")
+        body = await request.body()
+        signature = request.headers.get("x-hub-signature-256")
+        if not verify_signature(settings.whatsapp_app_secret.get_secret_value(), body, signature):
+            raise HTTPException(401, "bad signature")
+        outcome = handle_webhook(store, json.loads(body or b"{}"))
+        return {
+            "statuses": outcome.statuses,
+            "replies": outcome.replies,
+            "opt_outs": outcome.opt_outs,
+            "opt_ins": outcome.opt_ins,
+        }
 
     return app
 

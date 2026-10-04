@@ -47,7 +47,7 @@ currency = "NGN"
 value_of_lost_load_per_kwh = 3000.0
 battery = { usable_kwh = 100.0, power_kw = 50.0, min_soc_kwh = 10.0 }
 solar = { kwp = 40.0 }
-generator = { rated_kw = 80.0, fuel_price_per_l = 1200.0 }
+generator = { rated_kw = 80.0, fuel_price_per_l = 1200.0, min_run_hours = 2.0 }
 grid = { capacity_kw = 60.0, price_per_kwh = 209.0, tariff_band = "A" }
 
 [[site]]
@@ -62,7 +62,7 @@ currency = "NGN"
 value_of_lost_load_per_kwh = 10000.0  # critical loads: theatres, oxygen, cold chain
 battery = { usable_kwh = 300.0, power_kw = 100.0, min_soc_kwh = 60.0 }
 solar = { kwp = 100.0 }
-generator = { rated_kw = 150.0, fuel_price_per_l = 1200.0 }
+generator = { rated_kw = 150.0, fuel_price_per_l = 1200.0, min_run_hours = 2.0 }
 grid = { capacity_kw = 120.0, price_per_kwh = 209.0, tariff_band = "B" }
 
 [[site]]
@@ -77,7 +77,7 @@ currency = "NGN"
 value_of_lost_load_per_kwh = 1500.0
 battery = { usable_kwh = 1000.0, power_kw = 400.0, min_soc_kwh = 100.0 }
 solar = { kwp = 500.0 }
-generator = { rated_kw = 800.0, fuel_price_per_l = 1150.0 }
+generator = { rated_kw = 800.0, fuel_price_per_l = 1150.0, min_run_hours = 2.0 }
 grid = { capacity_kw = 1000.0, price_per_kwh = 209.0, tariff_band = "A" }
 
 [[site]]
@@ -92,4 +92,4 @@ currency = "NGN"
 value_of_lost_load_per_kwh = 800.0
 battery = { usable_kwh = 600.0, power_kw = 150.0, min_soc_kwh = 60.0 }
 solar = { kwp = 120.0 }
-generator = { rated_kw = 100.0, fuel_price_per_l = 1300.0 }
+generator = { rated_kw = 100.0, fuel_price_per_l = 1300.0, min_run_hours = 2.0 }

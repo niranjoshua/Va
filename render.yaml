@@ -16,3 +16,40 @@ services:
         sync: false
       - key: VATICORE_DATABASE_URL
         sync: false
+      # WhatsApp webhook (replies, receipts, STOP) and the API token for
+      # plan and scorecard endpoints.
+      - key: VATICORE_WHATSAPP_APP_SECRET
+        sync: false
+      - key: VATICORE_WHATSAPP_VERIFY_TOKEN
+        sync: false
+      - key: VATICORE_API_TOKEN
+        sync: false
+
+  # The daily pipeline: score finished days, then plan every site and send the
+  # plans on WhatsApp. 04:40 UTC is 05:40 in Lagos, before the 06:00 plan start.
+  # Shares the web service's Postgres (the webhook writes replies to it).
+  - type: cron
+    name: vaticore-daily-plans
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    schedule: "40 4 * * *"
+    dockerCommand: >-
+      sh -c "uv run python -m vaticore.pipeline score;
+      uv run python -m vaticore.pipeline run --channel whatsapp"
+    envVars:
+      - key: VATICORE_ENVIRONMENT
+        value: production
+      # Secrets and files, set in the Render dashboard (see docs/pipeline.md):
+      #   VATICORE_DATABASE_URL, VATICORE_WHATSAPP_TOKEN,
+      #   VATICORE_WHATSAPP_PHONE_NUMBER_ID, and the secret files
+      #   portfolio.toml and recipients.toml under /etc/secrets/.
+      - key: VATICORE_DATABASE_URL
+        sync: false
+      - key: VATICORE_WHATSAPP_TOKEN
+        sync: false
+      - key: VATICORE_WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+      - key: VATICORE_PORTFOLIO_FILE
+        value: /etc/secrets/portfolio.toml
+      - key: VATICORE_RECIPIENTS_FILE
+        value: /etc/secrets/recipients.toml

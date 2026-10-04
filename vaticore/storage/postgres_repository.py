@@ -16,14 +16,16 @@ import pandas as pd
 from vaticore import schemas
 from vaticore.schemas import (
     GENERATION_KW,
+    GRID_AVAILABLE,
     LOAD_KW,
     OPERATOR_ID,
     SITE_ID,
     TIMESTAMP,
 )
+from vaticore.storage.repository import with_grid_column
 
 _TABLE = "observations"
-_COLUMNS = [OPERATOR_ID, SITE_ID, TIMESTAMP, LOAD_KW, GENERATION_KW]
+_COLUMNS = [OPERATOR_ID, SITE_ID, TIMESTAMP, LOAD_KW, GENERATION_KW, GRID_AVAILABLE]
 
 _DDL = f"""
 CREATE TABLE IF NOT EXISTS {_TABLE} (
@@ -32,16 +34,19 @@ CREATE TABLE IF NOT EXISTS {_TABLE} (
     {TIMESTAMP}     TIMESTAMPTZ      NOT NULL,
     {LOAD_KW}       DOUBLE PRECISION,
     {GENERATION_KW} DOUBLE PRECISION,
+    {GRID_AVAILABLE} DOUBLE PRECISION,
     PRIMARY KEY ({OPERATOR_ID}, {SITE_ID}, {TIMESTAMP})
 );
+ALTER TABLE {_TABLE} ADD COLUMN IF NOT EXISTS {GRID_AVAILABLE} DOUBLE PRECISION;
 """
 
 _UPSERT = f"""
 INSERT INTO {_TABLE} ({", ".join(_COLUMNS)})
-VALUES (%s, %s, %s, %s, %s)
+VALUES (%s, %s, %s, %s, %s, %s)
 ON CONFLICT ({OPERATOR_ID}, {SITE_ID}, {TIMESTAMP}) DO UPDATE SET
     {LOAD_KW} = EXCLUDED.{LOAD_KW},
-    {GENERATION_KW} = EXCLUDED.{GENERATION_KW}
+    {GENERATION_KW} = EXCLUDED.{GENERATION_KW},
+    {GRID_AVAILABLE} = COALESCE(EXCLUDED.{GRID_AVAILABLE}, {_TABLE}.{GRID_AVAILABLE})
 """
 
 
@@ -72,7 +77,7 @@ class PostgresRepository:
             pass
 
     def upsert(self, frame: pd.DataFrame) -> int:
-        validated = schemas.validate(frame)[_COLUMNS]
+        validated = with_grid_column(schemas.validate(frame))[_COLUMNS]
         rows = _to_rows(validated)
         with self._conn.cursor() as cur:
             cur.executemany(_UPSERT, rows)
