@@ -50,6 +50,11 @@ def test_site_maps_to_dispatch_assets() -> None:
     assert assets.grid_kw == 10.0 and assets.grid_price_per_kwh == 70.0
     off_grid = Site(**_tower(grid=None)).dispatch_assets()  # type: ignore[arg-type]
     assert off_grid.grid_kw == 0.0
+    assert assets.genset_min_run_hours == 1.0
+    held = Site(  # type: ignore[arg-type]
+        **_tower(generator={"rated_kw": 16.0, "fuel_price_per_l": 1200.0, "min_run_hours": 2})
+    ).dispatch_assets()
+    assert held.genset_min_run_hours == 2.0
 
 
 @pytest.mark.parametrize(
@@ -61,6 +66,7 @@ def test_site_maps_to_dispatch_assets() -> None:
         {"generator": None, "grid": None, "solar": None},
         {"unexpected_field": 1},
         {"site_type": "spaceport"},
+        {"generator": {"rated_kw": 16.0, "fuel_price_per_l": 1200.0, "min_run_hours": 0}},
     ],
 )
 def test_bad_sites_are_rejected(overrides: dict[str, object]) -> None:

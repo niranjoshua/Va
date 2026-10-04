@@ -63,6 +63,10 @@ class SiteAssets:
     discharge_efficiency: float = 0.95
     min_soc_kwh: float = 0.0
     genset_min_load: float = 0.3
+    # Once started, the generator runs at least this long. Real sets are not
+    # cycled hour by hour: each start costs wear, fuel and a technician's
+    # attention. 1.0 (one step) keeps the original hour-by-hour planner.
+    genset_min_run_hours: float = 1.0
     fuel_intercept_l_per_kw_h: float = 0.08145
     fuel_slope_l_per_kwh: float = 0.246
     diesel_price_per_l: float = 1.10
@@ -100,6 +104,13 @@ class SiteAssets:
             raise ValueError("a site without a battery must have min_soc_kwh 0")
         if not 0.0 <= self.genset_min_load <= 1.0:
             raise ValueError("genset_min_load must be a fraction between 0 and 1")
+        if self.genset_min_run_hours <= 0:
+            raise ValueError("genset_min_run_hours must be positive")
+
+    @property
+    def genset_min_run_steps(self) -> int:
+        """Minimum run in whole steps, at least one."""
+        return max(1, int(np.ceil(self.genset_min_run_hours / self.step_hours - _EPS)))
 
     def fuel_litres(self, output_kw: float) -> float:
         """Fuel burned in one step with the generator running at output_kw."""
@@ -369,11 +380,13 @@ def plan_dispatch(
 ) -> DispatchPlan:
     """Schedule the generator for exactly the hours the forecast needs it.
 
-    Walks forward through the forecast. An hour gets the generator only if,
-    without it, the grid (where the plan counts on it) and the battery could
-    not serve that hour's forecast net load. Plan on a high quantile (P90) of
-    net load and a low quantile (P10) of grid availability to hold on a bad day;
-    the value backtest measures which choices pay.
+    Walks forward through the forecast. The generator starts only in an hour
+    that, without it, the grid (where the plan counts on it) and the battery
+    could not serve. Once started it stays on for at least the site's minimum
+    run time (assets.genset_min_run_hours); output beyond the load charges the
+    battery, so a longer run buys hours without a restart later. Plan on a high
+    quantile (P90) of net load and a low quantile (P10) of grid availability to
+    hold on a bad day; the value backtest measures which choices pay.
     """
     if not isinstance(planned_net_load_kw.index, pd.DatetimeIndex):
         raise ValueError("planned_net_load_kw must be indexed by timestamp")
@@ -385,11 +398,18 @@ def plan_dispatch(
 
     on = np.zeros(values.size, dtype=bool)
     soc = float(soc_kwh)
+    committed = 0  # steps the generator must still run after a start
     for i, x in enumerate(values):
-        trial = _step(float(x), False, bool(grid_on[i]), soc, assets)
-        if trial.unserved_kwh > _EPS and assets.genset_kw > 0:
+        if committed > 0:
             on[i] = True
+            committed -= 1
             trial = _step(float(x), True, bool(grid_on[i]), soc, assets)
+        else:
+            trial = _step(float(x), False, bool(grid_on[i]), soc, assets)
+            if trial.unserved_kwh > _EPS and assets.genset_kw > 0:
+                on[i] = True
+                committed = assets.genset_min_run_steps - 1
+                trial = _step(float(x), True, bool(grid_on[i]), soc, assets)
         soc = trial.soc
 
     expected = simulate_dispatch(

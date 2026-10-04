@@ -132,7 +132,10 @@ In each hour, net load is served by:
 
 Anything left is an outage. Surplus solar, and spare grid capacity, recharge
 the battery. A generator that was not scheduled does not start. The planner
-books the generator for exactly the hours the forecast needs it.
+starts the generator only in an hour the forecast says needs it, then keeps it
+on for at least the site's minimum run time (1 hour by default; 2 to 4 hours
+is typical in practice), with the surplus charging the battery. That avoids
+plans that cycle a set on and off hour by hour.
 
 This rule is deliberately simple and explainable. Smarter planners, such as
 pre-charging before a known peak or economic dispatch across tariff bands,
