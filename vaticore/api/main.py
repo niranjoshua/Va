@@ -39,6 +39,7 @@ from vaticore.datasets import make_synthetic_fleet
 from vaticore.decisions.dispatch import SiteAssets
 from vaticore.delivery.webhook import handle_webhook, verify_signature
 from vaticore.forecasting.base import ForecasterError, quantile_column
+from vaticore.pipeline import monitoring
 from vaticore.pipeline.health import site_health_report
 from vaticore.pipeline.scoring import scorecard
 from vaticore.pipeline.store import PlanStore
@@ -364,6 +365,36 @@ def create_app() -> FastAPI:
             "summary": card.summary(),
             "models": card.models.reset_index().to_dict(orient="records"),
             "basis": "if each plan had been followed, against planning from yesterday",
+        }
+
+    @app.get("/sites/{operator_id}/{site_id}/models", dependencies=[Depends(site_access)])
+    def site_models(
+        operator_id: str,
+        site_id: str,
+        weeks: int = Query(default=8, ge=1, le=104),
+        store: PlanStore = Depends(get_plan_store),
+    ) -> dict[str, Any]:
+        """Each model's calibration and accuracy week by week, and any suspensions."""
+        report = monitoring.weekly_report(store, operator_id, site_id, weeks=weeks)
+        weekly = [
+            {k: (None if isinstance(v, float) and pd.isna(v) else v) for k, v in row.items()}
+            for row in report.assign(week=report["week"].astype(str)).to_dict(orient="records")
+        ]
+        statuses = store.model_statuses(operator_id, site_id)
+        return {
+            "operator_id": operator_id,
+            "site_id": site_id,
+            "statuses": [
+                {
+                    "model": model,
+                    "status": row["status"],
+                    "reason": row["reason"],
+                    "since": pd.Timestamp(row["since"]).isoformat(),
+                }
+                for model, row in statuses.items()
+            ],
+            "weekly": weekly,
+            "target_range_held": 0.8,
         }
 
     @app.post("/ingest/{operator_id}/{site_id}", dependencies=[Depends(site_access)])

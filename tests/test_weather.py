@@ -22,7 +22,7 @@ _FAKE_RESPONSE = {
 
 def _mock_client() -> httpx.Client:
     def handler(request: httpx.Request) -> httpx.Response:
-        assert "archive-api.open-meteo.com" in str(request.url)
+        assert request.url.host == "archive-api.open-meteo.com"
         assert request.url.params["timezone"] == "UTC"
         return httpx.Response(200, json=_FAKE_RESPONSE)
 
@@ -65,3 +65,38 @@ def test_join_weather_aligns_on_timestamp() -> None:
     assert len(merged) == 2
     assert "shortwave_radiation" in merged.columns
     assert merged["temperature_2m"].notna().all()
+
+
+def test_live_forecast_asks_for_past_and_coming_days() -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json=_FAKE_RESPONSE)
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    frame = OpenMeteoProvider(client=client).forecast(6.45, 3.4, past_days=500, forecast_days=2)
+    assert len(frame) == 3
+    url = seen[0].url
+    assert url.host == "api.open-meteo.com" and url.path == "/v1/forecast"
+    assert url.params["past_days"] == "92"  # the endpoint's limit
+    assert url.params["forecast_days"] == "2" and "apikey" not in url.params
+
+
+def test_a_subscription_key_uses_the_commercial_endpoints() -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json=_FAKE_RESPONSE)
+
+    provider = OpenMeteoProvider(
+        client=httpx.Client(transport=httpx.MockTransport(handler)), api_key="KEY"
+    )
+    provider.forecast(6.45, 3.4)
+    provider.hourly(6.45, 3.4, pd.Timestamp("2024-01-01"), pd.Timestamp("2024-01-02"))
+    assert [r.url.host for r in seen] == [
+        "customer-api.open-meteo.com",
+        "customer-archive-api.open-meteo.com",
+    ]
+    assert all(r.url.params["apikey"] == "KEY" for r in seen)

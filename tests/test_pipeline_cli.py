@@ -22,6 +22,16 @@ def env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return tmp_path
 
 
+_SITES = (
+    "[[site]]\n"
+    'operator_id = "op"\nsite_id = "s1"\nname = "Site One"\nsite_type = "telecom_tower"\n'
+    'latitude = 6.5\nlongitude = 3.4\ntimezone = "Africa/Lagos"\ncurrency = "NGN"\n'
+    "value_of_lost_load_per_kwh = 5000.0\n"
+    "[site.battery]\nusable_kwh = 20.0\npower_kw = 10.0\n"
+    "[site.generator]\nrated_kw = 15.0\nfuel_price_per_l = 1250.0\n"
+)
+
+
 def _store(env: Path) -> PlanStore:
     return PlanStore(f"duckdb:///{env / 'plans.duckdb'}")
 
@@ -73,17 +83,48 @@ def test_ingest_then_health(env: Path, capsys: pytest.CaptureFixture[str]) -> No
         'timestamp = "Time"\nload_kw = "Load(W)"\nbattery_soc_pct = "SOC"\n'
         "[source.scale]\nload_kw = 0.001\n"
     )
-    (env / "sites.toml").write_text(
-        "[[site]]\n"
-        'operator_id = "op"\nsite_id = "s1"\nname = "Site One"\nsite_type = "telecom_tower"\n'
-        'latitude = 6.5\nlongitude = 3.4\ntimezone = "Africa/Lagos"\ncurrency = "NGN"\n'
-        "value_of_lost_load_per_kwh = 5000.0\n"
-        "[site.battery]\nusable_kwh = 20.0\npower_kw = 10.0\n"
-        "[site.generator]\nrated_kw = 15.0\nfuel_price_per_l = 1250.0\n"
-    )
+    (env / "sites.toml").write_text(_SITES)
     assert main(["ingest", "--sources", str(env / "sources.toml")]) == 0
     assert "op/s1 (csv): 48 rows" in capsys.readouterr().out
 
     # The readings are months old by now: the report says so and fails.
     assert main(["health", "--portfolio", str(env / "sites.toml"), "--days", "7"]) == 1
     assert "op/s1" in capsys.readouterr().out
+
+
+def test_monitor_prints_each_model_week_by_week(
+    env: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from datetime import UTC, date, datetime, timedelta
+
+    from vaticore.pipeline.store import ScoreRecord
+
+    store = _store(env)
+    now = datetime.now(tz=UTC)
+    detail = {
+        "models": {
+            "persistence (baseline)": {"role": "baseline", "pinball": 1.0, "coverage_80": 0.8,
+                                       "hours": 24},
+            "quantile_gbm_day_ahead+conformal": {"role": "primary", "pinball": 0.8,
+                                                 "coverage_80": 0.79, "hours": 24},
+        }
+    }  # fmt: skip
+    store.save_score(
+        ScoreRecord("op", "s1", date.today() - timedelta(days=1), now, 24, 0, 0.8, 0.79,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, detail)
+    )  # fmt: skip
+    store.close()
+    (env / "sites.toml").write_text(_SITES)
+    assert main(["monitor", "--portfolio", str(env / "sites.toml")]) == 0
+    out = capsys.readouterr().out
+    assert "op/s1" in out and "quantile_gbm_day_ahead" in out and "+20%" in out
+
+
+def test_live_weather_needs_a_key_in_production(monkeypatch: pytest.MonkeyPatch) -> None:
+    from vaticore.config import Settings
+    from vaticore.pipeline.cli import _weather
+
+    assert _weather(Settings(environment="production")) is None
+    assert _weather(Settings(environment="production", weather_api_key="k")) is not None  # type: ignore[arg-type]
+    assert _weather(Settings(environment="local")) is not None
+    assert _weather(Settings(weather_provider="none")) is None

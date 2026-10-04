@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import uuid
 from collections.abc import Iterator
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
 import pandas as pd
 import pytest
@@ -192,3 +192,28 @@ def test_operator_api_keys(store: PlanStore) -> None:
     assert store.revoke_api_key(key_id, END)
     assert store.operator_for_key(key) is None
     assert not store.revoke_api_key("nope", END)
+
+
+def test_model_status_and_weather(store: PlanStore) -> None:
+    assert store.model_statuses("op", "s1") == {}
+    store.set_model_status("op", "s1", "chronos_2", "suspended", "range held 50%", START)
+    store.set_model_status("op", "s1", "chronos_2", "ok", "back", END)
+    status = store.model_statuses("op", "s1")["chronos_2"]
+    assert status["status"] == "ok" and status["reason"] == "back"
+
+    hours = pd.date_range(START, periods=48, freq="h")
+    weather = pd.DataFrame(
+        {"timestamp": hours, "shortwave_radiation": 100.0, "cloud_cover": 50.0,
+         "temperature_2m": 28.0}
+    )  # fmt: skip
+    assert store.last_weather_at("op", "s1") is None
+    store.save_weather("op", "s1", weather, START)
+    store.save_weather("op", "s1", weather.iloc[24:].assign(cloud_cover=10.0), END)  # revised
+    cached = store.weather("op", "s1", START, END + timedelta(days=1))
+    assert len(cached) == 48 and cached["cloud_cover"].tolist() == [50.0] * 24 + [10.0] * 24
+    assert store.last_weather_at("op", "s1") == hours[-1]
+
+    store.save_issued_weather("op", "s1", DAY, weather.iloc[:24], START)
+    store.save_issued_weather("op", "s1", DAY, weather.iloc[:24], END)  # a re-run replaces
+    issued = store.issued_weather("op", "s1", DAY)
+    assert len(issued) == 24 and issued["timestamp"].iloc[0] == hours[0]
