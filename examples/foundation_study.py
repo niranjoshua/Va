@@ -30,9 +30,11 @@ Four parts, run separately, each writing a markdown and JSON report:
         --solar-csv ods032.csv.gz --out results/
     uv run python examples/foundation_study.py short  --load-csv ods001.csv --out results/
 
-TimesFM 3.0 is included as a research reference only: its licence is
-non-commercial, so it cannot serve customers. Chronos-2 and TimesFM 2.5 are
-Apache 2.0. Weights download from Hugging Face on first use. Data files are
+Chronos-2 and TimesFM 2.5 are Apache 2.0. TimesFM 3.0 runs only with
+--with-timesfm3, for non-commercial research (an academic paper): its licence
+forbids commercial and production use, including using its results in
+commercial decisions or client material. Those runs write to files ending in
+_research and must not be published as Vaticore results. Weights download from Hugging Face on first use. Data files are
 never committed. Models run on the CPU unless --device says otherwise.
 """
 
@@ -74,6 +76,9 @@ TIMESFM_3 = "timesfm-3.0 (research only)"
 FOUNDATION: dict[str, Callable[..., Forecaster]] = {
     CHRONOS: ChronosForecaster,
     TIMESFM: lambda target, **kw: TimesFMForecaster(target, model_id=TIMESFM_MODEL, **kw),
+}
+# Non-commercial weights: added only by --with-timesfm3, for research.
+RESEARCH_ONLY: dict[str, Callable[..., Forecaster]] = {
     TIMESFM_3: lambda target, **kw: TimesFMForecaster(target, model_id=TIMESFM_3_MODEL, **kw),
 }
 DESIGN_CONTEXTS = (24 * 7 * 4, 24 * 7 * 12, 24 * 7 * 48)
@@ -180,8 +185,10 @@ def run(
 
 
 def _contexts(args: argparse.Namespace) -> dict[str, int]:
-    return {CHRONOS: args.chronos_context, TIMESFM: args.timesfm_context,
-            TIMESFM_3: args.timesfm3_context}  # fmt: skip
+    """History length per foundation model taking part in this run."""
+    hours = {CHRONOS: args.chronos_context, TIMESFM: args.timesfm_context,
+             TIMESFM_3: args.timesfm3_context}  # fmt: skip
+    return {name: hours[name] for name in FOUNDATION}
 
 
 def all_models(
@@ -416,17 +423,26 @@ def main() -> None:
     parser.add_argument("--min-soc-kwh", type=float, default=60.0)
     parser.add_argument("--genset-kw", type=float, default=100.0)
     parser.add_argument("--device", default="cpu")
+    parser.add_argument(
+        "--with-timesfm3",
+        action="store_true",
+        help="also run TimesFM 3.0 (non-commercial licence: research use only)",
+    )
     parser.add_argument("--out", type=Path, default=Path("results"))
     args = parser.parse_args()
     warnings.filterwarnings("ignore", category=UserWarning)
 
+    suffix = ""
+    if args.with_timesfm3:
+        FOUNDATION.update(RESEARCH_ONLY)
+        suffix = "_research"
     t0 = time.time()
     parts = {"design": part_design, "load": part_load, "value": part_value, "short": part_short}
     markdown, payload = parts[args.part](args)
     markdown += f"\n\nRuntime {(time.time() - t0) / 60:.1f} minutes.\n"
     args.out.mkdir(parents=True, exist_ok=True)
-    (args.out / f"foundation_{args.part}.md").write_text(markdown)
-    (args.out / f"foundation_{args.part}.json").write_text(
+    (args.out / f"foundation_{args.part}{suffix}.md").write_text(markdown)
+    (args.out / f"foundation_{args.part}{suffix}.json").write_text(
         json.dumps(payload, indent=2, default=str)
     )
     print(markdown)
