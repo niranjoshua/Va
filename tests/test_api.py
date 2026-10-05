@@ -405,3 +405,16 @@ def test_fuel_deliveries_and_report(tmp_path: object, monkeypatch: pytest.Monkey
     assert body["currency"] == "NGN" and "summary" in body
     assert client.get("/sites/op/nope/fuel", headers=auth).status_code == 404
     assert client.get("/sites/op/s1/fuel").status_code == 401
+
+
+def test_ready_means_the_database_answers_with_a_current_schema(tmp_path: object) -> None:
+    from pathlib import Path
+
+    from vaticore.storage import migrations
+
+    url = f"duckdb:///{Path(str(tmp_path)) / 'plans.duckdb'}"
+    client, _ = _pipeline_client(database_url=url)
+    pending = client.get("/ready")
+    assert pending.status_code == 503 and "pending" in pending.json()["problems"][0]
+    migrations.migrate(url, migrations.PLANS)
+    assert client.get("/ready").status_code == 200

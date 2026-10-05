@@ -1,0 +1,37 @@
+name: Foundation image
+
+# The image with Chronos-2 baked in (CPU PyTorch). Slower, so it runs when the
+# image's inputs change, and on demand.
+on:
+  pull_request:
+    paths:
+      - Dockerfile
+      - docker/**
+      - pyproject.toml
+      - uv.lock
+      - vaticore/forecasting/foundation.py
+      - .github/workflows/image-foundation.yml
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build with the foundation models
+        run: docker build --build-arg VATICORE_WITH_FOUNDATION=1 -t vaticore:fm .
+
+      - name: Chronos-2 forecasts offline, on CPU PyTorch
+        run: |
+          docker run --rm --network none vaticore:fm uv run python -c "
+          import torch
+          assert not torch.version.cuda, 'expected CPU-only PyTorch'
+          from vaticore import engine
+          from vaticore.datasets import make_synthetic_site
+          site = make_synthetic_site('op', 's', days=30, seed=1)
+          fc = engine.net_load_forecast(site, horizon=24, model='chronos_2', calibrate=False)
+          assert len(fc) == 24
+          print('Chronos-2 forecast offline OK, torch', torch.__version__)
+          "
+          docker images vaticore:fm --format 'image size {{.Size}}'

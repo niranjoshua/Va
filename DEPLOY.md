@@ -30,12 +30,21 @@ docker compose up --build
 The repo ships a `render.yaml` blueprint and a `Dockerfile`.
 
 1. Push this repo to GitHub.
-2. In Render: **New > Blueprint**, select the repo. Render reads `render.yaml`.
-3. Set secrets in the Render dashboard (never commit them):
-   - `VATICORE_DATABASE_URL` (a managed Postgres/Timescale connection string)
-   - `ANTHROPIC_API_KEY` (only if you want the LLM copilot; it degrades to a
-     template without one)
-4. Deploy. Render health checks `GET /health`.
+2. In Render, create two Postgres databases (staging and production) and a
+   third, small, empty one for restore checks.
+3. **New > Blueprint**, select the repo. Render reads `render.yaml`: a staging
+   environment that deploys every push to `main`, and a production one that
+   deploys when you press Deploy (`docs/operations.md`).
+4. Set secrets in the Render dashboard (never commit them), per service:
+   - `VATICORE_DATABASE_URL`: that environment's Postgres connection string;
+   - `VATICORE_API_TOKEN`: the admin token (a long random string);
+   - `VATICORE_RESTORE_TEST_URL` on the restore drill: the empty database;
+   - optional: `VATICORE_SENTRY_DSN`, `VATICORE_HEARTBEAT_URL`,
+     `ANTHROPIC_API_KEY` (the LLM copilot degrades to a template without one).
+5. Deploy. Each API deploy first applies database migrations; Render then
+   checks `GET /ready` (database reachable, schema current).
+6. Give each operator a key: `python -m vaticore.pipeline apikey create
+   --operator <id> --name <who>` (run in the API's Render shell).
 
 The same `Dockerfile` runs on Railway, Fly.io, Google Cloud Run, or any
 container host. The container honours the platform provided `PORT`.
@@ -51,12 +60,21 @@ secrets or operator data.
 | `VATICORE_DATABASE_URL` | data store connection | local DuckDB |
 | `ANTHROPIC_API_KEY` | enables the LLM copilot | unset (template fallback) |
 | `VATICORE_WEATHER_PROVIDER` | weather source | open-meteo |
+| `VATICORE_API_TOKEN` | admin token; required outside local development | unset |
+| `VATICORE_LOG_FORMAT` | text, or json for hosted log search | text |
+| `VATICORE_SENTRY_DSN` | error tracking | unset |
+| `VATICORE_HEARTBEAT_URL` | daily job heartbeat | unset |
+| `VATICORE_RESTORE_TEST_URL` | scratch database for restore checks | unset |
 
-## What is still stubbed
+## Demo data
 
-The API's data source is synthetic demo data today (`get_fleet`). Wire the
-`storage/` repository to your database and replace that dependency to serve real
-operator data. Nothing else about the handlers changes.
+Locally, the API's forecast and advisory endpoints and the dashboard use
+synthetic demo data, so a fresh checkout works out of the box. In staging and
+production the dashboard and the site endpoints read real readings from the
+database, and demo data is never seeded.
+
+Running it day to day (migrations, logs, uptime, backups and restore checks,
+the image with the foundation models): `docs/operations.md`.
 
 ## The daily pipeline
 
