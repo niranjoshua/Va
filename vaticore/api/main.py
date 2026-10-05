@@ -48,7 +48,9 @@ from vaticore.fuel import reconcile
 from vaticore.observability import init_error_tracking, setup_logging
 from vaticore.pipeline import monitoring
 from vaticore.pipeline.health import site_health_report
+from vaticore.pipeline.savings import Period, savings_report
 from vaticore.pipeline.scoring import scorecard
+from vaticore.pipeline.shadow import last_days, shadow_review
 from vaticore.pipeline.store import PlanStore
 from vaticore.schemas import GENERATION_KW, LOAD_KW, OPERATOR_ID, SITE_ID, TIMESTAMP
 from vaticore.sites.model import Portfolio, Site, load_portfolio
@@ -557,6 +559,47 @@ def create_app() -> FastAPI:
             end=end,
         )
         return {**report.to_dict(), "summary": report.to_text(site.timezone)}
+
+    # -- pilot reporting: one operator at a time -----------------------------------
+
+    def _operator_sites(operator_id: str) -> list[Site]:
+        path = get_settings().portfolio_file
+        sites = [] if path is None else [
+            s for s in _portfolio(str(path)).sites if s.operator_id == operator_id
+        ]  # fmt: skip
+        if not sites:
+            raise HTTPException(404, "no registered sites for this operator")
+        return sites
+
+    @app.get("/operators/{operator_id}/report", dependencies=[Depends(site_access)])
+    def pilot_report(
+        operator_id: str,
+        baseline: str = Query(description="days before plans were sent, FIRST:LAST"),
+        pilot: str = Query(description="pilot days, FIRST:LAST"),
+        control: list[str] = Query(default=[], description="site_ids sent no plans"),
+        repo: TimeSeriesRepository = Depends(get_repository),
+        store: PlanStore = Depends(get_plan_store),
+    ) -> dict[str, object]:
+        """The pilot's savings: measured diesel, adoption, modelled value, fuel checks."""
+        try:
+            report = savings_report(
+                _operator_sites(operator_id), repo, store,
+                baseline=Period.parse(baseline), pilot=Period.parse(pilot), control=control,
+            )  # fmt: skip
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        return {**report.to_dict(), "markdown": report.to_markdown()}
+
+    @app.get("/operators/{operator_id}/shadow-review", dependencies=[Depends(site_access)])
+    def shadow_weeks(
+        operator_id: str,
+        days: int = Query(default=28, ge=7, le=120),
+        store: PlanStore = Depends(get_plan_store),
+    ) -> dict[str, object]:
+        """Go or no-go per site after the shadow weeks, by rules set beforehand."""
+        period = last_days(days, pd.Timestamp.now(tz="UTC").date())
+        review = shadow_review(_operator_sites(operator_id), store, period)
+        return {**review.to_dict(), "markdown": review.to_markdown()}
 
     @app.get("/webhooks/whatsapp", response_class=PlainTextResponse)
     def whatsapp_verify(

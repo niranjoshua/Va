@@ -102,6 +102,15 @@ MIGRATIONS: tuple[Migration, ...] = (
         postgres=(_SUMMARY_DELIVERIES,),
         duckdb=(_SUMMARY_DELIVERIES,),
     ),
+    Migration(
+        6,
+        PLANS,
+        "the language each plan was sent in, to reply in kind",
+        postgres=(
+            "ALTER TABLE IF EXISTS deliveries ADD COLUMN IF NOT EXISTS message_language TEXT",
+        ),
+        duckdb=("ALTER TABLE IF EXISTS deliveries ADD COLUMN IF NOT EXISTS message_language TEXT",),
+    ),
 )
 
 _TABLE = """

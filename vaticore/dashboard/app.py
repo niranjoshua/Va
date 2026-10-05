@@ -184,6 +184,65 @@ def _plan_figure(plan: DispatchPlan) -> Any:
     return fig
 
 
+def _pilot_page(st: Any, settings: Settings, granted: Access, repo: Any) -> None:
+    """The operator's pilot: the shadow weeks' verdict, then the savings report."""
+    from datetime import date, timedelta
+
+    from vaticore.pipeline.savings import Period, savings_report
+    from vaticore.pipeline.shadow import last_days, shadow_review
+
+    operators = data.pilot_operators(settings, granted)
+    if data.demo_mode(settings) or repo is None or not operators:
+        st.info(
+            "Pilot reports read the plans, replies and scores the daily pipeline stores, for "
+            "the sites in the portfolio file. Set VATICORE_PORTFOLIO_FILE and run the pipeline "
+            "(docs/pilot-measurement.md)."
+        )
+        return
+    operator_id = st.selectbox("Operator", operators)
+    sites = data.operator_sites(settings, granted, operator_id)
+    store = PlanStore(settings.plan_store_url or settings.database_url)
+    try:
+        shadow_tab, report_tab = st.tabs(["Shadow weeks: go or no-go", "Pilot savings"])
+        with shadow_tab:
+            days = st.slider("Days to review", 7, 60, 28)
+            review = shadow_review(sites, store, last_days(days, date.today()))
+            st.metric("Verdict", review.verdict)
+            st.markdown(review.to_markdown().split("\n", 3)[3])
+        with report_tab:
+            today = date.today()
+            c1, c2 = st.columns(2)
+            baseline = c1.date_input(
+                "Baseline (before plans were sent)",
+                (today - timedelta(days=60), today - timedelta(days=31)),
+            )
+            pilot = c2.date_input(
+                "Pilot period", (today - timedelta(days=30), today - timedelta(days=1))
+            )
+            control = st.multiselect("Control sites (sent no plans)", [s.site_id for s in sites])
+            if len(baseline) != 2 or len(pilot) != 2:
+                st.info("Choose a first and last day for both periods.")
+                return
+            try:
+                report = savings_report(
+                    sites, repo, store,
+                    baseline=Period(baseline[0], baseline[1]),
+                    pilot=Period(pilot[0], pilot[1]),
+                    control=control,
+                )  # fmt: skip
+            except ValueError as exc:
+                st.error(str(exc))
+                return
+            markdown = report.to_markdown()
+            st.markdown(markdown.split("\n", 2)[2])
+            stem = f"pilot-report-{operator_id}-{report.pilot.end:%Y-%m-%d}"
+            d1, d2 = st.columns(2)
+            d1.download_button("Download report (Markdown)", markdown, f"{stem}.md")
+            d2.download_button("Download data (JSON)", report.to_json(), f"{stem}.json")
+    finally:
+        store.close()
+
+
 def main() -> None:
     import streamlit as st
 
@@ -210,6 +269,12 @@ def main() -> None:
             if st.button("Sign out"):
                 st.session_state.pop("access", None)
                 st.rerun()
+        view = st.radio("View", ["Site today", "Pilot report"], horizontal=True)
+    if view == "Pilot report":
+        _pilot_page(st, settings, granted, repo)
+        return
+
+    with st.sidebar:
         st.header("Site")
         labels = [f"{o} / {s}" for o, s in sites]
         choice = st.selectbox("Site", labels)

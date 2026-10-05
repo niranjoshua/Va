@@ -104,3 +104,39 @@ def test_the_dashboard_asks_for_a_key_and_scopes_the_sites(
     at.run()
     assert not at.exception, at.exception
     assert at.selectbox[0].options == ["tower-co / t1"]  # the bank's site is not listed
+
+    # The pilot view: this operator's verdict and savings, never another's.
+    portfolio = tmp_path / "sites.toml"
+    portfolio.write_text(
+        "".join(
+            f'[[site]]\noperator_id = "{op}"\nsite_id = "{site}"\nname = "{site}"\n'
+            'site_type = "telecom_tower"\nlatitude = 6.5\nlongitude = 3.4\n'
+            'timezone = "Africa/Lagos"\ncurrency = "NGN"\nvalue_of_lost_load_per_kwh = 5000.0\n'
+            "[site.battery]\nusable_kwh = 20.0\npower_kw = 10.0\nmin_soc_kwh = 4.0\n"
+            "[site.generator]\nrated_kw = 15.0\nfuel_price_per_l = 1250.0\ntank_l = 300.0\n"
+            for op, site in (("tower-co", "t1"), ("bank", "b1"))
+        )
+    )
+    monkeypatch.setenv("VATICORE_PORTFOLIO_FILE", str(portfolio))
+    at.radio[0].set_value("Pilot report")
+    at.run()
+    assert not at.exception, at.exception
+    assert at.selectbox[0].options == ["tower-co"]
+    assert at.metric[0].label == "Verdict" and at.metric[0].value == "NOT YET"
+
+
+def test_pilot_reports_are_scoped_to_the_operator(tmp_path: Path) -> None:
+    portfolio = tmp_path / "sites.toml"
+    portfolio.write_text(
+        '[[site]]\noperator_id = "bank"\nsite_id = "b1"\nname = "b1"\n'
+        'site_type = "bank_branch"\nlatitude = 9.1\nlongitude = 7.4\n'
+        'timezone = "Africa/Lagos"\ncurrency = "NGN"\nvalue_of_lost_load_per_kwh = 5000.0\n'
+        "[site.battery]\nusable_kwh = 20.0\npower_kw = 10.0\n"
+        "[site.generator]\nrated_kw = 15.0\nfuel_price_per_l = 1250.0\n"
+    )
+    settings = Settings(environment="production", portfolio_file=portfolio)  # type: ignore[call-arg]
+    assert data.pilot_operators(settings, access.Access("bank")) == ["bank"]
+    assert data.pilot_operators(settings, access.Access("tower-co")) == []
+    assert [s.site_id for s in data.operator_sites(settings, access.Access(None), "bank")] == ["b1"]
+    with pytest.raises(PermissionError):
+        data.operator_sites(settings, access.Access("tower-co"), "bank")

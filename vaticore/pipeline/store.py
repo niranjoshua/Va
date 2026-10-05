@@ -121,6 +121,7 @@ CREATE TABLE IF NOT EXISTS deliveries (
     attempts INTEGER,
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL,
+    message_language TEXT,
     PRIMARY KEY (operator_id, site_id, plan_date, channel, recipient_hash)
 );
 CREATE TABLE IF NOT EXISTS recipient_prefs (
@@ -432,6 +433,7 @@ class PlanStore:
         error: str | None,
         attempts: int,
         at: datetime,
+        language: str | None = None,
     ) -> None:
         existing = self._df(
             "SELECT created_at FROM deliveries WHERE operator_id = ? AND site_id = ? AND"
@@ -454,6 +456,7 @@ class PlanStore:
                 "attempts": attempts,
                 "created_at": created,
                 "updated_at": at,
+                "message_language": language,
             },
             ("operator_id", "site_id", "plan_date", "channel", "recipient_hash"),
         )
@@ -496,6 +499,17 @@ class PlanStore:
             return None
         row = frame.iloc[0]
         return str(row["operator_id"]), str(row["site_id"]), pd.Timestamp(row["plan_date"]).date()
+
+    def last_delivery_language(self, recipient_hash: str) -> str:
+        """The language of the latest plan sent to a person, to reply in kind."""
+        frame = self._df(
+            "SELECT message_language FROM deliveries WHERE recipient_hash = ?"
+            " AND status IN ('sent', 'delivered', 'read') ORDER BY updated_at DESC LIMIT 1",
+            (recipient_hash,),
+        )
+        if frame.empty or pd.isna(frame.iloc[0]["message_language"]):
+            return "en"
+        return str(frame.iloc[0]["message_language"])
 
     def set_opt_out(self, recipient_hash: str, opted_out: bool, source: str, at: datetime) -> None:
         self._upsert(
