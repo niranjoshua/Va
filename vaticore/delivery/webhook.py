@@ -50,15 +50,28 @@ REASON_LABELS = {code: label for code, label in REASONS.values()} | {"other": "o
 _REASON_WORDS = (
     ("generator_fault", ("fault", "faulty", "broke", "broken", "repair", "spoil", "spoilt")),
     ("no_diesel", ("diesel", "fuel")),
-    ("grid_on", ("grid", "nepa", "phcn", "light came", "light dey", "power came")),
+    ("grid_on", ("grid", "nepa", "phcn", "light came", "light dey", "bring light", "power came")),
     ("battery_problem", ("battery", "batteries", "inverter")),
-    ("instructed", ("told", "instruct", "manager said", "oga")),
+    ("instructed", ("told", "instruct", "manager said", "oga", "dem tell")),
 )
 REASON_QUESTION = (
     "Thanks. Why was the plan not followed? Reply A generator fault, B no diesel, "
     "C grid was on, D battery problem, E told to run it differently, or type the reason."
 )
 REASON_THANKS = "Thank you, noted. It helps make tomorrow's plan better."
+# The question and thanks in each plan language (English above).
+REASON_QUESTIONS = {
+    "en": REASON_QUESTION,
+    "pcm": (
+        "Thank you. Why una no follow the plan? Reply A generator spoil, B no diesel, "
+        "C grid (NEPA) bring light, D battery wahala, E dem tell una make una run am "
+        "another way, or type the reason."
+    ),
+}
+REASON_THANKS_BY_LANGUAGE = {
+    "en": REASON_THANKS,
+    "pcm": "Thank you, we don hear. E go help make tomorrow plan better.",
+}
 REASON_WINDOW = timedelta(hours=24)
 
 # Sends a free-text WhatsApp message (phone, text); None where sending is not set up.
@@ -166,11 +179,14 @@ def handle_webhook(
                     reason=reason,
                 ):
                     replies += 1
+                    language = store.last_delivery_language(who)
                     if kind == "reason":
                         reasons += 1
-                        _send(send_text, sender, REASON_THANKS)
+                        thanks = REASON_THANKS_BY_LANGUAGE.get(language, REASON_THANKS)
+                        _send(send_text, sender, thanks)
                     elif kind == "not_followed" and plan is not None:
-                        if _send(send_text, sender, REASON_QUESTION):
+                        question = REASON_QUESTIONS.get(language, REASON_QUESTION)
+                        if _send(send_text, sender, question):
                             questions += 1
     return WebhookOutcome(statuses, replies, opt_outs, opt_ins, reasons, questions)
 

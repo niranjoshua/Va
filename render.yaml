@@ -1,19 +1,45 @@
 # Render blueprint. Push this repo, then in Render: New > Blueprint, point it here.
-# Docs: https://render.com/docs/blueprint-spec
+# Docs: https://render.com/docs/blueprint-spec. Step by step: docs/pilot/launch-guide.md.
 #
 # Two environments from one image (docs/operations.md):
 #   staging     deploys every push to main automatically. Check it there first.
 #   production  deploys only when you press Deploy (autoDeploy: false), after
 #               staging looks right.
-# Each environment has its own Postgres: set VATICORE_DATABASE_URL per service.
+# The blueprint creates each environment's Postgres and wires its connection
+# string into every service: no database URL is typed by hand.
+# Everything runs in Frankfurt, the region nearest Lagos; the data protection
+# documents name it (docs/pilot/data-processing-agreement.md).
 # Secrets marked "sync: false" are entered in the Render dashboard, never here.
 # Before each API deploy goes live, pending database migrations are applied.
+
+databases:
+  - name: vaticore-db
+    plan: basic-1gb
+    region: frankfurt
+    postgresMajorVersion: "17"
+    diskSizeGB: 10
+    ipAllowList: []  # reachable only from Vaticore's own services
+  - name: vaticore-db-staging
+    plan: basic-256mb
+    region: frankfurt
+    postgresMajorVersion: "17"
+    diskSizeGB: 1
+    ipAllowList: []
+  # Empty, for the weekly restore drill. Never point anything else at it.
+  - name: vaticore-db-restore-scratch
+    plan: basic-256mb
+    region: frankfurt
+    postgresMajorVersion: "17"
+    diskSizeGB: 5
+    ipAllowList: []
+
 services:
   # -- production ---------------------------------------------------------------
   - type: web
     name: vaticore-api
     runtime: docker
     dockerfilePath: ./Dockerfile
+    region: frankfurt
     plan: starter
     autoDeploy: false
     healthCheckPath: /ready
@@ -24,7 +50,9 @@ services:
       - key: VATICORE_LOG_FORMAT
         value: json
       - key: VATICORE_DATABASE_URL
-        sync: false
+        fromDatabase:
+          name: vaticore-db
+          property: connectionString
       # Admin token (Vaticore only). Operators get their own keys:
       #   python -m vaticore.pipeline apikey create --operator ...
       - key: VATICORE_API_TOKEN
@@ -47,11 +75,12 @@ services:
         sync: false
 
   # The operators' dashboard: sign in with an operator key, see only that
-  # operator's sites.
+  # operator's sites, their plans, track record and pilot report.
   - type: web
     name: vaticore-dashboard
     runtime: docker
     dockerfilePath: ./Dockerfile
+    region: frankfurt
     plan: starter
     autoDeploy: false
     healthCheckPath: /_stcore/health
@@ -64,7 +93,11 @@ services:
       - key: VATICORE_LOG_FORMAT
         value: json
       - key: VATICORE_DATABASE_URL
-        sync: false
+        fromDatabase:
+          name: vaticore-db
+          property: connectionString
+      - key: VATICORE_PORTFOLIO_FILE
+        value: /etc/secrets/portfolio.toml
       - key: VATICORE_API_TOKEN
         sync: false
       - key: VATICORE_SENTRY_DSN
@@ -80,6 +113,7 @@ services:
     name: vaticore-daily-plans
     runtime: docker
     dockerfilePath: ./Dockerfile
+    region: frankfurt
     # Chronos-2 with PyTorch needs about 1 to 1.5 GB of memory: Render's
     # default 512 MB instance would kill the job. Standard has 2 GB.
     plan: standard
@@ -106,10 +140,15 @@ services:
       - key: VATICORE_SOURCES_FILE
         value: /etc/secrets/sources.toml
       - key: VATICORE_DATABASE_URL
-        sync: false
+        fromDatabase:
+          name: vaticore-db
+          property: connectionString
       - key: VATICORE_WHATSAPP_TOKEN
         sync: false
       - key: VATICORE_WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+      # Once the Pidgin template is approved: pcm=vaticore_daily_plan_pcm:en
+      - key: VATICORE_WHATSAPP_EXTRA_TEMPLATES
         sync: false
       - key: VATICORE_VRM_TOKEN
         sync: false
@@ -130,6 +169,52 @@ services:
       - key: VATICORE_HEARTBEAT_URL
         sync: false
 
+  # The safety net, 90 minutes after the daily job (19:30 in Lagos): anyone
+  # whose message failed to send gets it again, and any site the daily job
+  # missed gets "no plan today, run as usual". Alerts Vaticore's ops email
+  # when the daily job missed sites. Nobody is ever left guessing.
+  - type: cron
+    name: vaticore-safety-net
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    region: frankfurt
+    plan: starter
+    autoDeploy: false
+    schedule: "30 18 * * *"
+    dockerCommand: >-
+      sh -c "uv run python -m vaticore.pipeline safety-net --channel whatsapp"
+    envVars:
+      - key: VATICORE_ENVIRONMENT
+        value: production
+      - key: VATICORE_LOG_FORMAT
+        value: json
+      - key: VATICORE_PORTFOLIO_FILE
+        value: /etc/secrets/portfolio.toml
+      - key: VATICORE_RECIPIENTS_FILE
+        value: /etc/secrets/recipients.toml
+      - key: VATICORE_DATABASE_URL
+        fromDatabase:
+          name: vaticore-db
+          property: connectionString
+      - key: VATICORE_WHATSAPP_TOKEN
+        sync: false
+      - key: VATICORE_WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+      - key: VATICORE_WHATSAPP_EXTRA_TEMPLATES
+        sync: false
+      - key: VATICORE_SMTP_HOST
+        sync: false
+      - key: VATICORE_SMTP_USERNAME
+        sync: false
+      - key: VATICORE_SMTP_PASSWORD
+        sync: false
+      - key: VATICORE_EMAIL_FROM
+        sync: false
+      - key: VATICORE_OPS_EMAIL
+        sync: false
+      - key: VATICORE_SENTRY_DSN
+        sync: false
+
   # Supervisors' week: every Monday at 07:00 Lagos, a short summary of the last
   # week (plans followed, value, reasons, fuel checks, data) to each recipient
   # with weekly_summary = true. Add "--channel email" once SMTP is set.
@@ -137,6 +222,7 @@ services:
     name: vaticore-weekly-summary
     runtime: docker
     dockerfilePath: ./Dockerfile
+    region: frankfurt
     plan: starter
     autoDeploy: false
     schedule: "0 6 * * 1"
@@ -152,7 +238,9 @@ services:
       - key: VATICORE_RECIPIENTS_FILE
         value: /etc/secrets/recipients.toml
       - key: VATICORE_DATABASE_URL
-        sync: false
+        fromDatabase:
+          name: vaticore-db
+          property: connectionString
       - key: VATICORE_WHATSAPP_TOKEN
         sync: false
       - key: VATICORE_WHATSAPP_PHONE_NUMBER_ID
@@ -168,14 +256,15 @@ services:
       - key: VATICORE_SENTRY_DSN
         sync: false
 
-  # Weekly restore drill: back up production, restore it into a scratch
+  # Weekly restore drill: back up production, restore it into the scratch
   # database, and check every table came back whole. Fails (and alerts through
-  # Sentry and the heartbeat) if a restore would not work. Render's managed
-  # Postgres keeps the backups themselves; this proves they restore.
+  # Sentry) if a restore would not work. Render's managed Postgres keeps the
+  # backups themselves; this proves they restore.
   - type: cron
     name: vaticore-restore-drill
     runtime: docker
     dockerfilePath: ./Dockerfile
+    region: frankfurt
     plan: starter
     autoDeploy: false
     schedule: "15 3 * * 1"
@@ -185,10 +274,14 @@ services:
       - key: VATICORE_ENVIRONMENT
         value: production
       - key: VATICORE_DATABASE_URL
-        sync: false
+        fromDatabase:
+          name: vaticore-db
+          property: connectionString
       # An empty database made for restore checks, never a real one.
       - key: VATICORE_RESTORE_TEST_URL
-        sync: false
+        fromDatabase:
+          name: vaticore-db-restore-scratch
+          property: connectionString
       - key: VATICORE_SENTRY_DSN
         sync: false
 
@@ -197,6 +290,7 @@ services:
     name: vaticore-api-staging
     runtime: docker
     dockerfilePath: ./Dockerfile
+    region: frankfurt
     plan: starter
     healthCheckPath: /ready
     preDeployCommand: uv run python -m vaticore.pipeline migrate
@@ -206,11 +300,29 @@ services:
       - key: VATICORE_LOG_FORMAT
         value: json
       - key: VATICORE_DATABASE_URL
-        sync: false
+        fromDatabase:
+          name: vaticore-db-staging
+          property: connectionString
       - key: VATICORE_API_TOKEN
         sync: false
+      # The rehearsal runs from this service's Shell (docs/pilot/launch-guide.md,
+      # part 3), with Meta's webhook pointed here until production goes live.
       - key: VATICORE_PORTFOLIO_FILE
         value: /etc/secrets/portfolio.toml
+      - key: VATICORE_RECIPIENTS_FILE
+        value: /etc/secrets/recipients.toml
+      - key: VATICORE_SOURCES_FILE
+        value: /etc/secrets/sources.toml
+      - key: VATICORE_WHATSAPP_APP_SECRET
+        sync: false
+      - key: VATICORE_WHATSAPP_VERIFY_TOKEN
+        sync: false
+      - key: VATICORE_WHATSAPP_TOKEN
+        sync: false
+      - key: VATICORE_WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+      - key: VATICORE_VRM_TOKEN
+        sync: false
       - key: VATICORE_SENTRY_DSN
         sync: false
 
@@ -218,6 +330,7 @@ services:
     name: vaticore-dashboard-staging
     runtime: docker
     dockerfilePath: ./Dockerfile
+    region: frankfurt
     plan: starter
     healthCheckPath: /_stcore/health
     dockerCommand: >-
@@ -227,16 +340,23 @@ services:
       - key: VATICORE_ENVIRONMENT
         value: staging
       - key: VATICORE_DATABASE_URL
-        sync: false
+        fromDatabase:
+          name: vaticore-db-staging
+          property: connectionString
+      - key: VATICORE_PORTFOLIO_FILE
+        value: /etc/secrets/portfolio.toml
       - key: VATICORE_API_TOKEN
         sync: false
 
   # Staging plans every day too, stored but never sent, so a change shows its
   # effect on real-shaped data (staging API and dashboard) before production.
+  # For the rehearsal, run it by hand from this job's Shell with your own
+  # number as the only recipient (docs/pilot/launch-guide.md, part 3).
   - type: cron
     name: vaticore-daily-plans-staging
     runtime: docker
     dockerfilePath: ./Dockerfile
+    region: frankfurt
     plan: standard  # same models as production, same memory
     schedule: "0 16 * * *"
     dockerCommand: >-
@@ -255,7 +375,15 @@ services:
         value: /etc/secrets/portfolio.toml
       - key: VATICORE_SOURCES_FILE
         value: /etc/secrets/sources.toml
+      - key: VATICORE_RECIPIENTS_FILE
+        value: /etc/secrets/recipients.toml
       - key: VATICORE_DATABASE_URL
+        fromDatabase:
+          name: vaticore-db-staging
+          property: connectionString
+      - key: VATICORE_WHATSAPP_TOKEN
+        sync: false
+      - key: VATICORE_WHATSAPP_PHONE_NUMBER_ID
         sync: false
       - key: VATICORE_VRM_TOKEN
         sync: false

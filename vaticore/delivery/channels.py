@@ -194,6 +194,7 @@ class WhatsAppChannel:
         api_version: str = "v23.0",
         template_name: str = "vaticore_daily_plan",
         template_language: str = "en",
+        templates: dict[str, tuple[str, str]] | None = None,
         mode: str = "template",
         max_attempts: int = 3,
         client: httpx.Client | None = None,
@@ -207,6 +208,9 @@ class WhatsAppChannel:
         self._headers = {"Authorization": f"Bearer {token}"}
         self._template = template_name
         self._language = template_language
+        # Plan language -> (approved template name, Meta language code).
+        self._templates = {"en": (template_name, template_language), **(templates or {})}
+        self.languages = frozenset(self._templates)
         self._mode = mode
         self._max_attempts = max_attempts
         self._client = client or httpx.Client(timeout=20.0)
@@ -222,11 +226,12 @@ class WhatsAppChannel:
                 "text": {"preview_url": False, "body": message.text},
             }
         else:
+            name, code = self._templates.get(message.language, self._templates["en"])
             body = {
                 "type": "template",
                 "template": {
-                    "name": self._template,
-                    "language": {"code": self._language},
+                    "name": name,
+                    "language": {"code": code},
                     "components": [
                         {
                             "type": "body",

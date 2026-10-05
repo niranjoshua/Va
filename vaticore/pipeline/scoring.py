@@ -33,6 +33,7 @@ from vaticore.decisions.dispatch import (
     plan_dispatch,
     simulate_dispatch,
 )
+from vaticore.delivery.message import value_words
 from vaticore.evaluation.metrics import coverage, mae, mean_pinball_loss
 from vaticore.pipeline.store import PlanStore, ScoreRecord
 from vaticore.schemas import GENERATION_KW, GRID_AVAILABLE, LOAD_KW, TIMESTAMP
@@ -231,22 +232,7 @@ def scorecard(store: PlanStore, operator_id: str, site_id: str, *, days: int = 3
 
 def value_phrase(litres_saved: float, outage_kwh_avoided: float) -> str:
     """Litres and outages against the baseline, stated honestly in either direction."""
-    litres = abs(litres_saved)
-    outages = abs(outage_kwh_avoided)
-    if litres_saved >= 1 and outage_kwh_avoided >= -0.5:
-        extra = f" and avoided {outages:,.0f} kWh of outages" if outage_kwh_avoided >= 1 else ""
-        return f"saved {litres:,.0f} L of diesel{extra}"
-    if litres_saved <= -1 and outage_kwh_avoided >= 1:
-        return f"used {litres:,.0f} L more diesel to avoid {outages:,.0f} kWh of outages"
-    if litres_saved <= -1 and outage_kwh_avoided <= -1:
-        return f"used {litres:,.0f} L more diesel and had {outages:,.0f} kWh more outages"
-    if litres_saved <= -1:
-        return f"used {litres:,.0f} L more diesel with no fewer outages"
-    if outage_kwh_avoided >= 1:
-        return f"avoided {outages:,.0f} kWh of outages for the same diesel"
-    if outage_kwh_avoided <= -1:
-        return f"had {outages:,.0f} kWh more outages"
-    return "made no measurable difference"
+    return value_words(litres_saved, outage_kwh_avoided, "en")
 
 
 # -- internals ---------------------------------------------------------------

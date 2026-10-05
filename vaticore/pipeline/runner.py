@@ -35,9 +35,10 @@ One site failing never stops the others; failures are stored with the error.
 
 from __future__ import annotations
 
+import functools
 import logging
 import traceback
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, date, datetime, timedelta
 
@@ -47,13 +48,21 @@ import pandas as pd
 from vaticore import engine
 from vaticore.decisions.dispatch import DispatchPlan, SiteAssets, plan_dispatch
 from vaticore.delivery.channels import Channel, address_hash, mask_address
-from vaticore.delivery.message import PlanMessage, no_plan_message, plan_message
+from vaticore.delivery.message import (
+    LANGUAGES,
+    PlanMessage,
+    TrackRecord,
+    data_note,
+    no_plan_message,
+    phrase,
+    plan_message,
+    track_text,
+)
 from vaticore.delivery.recipients import Recipient, recipients_for
 from vaticore.forecasting.base import quantile_column
 from vaticore.pipeline import monitoring
 from vaticore.pipeline.health import HealthReport, check_health
 from vaticore.pipeline.monitoring import MonitorConfig
-from vaticore.pipeline.scoring import value_phrase
 from vaticore.pipeline.store import SENT_STATES, PlanStore, RunRecord
 from vaticore.pipeline.weather import LiveWeather, site_weather
 from vaticore.schemas import (
@@ -103,11 +112,13 @@ class SiteRun:
     operator_id: str
     site_id: str
     plan_date: date
-    status: str  # planned, no_plan or failed
+    status: str  # planned, no_plan, failed, or missed (the daily job never ran)
     model: str | None = None
     fallback: list[str] = field(default_factory=list)
     health: HealthReport | None = None
-    message: PlanMessage | None = None
+    message: PlanMessage | None = None  # English, the reference
+    # The same message in every other language in LANGUAGES, by code.
+    translations: dict[str, PlanMessage] = field(default_factory=dict)
     plan: DispatchPlan | None = None
     error: str | None = None
     deliveries: list[tuple[str, str]] = field(default_factory=list)  # (masked, status)
@@ -175,12 +186,17 @@ def run_site(
         result.health = health
         if not health.ok_to_plan:
             result.status = "no_plan"
-            result.message = no_plan_message(
-                site_name=site.name,
-                timezone=site.timezone,
-                start=start,
-                end=end,
-                reason=health.summary(),
+            codes = [issue.code for issue in health.issues]
+            _set_messages(
+                result,
+                lambda lang: no_plan_message(
+                    site_name=site.name,
+                    timezone=site.timezone,
+                    start=start,
+                    end=end,
+                    reason=data_note(lang, health.summary(), codes),
+                    language=lang,
+                ),
             )
             store.save_run(_record(site, result, start, end, now))
             return result
@@ -191,8 +207,30 @@ def run_site(
         log.exception("site %s/%s failed", site.operator_id, site.site_id)
         result.status = "failed"
         result.error = f"{type(exc).__name__}: {exc}"
+        # Never leave the site guessing: say there is no plan, and why.
+        result.plan = None
+        _set_messages(result, lambda lang: fault_message(site, start, end, "fault", lang))
         store.save_run(_record(site, result, start, end, now, error=traceback.format_exc(limit=3)))
     return result
+
+
+def fault_message(
+    site: Site, start: pd.Timestamp, end: pd.Timestamp, reason: str, language: str = "en"
+) -> PlanMessage:
+    """'No plan today, run as usual', for a fault on our side ("fault") or a missed run."""
+    return no_plan_message(
+        site_name=site.name,
+        timezone=site.timezone,
+        start=start,
+        end=end,
+        reason=phrase(language, reason),
+        language=language,
+    )
+
+
+def _set_messages(result: SiteRun, build: Callable[[str], PlanMessage]) -> None:
+    result.message = build("en")
+    result.translations = {lang: build(lang) for lang in LANGUAGES if lang != "en"}
 
 
 def run_portfolio(
@@ -218,9 +256,9 @@ def run_portfolio(
         day = plan_date or next_plan_date(site, now)
         if not force and channels:
             existing = store.get_run(site.operator_id, site.site_id, day)
-            if existing is not None and existing.status == "planned":
-                # Re-planning after a plan was sent would contradict what the
-                # site already received. Resend the stored plan instead.
+            if existing is not None and existing.status in ("planned", "missed"):
+                # Re-planning after a plan (or "no plan today") was sent would
+                # contradict what the site already received. Resend instead.
                 run = _from_record(existing)
                 run.deliveries = deliver(
                     store, site, run, channels, list(recipients), force=False, now=now
@@ -270,6 +308,7 @@ def deliver(
             to = channel.address(person)
             if to is None:
                 continue
+            message = message_for(run, person.language, channel)
             who, masked = address_hash(to), mask_address(to)
             previous = store.delivery_status(
                 site.operator_id, site.site_id, run.plan_date, channel.name, who
@@ -277,7 +316,7 @@ def deliver(
             if previous in SENT_STATES and not force:
                 outcomes.append((masked, f"{channel.name} already_sent"))
                 continue
-            sent = channel.send(to, run.message)
+            sent = channel.send(to, message)
             store.record_delivery(
                 operator_id=site.operator_id,
                 site_id=site.site_id,
@@ -290,10 +329,66 @@ def deliver(
                 error=sent.error,
                 attempts=sent.attempts,
                 at=now,
+                language=message.language,
             )
             status = sent.status if not sent.error else f"failed: {sent.error}"
             outcomes.append((masked, f"{channel.name} {status}"))
     return outcomes
+
+
+def message_for(run: SiteRun, language: str, channel: Channel) -> PlanMessage:
+    """The run's message in the person's language, if this channel can send it.
+
+    WhatsApp can send a language only once its template is approved
+    (channel.languages); email and the console send any. Otherwise English.
+    """
+    assert run.message is not None
+    translated = run.translations.get(language)
+    if translated is None:
+        return run.message
+    allowed = getattr(channel, "languages", None)
+    if allowed is not None and language not in allowed:
+        return run.message
+    return translated
+
+
+def send_missing(
+    portfolio: Portfolio,
+    store: PlanStore,
+    *,
+    channels: Sequence[Channel],
+    recipients: Sequence[Recipient],
+    now: datetime | None = None,
+) -> list[SiteRun]:
+    """The evening safety net, run after the daily job: nobody is left without a message.
+
+    For each site's next plan day: if the daily job stored a message, it is
+    sent to anyone who has not received it yet (a failed send is retried). If
+    the job never ran for the site, "no plan today, run as usual" is stored
+    as a missed run and sent. Returns the runs that needed action.
+    """
+    now = now or datetime.now(tz=UTC)
+    acted = []
+    for site in portfolio.sites:
+        day = next_plan_date(site, now)
+        record = store.get_run(site.operator_id, site.site_id, day)
+        newly_missed = False
+        if record is not None and record.message:
+            run = _from_record(record)
+        else:
+            newly_missed = True
+            start, end = plan_window(site, day)
+            run = SiteRun(site.operator_id, site.site_id, day, status="missed")
+            _set_messages(run, functools.partial(fault_message, site, start, end, "missed"))
+            run.error = "the daily planning job did not run for this site"
+            store.save_run(_record(site, run, start, end, now))
+        run.deliveries = deliver(store, site, run, channels, list(recipients), False, now)
+        if newly_missed or any(
+            not status.endswith("already_sent") and status != "opted_out"
+            for _, status in run.deliveries
+        ):
+            acted.append(run)
+    return acted
 
 
 # -- internals ---------------------------------------------------------------
@@ -449,23 +544,29 @@ def _plan(
     )
 
     cap = assets.battery_kwh
-    result.message = plan_message(
-        site_name=site.name,
-        timezone=site.timezone,
-        start=start,
-        end=end,
-        timestamps=window,
-        genset_on=[bool(x) for x in plan.genset_on],
-        grid_on=None if site.grid is None else [bool(x) for x in plan.planned_grid_on],
-        has_generator=site.generator is not None,
-        fuel_l=plan.expected.fuel_l,
-        genset_hours=plan.expected.genset_hours,
-        unserved_kwh=plan.expected.unserved_kwh,
-        soc_start_pct=100 * soc / cap if cap > 0 else None,
-        soc_end_pct=100 * plan.expected.soc_end_kwh / cap if cap > 0 else None,
-        soc_assumed=soc_assumed,
-        data_note=health.summary(),
-        track_note=_track_note(store, site, start, config),
+    track = _track_record(store, site, start, config)
+    codes = [issue.code for issue in health.issues]
+    _set_messages(
+        result,
+        lambda lang: plan_message(
+            site_name=site.name,
+            timezone=site.timezone,
+            start=start,
+            end=end,
+            timestamps=window,
+            genset_on=[bool(x) for x in plan.genset_on],
+            grid_on=None if site.grid is None else [bool(x) for x in plan.planned_grid_on],
+            has_generator=site.generator is not None,
+            fuel_l=plan.expected.fuel_l,
+            genset_hours=plan.expected.genset_hours,
+            unserved_kwh=plan.expected.unserved_kwh,
+            soc_start_pct=100 * soc / cap if cap > 0 else None,
+            soc_end_pct=100 * plan.expected.soc_end_kwh / cap if cap > 0 else None,
+            soc_assumed=soc_assumed,
+            data_note=data_note(lang, health.summary(), codes),
+            track_note=None if track is None else track_text(track, lang),
+            language=lang,
+        ),
     )
     result.status = "planned"
     if weather is not None:
@@ -596,23 +697,24 @@ def _forecast_rows(forecast: pd.DataFrame, model: str, role: str) -> pd.DataFram
     )
 
 
-def _track_note(
+def _track_record(
     store: PlanStore, site: Site, start: pd.Timestamp, config: PipelineConfig
-) -> str | None:
-    """A one-line track record from the last week of scored plans, once there is one."""
+) -> TrackRecord | None:
+    """The last week of scored plans, once there are enough to quote."""
     since = (start - pd.Timedelta(days=7)).date()
     scores = store.scores(site.operator_id, site.site_id, since=since)
     scores = scores[scores["hours_scored"].fillna(0) > 0] if not scores.empty else scores
     if len(scores) < config.track_record_min_days:
         return None
     held = scores["coverage_primary"].dropna()
-    litres = float((scores["fuel_baseline_l"] - scores["fuel_plan_l"]).sum())
-    outages = float((scores["unserved_baseline_kwh"] - scores["unserved_plan_kwh"]).sum())
-    parts = [f"Last {len(scores)} days"]
-    if not held.empty:
-        parts.append(f"the forecast range held {float(held.mean()):.0%} of hours")
-    parts.append(f"following the plans would have {value_phrase(litres, outages)}")
-    return parts[0] + ": " + "; ".join(parts[1:]) + " (against planning from yesterday)."
+    return TrackRecord(
+        days=len(scores),
+        range_held=None if held.empty else float(held.mean()),
+        litres_saved=float((scores["fuel_baseline_l"] - scores["fuel_plan_l"]).sum()),
+        outage_kwh_avoided=float(
+            (scores["unserved_baseline_kwh"] - scores["unserved_plan_kwh"]).sum()
+        ),
+    )
 
 
 def _record(
@@ -632,7 +734,13 @@ def _record(
     if run.message is not None:
         import json
 
-        message = json.dumps({"text": run.message.text, "fields": run.message.to_dict()})
+        message = json.dumps(
+            {
+                "text": run.message.text,
+                "fields": run.message.to_dict(),
+                "translations": {k: m.to_dict() for k, m in run.translations.items()},
+            }
+        )
     return RunRecord(
         operator_id=site.operator_id,
         site_id=site.site_id,
@@ -662,9 +770,11 @@ def _from_record(record: RunRecord) -> SiteRun:
     import json
 
     message = None
+    translations: dict[str, PlanMessage] = {}
     if record.message:
-        fields = json.loads(record.message)["fields"]
-        message = PlanMessage(**fields)
+        stored = json.loads(record.message)
+        message = PlanMessage(**stored["fields"])
+        translations = {k: PlanMessage(**v) for k, v in stored.get("translations", {}).items()}
     return SiteRun(
         record.operator_id,
         record.site_id,
@@ -672,4 +782,5 @@ def _from_record(record: RunRecord) -> SiteRun:
         record.status,
         model=record.model,
         message=message,
+        translations=translations,
     )

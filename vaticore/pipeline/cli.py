@@ -8,6 +8,10 @@
     uv run python -m vaticore.pipeline report --operator example-towerco \
         --baseline 2026-09-01:2026-09-30 --pilot 2026-10-01:2026-10-31 --control kog-rur-0077
     uv run python -m vaticore.pipeline summary --channel whatsapp   # supervisors' week (Mondays)
+    uv run python -m vaticore.pipeline safety-net --channel whatsapp  # nobody left without a message
+    uv run python -m vaticore.pipeline site check --portfolio new.toml  # before uploading sites
+    uv run python -m vaticore.pipeline replies --days 7         # 1s, 2s, reasons, STOPs
+    uv run python -m vaticore.pipeline shadow-review --operator example-towerco --days 28
     uv run python -m vaticore.pipeline monitor                  # each model, week by week
     uv run python -m vaticore.pipeline fuel add --site OP/SITE --litres 500 --at 2026-10-06T10:30+01:00
     uv run python -m vaticore.pipeline fuel report --days 30    # delivered against burned
@@ -73,6 +77,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(check.to_text())
         return 0 if check.ok else 1
 
+    if args.command == "site" and not args.with_data:
+        return _site_check(args, settings, None)
+
     if args.command == "demo":
         from vaticore.pipeline.demo import run_demo
 
@@ -99,9 +106,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _apikey(args, store)
         if args.command == "optout":
             return _optout(args, store)
+        if args.command == "replies":
+            return _replies(args, store)
 
         repo = get_repository(settings)
         try:
+            if args.command == "site":
+                return _site_check(args, settings, repo)
             if args.command == "ingest":
                 path = args.sources or settings.sources_file
                 if path is None:
@@ -129,6 +140,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 return _savings_report(args, settings, portfolio, repo, store)
             if args.command == "summary":
                 return _summaries(args, settings, portfolio, repo, store)
+            if args.command == "shadow-review":
+                return _shadow_review(args, portfolio, store)
             if args.command == "monitor":
                 for site in portfolio.sites:
                     _monitor(store, site.operator_id, site.site_id, args.weeks)
@@ -158,6 +171,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                     print(report.to_text() + "\n")
                     worst = max(worst, {"ok": 0, "warn": 0, "fail": 1}[report.status.value])
                 return worst
+            if args.command == "safety-net":
+                return _safety_net(args, settings, portfolio, store)
             code = _run(args, settings, portfolio, repo, store)
             heartbeat(settings, ok=code == 0)
             return code
@@ -209,6 +224,79 @@ def _run(
     return 1 if any(r.status == "failed" for r in runs) else 0
 
 
+def _site_check(args: argparse.Namespace, settings: Settings, repo: object | None) -> int:
+    from vaticore.sites.check import Level, check_portfolio_file, check_readiness
+
+    path = args.portfolio or settings.portfolio_file or DEFAULT_PORTFOLIO
+    checks = check_portfolio_file(path)
+    if repo is not None:
+        recipients = None
+        if args.recipients or settings.recipients_file:
+            recipients = _recipients(args, settings)
+        sources_path = args.sources or settings.sources_file
+        keys = (
+            {(s.operator_id, s.site_id) for s in load_sources(sources_path)}
+            if sources_path is not None
+            else None
+        )
+        end = pd.Timestamp(datetime.now(tz=UTC))
+        for check in checks:
+            site = check.site
+            if site is None:
+                continue
+            sourced = None if keys is None else site.key in keys
+            readings = repo.read_history(  # type: ignore[attr-defined]
+                site.operator_id, site.site_id, end - pd.Timedelta(days=60), end
+            )
+            check.findings.extend(
+                check_readiness(site, readings, recipients=recipients, sourced=sourced)
+            )
+    if args.site:
+        wanted = {f"{o}/{s}" for o, s in (_site_key(v) for v in args.site)}
+        checks = [c for c in checks if c.label in wanted]
+    for check in checks:
+        print(check.to_text() + "\n")
+    failed = sum(c.status is Level.FAIL for c in checks)
+    warned = sum(c.status is Level.WARN for c in checks)
+    print(f"{len(checks)} site(s): {failed} to fix, {warned} with warnings.")
+    return 1 if failed else 0
+
+
+def _safety_net(
+    args: argparse.Namespace, settings: Settings, portfolio: Portfolio, store: PlanStore
+) -> int:
+    from vaticore.pipeline.runner import send_missing
+
+    channels: list[Channel] = []
+    for name in args.channel or []:
+        if name == "console":
+            channels.append(ConsoleChannel())
+        elif name == "whatsapp":
+            channels.append(_whatsapp(settings, "template"))
+        elif name == "email":
+            channels.append(_email(settings))
+    if not channels:
+        raise SystemExit("safety-net needs --channel console, whatsapp or email")
+    acted = send_missing(
+        portfolio, store, channels=channels, recipients=_recipients(args, settings)
+    )
+    for run in acted:
+        sent = ", ".join(f"{who} {status}" for who, status in run.deliveries) or "nobody to send to"
+        print(f"{run.operator_id}/{run.site_id} {run.plan_date}: {run.status}; {sent}")
+    missed = [r for r in acted if r.status == "missed" and r.error]  # newly missed only
+    if missed:
+        alert = (
+            f"The daily planning job did not run for {len(missed)} site(s); they were told "
+            "'no plan today, run as usual': "
+            + ", ".join(f"{r.operator_id}/{r.site_id}" for r in missed)
+        )
+        print(f"ALERT {alert}")
+        _alert_ops(settings, [alert], subject="Vaticore: daily plans missed")
+    if not acted:
+        print("every site's message was already delivered")
+    return 1 if missed else 0
+
+
 def _weather(settings: Settings) -> OpenMeteoProvider | None:
     """Live weather, if configured and licensed for this environment."""
     if settings.weather_provider.lower() in ("", "none", "off"):
@@ -221,20 +309,22 @@ def _weather(settings: Settings) -> OpenMeteoProvider | None:
     return OpenMeteoProvider(api_key=key)
 
 
-def _alert_ops(settings: Settings, alerts: list[str]) -> None:
+def _alert_ops(settings: Settings, alerts: list[str], subject: str | None = None) -> None:
     if not settings.ops_email:
         return
     if not settings.smtp_host or not settings.email_from:
         print("alerts not emailed: VATICORE_OPS_EMAIL is set but SMTP is not")
         return
-    body = (
-        "Model monitoring changed the planning model at these sites. Plans continue on "
-        "the next model in the chain; suspended models keep running in shadow and return "
-        "when their record recovers.\n\n" + "\n".join(f"- {a}" for a in alerts)
-    )
-    result = _email(settings).send_text(
-        settings.ops_email, f"Vaticore model monitoring: {len(alerts)} change(s)", body
-    )
+    if subject is None:
+        subject = f"Vaticore model monitoring: {len(alerts)} change(s)"
+        body = (
+            "Model monitoring changed the planning model at these sites. Plans continue on "
+            "the next model in the chain; suspended models keep running in shadow and "
+            "return when their record recovers.\n\n" + "\n".join(f"- {a}" for a in alerts)
+        )
+    else:
+        body = "\n".join(alerts) + "\n\nWhat to do: docs/runbook.md."
+    result = _email(settings).send_text(settings.ops_email, subject, body)
     print(f"alerts emailed to ops: {result.status}")
 
 
@@ -415,6 +505,30 @@ def _savings_report(
     return 0
 
 
+def _shadow_review(args: argparse.Namespace, portfolio: Portfolio, store: PlanStore) -> int:
+    from vaticore.pipeline.savings import Period
+    from vaticore.pipeline.shadow import last_days, shadow_review
+
+    sites = [s for s in portfolio.sites if s.operator_id == args.operator]
+    if not sites:
+        raise SystemExit(f"no sites for operator {args.operator!r} in the portfolio")
+    period = (
+        Period.parse(args.period)
+        if args.period
+        else last_days(args.days, datetime.now(tz=UTC).date())
+    )
+    review = shadow_review(sites, store, period)
+    markdown = review.to_markdown()
+    print(markdown)
+    if args.out:
+        args.out.mkdir(parents=True, exist_ok=True)
+        stem = f"shadow-review-{args.operator}-{period.end:%Y-%m-%d}"
+        (args.out / f"{stem}.md").write_text(markdown)
+        (args.out / f"{stem}.json").write_text(review.to_json())
+        print(f"written to {args.out / stem}.md and .json")
+    return 0
+
+
 def _summaries(
     args: argparse.Namespace,
     settings: Settings,
@@ -450,6 +564,26 @@ def _summaries(
     if not sent:
         print("no recipients with weekly_summary = true and consent")
     return 1 if any(d.status == "failed" for d in sent) else 0
+
+
+def _replies(args: argparse.Namespace, store: PlanStore) -> int:
+    rows = store.feedback(args.operator)
+    if not rows.empty:
+        since = pd.Timestamp.now(tz="UTC") - pd.Timedelta(days=args.days)
+        rows = rows[pd.to_datetime(rows["received_at"], utc=True) >= since]
+    if rows.empty:
+        print(f"no replies in the last {args.days} days")
+        return 0
+    for row in rows.to_dict("records"):
+        when = pd.Timestamp(str(row["received_at"])).tz_convert("Africa/Lagos")
+        site = "no plan"
+        if row.get("site_id"):
+            day = pd.Timestamp(str(row["plan_date"])).date()
+            site = f"{row['operator_id']}/{row['site_id']} {day}"
+        reason = f" ({row['reason']})" if row.get("reason") else ""
+        text = str(row.get("text") or "")[:60]
+        print(f"{when:%d %b %H:%M}  {site}  {row['kind']}{reason}  {text!r}")
+    return 0
 
 
 def _optout(args: argparse.Namespace, store: PlanStore) -> int:
@@ -520,6 +654,31 @@ def _parser() -> argparse.ArgumentParser:
     rep.add_argument("--out", type=Path, help="also write Markdown and JSON here")
     rep.add_argument("--email", action="append", help="email the report to this address")
 
+    site = sub.add_parser("site", help="check a portfolio file (and each site's readiness)")
+    site.add_argument("action", choices=["check"])
+    _portfolio_arg(site)
+    site.add_argument("--site", action="append", help="operator_id/site_id; repeatable")
+    site.add_argument(
+        "--with-data", action="store_true",
+        help="also check readings in the database, recipients and sources",
+    )  # fmt: skip
+    site.add_argument("--recipients", type=Path, help="recipients TOML, for --with-data")
+    site.add_argument("--sources", type=Path, help="sources TOML, for --with-data")
+
+    net = sub.add_parser(
+        "safety-net", help="after the daily job: resend failed messages, cover missed sites"
+    )
+    _portfolio_arg(net)
+    net.add_argument("--recipients", type=Path, help="recipients TOML (personal data)")
+    net.add_argument("--channel", action="append", choices=["console", "whatsapp", "email"])
+
+    shadow = sub.add_parser("shadow-review", help="go or no-go after the shadow weeks")
+    _portfolio_arg(shadow)
+    shadow.add_argument("--operator", required=True)
+    shadow.add_argument("--days", type=int, default=28, help="the last N full days")
+    shadow.add_argument("--period", help="or exact days, FIRST:LAST (local)")
+    shadow.add_argument("--out", type=Path, help="also write Markdown and JSON here")
+
     summ = sub.add_parser("summary", help="supervisors' weekly summary (run on Mondays)")
     _portfolio_arg(summ)
     summ.add_argument("--recipients", type=Path, help="recipients TOML (personal data)")
@@ -542,6 +701,10 @@ def _parser() -> argparse.ArgumentParser:
     opt.add_argument("--phone")
     opt.add_argument("--email")
     opt.add_argument("--undo", action="store_true")
+
+    rep_ = sub.add_parser("replies", help="recent replies: followed, not followed, reasons")
+    rep_.add_argument("--operator")
+    rep_.add_argument("--days", type=int, default=7)
 
     test = sub.add_parser("whatsapp-test", help="send Meta's hello_world template")
     test.add_argument("--to", required=True, help="a number allowed to receive test messages")
@@ -604,8 +767,23 @@ def _whatsapp(settings: Settings, mode: str) -> WhatsAppChannel:
         api_version=settings.whatsapp_api_version,
         template_name=settings.whatsapp_template_name,
         template_language=settings.whatsapp_template_language,
+        templates=extra_templates(settings.whatsapp_extra_templates),
         mode=mode,
     )
+
+
+def extra_templates(spec: str) -> dict[str, tuple[str, str]]:
+    """'pcm=vaticore_daily_plan_pcm:en,ha=vaticore_daily_plan:ha' -> {lang: (name, code)}."""
+    out: dict[str, tuple[str, str]] = {}
+    for item in filter(None, (part.strip() for part in spec.split(","))):
+        lang, sep, rest = item.partition("=")
+        name, colon, code = rest.partition(":")
+        if not sep or not colon or not lang or not name or not code:
+            raise SystemExit(
+                f"VATICORE_WHATSAPP_EXTRA_TEMPLATES: {item!r} should be language=template:code"
+            )
+        out[lang.strip()] = (name.strip(), code.strip())
+    return out
 
 
 def _email(settings: Settings) -> EmailChannel:

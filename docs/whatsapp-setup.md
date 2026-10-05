@@ -114,6 +114,52 @@ step that takes longest.
 4. If you choose another name, set `VATICORE_WHATSAPP_SUMMARY_TEMPLATE`. The
    wording lives in `vaticore/pipeline/summary.py` (`SUMMARY_BODY`).
 
+### The Pidgin template
+
+People with `language = "pcm"` in the recipients file get their plans in
+Nigerian Pidgin once this template is approved; until then they get English.
+Meta's template languages do not include Pidgin, so it is submitted under
+**English** with its own name.
+
+Before submitting: have a native speaker read the wording, and test it with
+two or three technicians (docs/pilot/technician-test.md). Change it in
+`vaticore/delivery/message.py` (`PIDGIN_TEMPLATE_BODY` and the `"pcm"` phrase
+table) if they suggest better words, then submit exactly what is there.
+
+1. **Category: Utility.** **Name:** `vaticore_daily_plan_pcm`. **Language:**
+   English.
+2. **Body:**
+
+   ```text
+   Vaticore plan for {{1}}, {{2}}.
+   Generator: {{3}}
+   Grid: {{4}}
+   Battery: {{5}}
+   Note: {{6}}
+   Na advice be dis, your team go decide. Reply 1 if una follow the plan, 2 if una no follow am, or STOP make we stop dis messages.
+   ```
+
+3. **Sample values:**
+   1. `Macro tower, Ikorodu`
+   2. `Tue 10 Mar`
+   3. `on am 19:00 to 21:00 (2 hours, 1 time, about 7 L).`
+   4. `we dey expect am 06:00 to 14:00; if e no come, on the generator.`
+   5. `e go start around 60%, end around 41%.`
+   6. `Data dey OK.`
+4. Once it is **Active**, set on every service that sends plans
+   (`vaticore-daily-plans`, `vaticore-safety-net`):
+
+   ```text
+   VATICORE_WHATSAPP_EXTRA_TEMPLATES=pcm=vaticore_daily_plan_pcm:en
+   ```
+
+   The "why not?" question and its thanks go to Pidgin speakers in Pidgin
+   automatically (they are free text inside the conversation, not templates).
+
+Hausa (`ha`) is a Meta template language, so a Hausa version can be submitted
+under Hausa once a translator provides the phrase table; Yoruba and Igbo, like
+Pidgin, would go under English.
+
 ## 4. A permanent token
 
 The 24-hour token is for testing. For the daily job:

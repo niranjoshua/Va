@@ -194,6 +194,12 @@ told to run it differently, or free text) and stores the answer with the day.
   following, split into value taken and value on offer; fuel checks; data
   coverage. Markdown to read or email, JSON to keep. How to agree the periods
   and control sites with the operator: `docs/pilot-measurement.md`.
+- **Shadow review** (`shadow-review`, also in the dashboard and at
+  `GET /operators/{operator_id}/shadow-review`): after the shadow weeks, a
+  per-site GO, REVIEW, NOT YET or NO-GO by rules fixed beforehand.
+- **Pilot report in the dashboard and API:** the dashboard's "Pilot report"
+  view and `GET /operators/{operator_id}/report?baseline=...&pilot=...`, for
+  the operator to open themselves with their own key.
 - **Weekly summary** (`summary`): every Monday, six lines per supervisor
   (`weekly_summary = true` in the recipients file) on WhatsApp or email:
   plans followed, value, reasons, fuel checks, data gaps. Sent once per week
@@ -220,6 +226,11 @@ uv run python -m vaticore.pipeline report --operator OPERATOR \
     --baseline 2026-09-01:2026-09-30 --pilot 2026-10-01:2026-10-31 \
     --control SITE_ID --out reports/ --email sponsor@example.com  # pilot savings report
 uv run python -m vaticore.pipeline summary --channel whatsapp   # supervisors' week (Mondays)
+uv run python -m vaticore.pipeline safety-net --channel whatsapp  # 19:30: nobody left without a message
+uv run python -m vaticore.pipeline shadow-review --operator OPERATOR --days 28 --out reports/
+uv run python -m vaticore.pipeline site check --portfolio portfolio.toml  # before uploading
+uv run python -m vaticore.pipeline site check --with-data                # on the server
+uv run python -m vaticore.pipeline replies --days 7       # recent 1s, 2s, reasons, STOPs
 uv run python -m vaticore.pipeline monitor --weeks 8     # each model, week by week
 uv run python -m vaticore.pipeline fuel add --site OPERATOR/SITE --litres 500 --at 2026-10-06T10:30+01:00
 uv run python -m vaticore.pipeline fuel import --csv deliveries.csv
@@ -301,8 +312,9 @@ refused address) are stored as failed at once.
 
 - Where a site reports no battery charge (or only an old one), the start is
   assumed at 50% of usable and the message says "(assumed)".
-- Messages are in English. Pidgin, Hausa and Yoruba versions need approved
-  templates in each language.
+- Messages are in English and Nigerian Pidgin (`language = "pcm"` per
+  recipient), Pidgin once its template is approved. Hausa can follow with a
+  translator's phrase table; the weekly summary is English only.
 - Email replies are read by a person, not parsed.
 - The weather model has no backtest yet: there were no archived forecasts
   for these sites. It earns its place in shadow, against the default model,
