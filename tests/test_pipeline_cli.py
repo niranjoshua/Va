@@ -184,3 +184,36 @@ def test_migrate_and_a_verified_backup(env: Path, capsys: pytest.CaptureFixture[
     assert out.count("Restore check") == 2 and "FAILED" not in out
     dump = next(p for p in (env / "backups").iterdir() if p.is_dir())
     assert main(["restore-check", "--dump", str(dump)]) == 0
+
+
+def test_the_pilot_report_and_the_weekly_summary(
+    env: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (env / "sites.toml").write_text(_SITES)
+    (env / "people.toml").write_text(
+        '[[recipient]]\nname = "Supervisor"\nwhatsapp = "+2348000000001"\noperator_id = "op"\n'
+        'sites = ["*"]\nconsent = true\nweekly_summary = true\n'
+    )
+    args = ["--portfolio", str(env / "sites.toml")]
+    assert (
+        main(["report", *args, "--operator", "op", "--baseline", "2026-09-01:2026-09-07",
+              "--pilot", "2026-09-08:2026-09-14", "--out", str(env / "reports")])
+        == 0
+    )  # fmt: skip
+    out = capsys.readouterr().out
+    assert "# Vaticore pilot report: op" in out and "No plans were sent" in out
+    assert (env / "reports" / "pilot-report-op-2026-09-14.json").exists()
+    with pytest.raises(SystemExit, match="must end before"):
+        main(["report", *args, "--operator", "op", "--baseline", "2026-09-08:2026-09-14",
+              "--pilot", "2026-09-08:2026-09-14"])  # fmt: skip
+    with pytest.raises(SystemExit, match="no sites"):
+        main(["report", *args, "--operator", "nobody", "--baseline", "2026-09-01:2026-09-07",
+              "--pilot", "2026-09-08:2026-09-14"])  # fmt: skip
+
+    assert (
+        main(["summary", *args, "--recipients", str(env / "people.toml"), "--channel", "console",
+              "--week-start", "2026-09-07"])
+        == 0
+    )  # fmt: skip
+    out = capsys.readouterr().out
+    assert "Vaticore week of 7 Sep to 13 Sep, 1 site." in out and "(console): dry_run" in out

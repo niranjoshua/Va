@@ -5,6 +5,9 @@
     uv run python -m vaticore.pipeline run --channel whatsapp --channel email
     uv run python -m vaticore.pipeline score                    # score finished days
     uv run python -m vaticore.pipeline scorecard                # track record per site
+    uv run python -m vaticore.pipeline report --operator example-towerco \
+        --baseline 2026-09-01:2026-09-30 --pilot 2026-10-01:2026-10-31 --control kog-rur-0077
+    uv run python -m vaticore.pipeline summary --channel whatsapp   # supervisors' week (Mondays)
     uv run python -m vaticore.pipeline monitor                  # each model, week by week
     uv run python -m vaticore.pipeline fuel add --site OP/SITE --litres 500 --at 2026-10-06T10:30+01:00
     uv run python -m vaticore.pipeline fuel report --days 30    # delivered against burned
@@ -27,7 +30,7 @@ from __future__ import annotations
 import argparse
 import sys
 from collections.abc import Sequence
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
@@ -122,6 +125,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 return 0
             if args.command == "fuel":
                 return _fuel_report(args, portfolio, repo, store)
+            if args.command == "report":
+                return _savings_report(args, settings, portfolio, repo, store)
+            if args.command == "summary":
+                return _summaries(args, settings, portfolio, repo, store)
             if args.command == "monitor":
                 for site in portfolio.sites:
                     _monitor(store, site.operator_id, site.site_id, args.weeks)
@@ -369,6 +376,82 @@ def _fuel_report(
     return worst
 
 
+def _savings_report(
+    args: argparse.Namespace,
+    settings: Settings,
+    portfolio: Portfolio,
+    repo: object,
+    store: PlanStore,
+) -> int:
+    from vaticore.pipeline.savings import Period, savings_report
+
+    sites = [s for s in portfolio.sites if s.operator_id == args.operator]
+    if not sites:
+        raise SystemExit(f"no sites for operator {args.operator!r} in the portfolio")
+    try:
+        report = savings_report(
+            sites,
+            repo,  # type: ignore[arg-type]
+            store,
+            baseline=Period.parse(args.baseline),
+            pilot=Period.parse(args.pilot),
+            control=args.control or (),
+        )
+    except ValueError as exc:
+        raise SystemExit(f"report: {exc}") from exc
+    markdown = report.to_markdown()
+    print(markdown)
+    if args.out:
+        args.out.mkdir(parents=True, exist_ok=True)
+        stem = f"pilot-report-{args.operator}-{report.pilot.end:%Y-%m-%d}"
+        (args.out / f"{stem}.md").write_text(markdown)
+        (args.out / f"{stem}.json").write_text(report.to_json())
+        print(f"written to {args.out / stem}.md and .json")
+    for address in args.email or []:
+        result = _email(settings).send_text(
+            address, f"Vaticore pilot report: {args.operator}, {report.pilot.label()}", markdown
+        )
+        print(f"emailed to {address}: {result.status}")
+    return 0
+
+
+def _summaries(
+    args: argparse.Namespace,
+    settings: Settings,
+    portfolio: Portfolio,
+    repo: object,
+    store: PlanStore,
+) -> int:
+    from vaticore.pipeline.savings import Period
+    from vaticore.pipeline.summary import send_weekly_summaries, week_of
+
+    if not args.channel:
+        raise SystemExit("summary needs --channel console, whatsapp or email")
+    week = (
+        Period(args.week_start, args.week_start + timedelta(days=6))
+        if args.week_start
+        else week_of(datetime.now(tz=UTC).date())
+    )
+    sent = send_weekly_summaries(
+        portfolio.sites,
+        repo,  # type: ignore[arg-type]
+        store,
+        _recipients(args, settings),
+        week=week,
+        whatsapp=_whatsapp(settings, "template") if "whatsapp" in args.channel else None,
+        email=_email(settings) if "email" in args.channel else None,
+        console="console" in args.channel,
+        now=datetime.now(tz=UTC),
+        force=args.force,
+        template_name=settings.whatsapp_summary_template,
+    )
+    for d in sent:
+        print(f"{d.recipient} ({d.channel}): {d.status}" + (f", {d.error}" if d.error else ""))
+    if not sent:
+        print("no recipients with weekly_summary = true and consent")
+    return 1 if any(d.status == "failed" for d in sent) else 0
+
+
 def _optout(args: argparse.Namespace, store: PlanStore) -> int:
     if not args.phone and not args.email:
         raise SystemExit("optout needs --phone or --email")
@@ -425,6 +508,29 @@ def _parser() -> argparse.ArgumentParser:
     fuel.add_argument("--timezone", help="for times without an offset, e.g. Africa/Lagos")
     fuel.add_argument("--csv", type=Path, help="deliveries file for import")
     fuel.add_argument("--days", type=int, default=30)
+
+    rep = sub.add_parser("report", help="pilot savings report for one operator (monthly)")
+    _portfolio_arg(rep)
+    rep.add_argument("--operator", required=True)
+    rep.add_argument(
+        "--baseline", required=True, help="days before plans were sent, FIRST:LAST (local)"
+    )
+    rep.add_argument("--pilot", required=True, help="pilot days, FIRST:LAST (local)")
+    rep.add_argument("--control", action="append", help="site_id of a control site; repeatable")
+    rep.add_argument("--out", type=Path, help="also write Markdown and JSON here")
+    rep.add_argument("--email", action="append", help="email the report to this address")
+
+    summ = sub.add_parser("summary", help="supervisors' weekly summary (run on Mondays)")
+    _portfolio_arg(summ)
+    summ.add_argument("--recipients", type=Path, help="recipients TOML (personal data)")
+    summ.add_argument(
+        "--channel", action="append", choices=["console", "whatsapp", "email"],
+        help="send on this channel; repeatable",
+    )  # fmt: skip
+    summ.add_argument(
+        "--week-start", type=date.fromisoformat, help="Monday of the week (default: last week)"
+    )
+    summ.add_argument("--force", action="store_true", help="resend even if already sent")
 
     key = sub.add_parser("apikey", help="operator API keys: create, list, revoke")
     key.add_argument("action", choices=["create", "list", "revoke"])

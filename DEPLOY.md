@@ -89,6 +89,15 @@ the plans on WhatsApp the evening before. It needs, in the Render dashboard:
   (who receives plans, with consent).
 
 The web service needs `VATICORE_WHATSAPP_APP_SECRET`,
-`VATICORE_WHATSAPP_VERIFY_TOKEN` (for the webhook) and `VATICORE_API_TOKEN`
-(for the plan and scorecard endpoints). Step by step: `docs/whatsapp-setup.md`
+`VATICORE_WHATSAPP_VERIFY_TOKEN` (for the webhook), `VATICORE_WHATSAPP_TOKEN`
+and `VATICORE_WHATSAPP_PHONE_NUMBER_ID` (to ask "why not?" after a reply of
+2), and `VATICORE_API_TOKEN` (for the plan and scorecard endpoints).
+
+`vaticore-weekly-summary` runs every Monday at 06:00 UTC (07:00 in Lagos) and
+sends supervisors their week. It needs `VATICORE_DATABASE_URL`, the WhatsApp
+token and phone number ID, and the `portfolio.toml` and `recipients.toml`
+secret files. The daily jobs run on Render's `standard` instance because
+Chronos-2 needs more than the default 512 MB.
+
+What is left before the first pilot: `docs/pilot-checklist.md`. Step by step: `docs/whatsapp-setup.md`
 and `docs/pipeline.md`.

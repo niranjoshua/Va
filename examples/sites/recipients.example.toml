@@ -26,6 +26,7 @@ operator_id = "example-towerco"
 sites = ["*"]          # every site of this operator
 consent = true
 consent_note = "Agreed by email (example)"
+weekly_summary = true  # the Monday summary of the week: plans followed, value, fuel checks
 
 [[recipient]]
 name = "Facilities manager, Wuse branch"

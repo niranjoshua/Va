@@ -5,7 +5,14 @@ when someone replies. We use that to:
   - track each plan to "read" (did the site manager see it?);
   - record whether the plan was followed (reply 1) or not (reply 2), which is
     how adoption is measured;
+  - after a 2, ask why (generator fault, no diesel, grid came on...) and store
+    the answer, so a plan that could not be carried out is told apart from a
+    plan that was wrong;
   - honour STOP at once, and START to resume.
+
+The question after a 2 is free text, which WhatsApp allows because the person
+has just written to us (the 24-hour window is open). It is asked once per plan
+day; the answer is read as a reason only if it comes within REASON_WINDOW.
 
 Every POST is checked against the X-Hub-Signature-256 header with the app
 secret, so nobody else can forge receipts or opt people out. Providers retry
@@ -16,9 +23,12 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
+
+import pandas as pd
 
 from vaticore.delivery.recipients import recipient_hash
 from vaticore.pipeline.store import PlanStore
@@ -28,6 +38,32 @@ _NOT_FOLLOWED = {"2", "no", "n", "not followed", "did not follow"}
 _STOP = {"stop", "unsubscribe", "cancel", "end", "quit", "stop all"}
 _START = {"start", "subscribe", "resume", "unstop"}
 
+# Why a plan was not followed. Letters, so they never clash with replies 1 and 2.
+REASONS: dict[str, tuple[str, str]] = {
+    "a": ("generator_fault", "generator fault"),
+    "b": ("no_diesel", "no diesel"),
+    "c": ("grid_on", "grid was on"),
+    "d": ("battery_problem", "battery problem"),
+    "e": ("instructed", "told to run it differently"),
+}
+REASON_LABELS = {code: label for code, label in REASONS.values()} | {"other": "other reason"}
+_REASON_WORDS = (
+    ("generator_fault", ("fault", "faulty", "broke", "broken", "repair", "spoil", "spoilt")),
+    ("no_diesel", ("diesel", "fuel")),
+    ("grid_on", ("grid", "nepa", "phcn", "light came", "light dey", "power came")),
+    ("battery_problem", ("battery", "batteries", "inverter")),
+    ("instructed", ("told", "instruct", "manager said", "oga")),
+)
+REASON_QUESTION = (
+    "Thanks. Why was the plan not followed? Reply A generator fault, B no diesel, "
+    "C grid was on, D battery problem, E told to run it differently, or type the reason."
+)
+REASON_THANKS = "Thank you, noted. It helps make tomorrow's plan better."
+REASON_WINDOW = timedelta(hours=24)
+
+# Sends a free-text WhatsApp message (phone, text); None where sending is not set up.
+TextSender = Callable[[str, str], Any]
+
 
 def verify_signature(app_secret: str, body: bytes, header: str | None) -> bool:
     """True if the X-Hub-Signature-256 header matches the raw request body."""
@@ -35,6 +71,17 @@ def verify_signature(app_secret: str, body: bytes, header: str | None) -> bool:
         return False
     expected = hmac.new(app_secret.encode(), body, hashlib.sha256).hexdigest()
     return hmac.compare_digest(expected, header.removeprefix("sha256="))
+
+
+def classify_reason(text: str) -> str:
+    """A reason code for why a plan was not followed; 'other' for free text."""
+    cleaned = " ".join(text.strip().lower().replace(".", " ").replace(")", " ").split())
+    if cleaned[:1] in REASONS and (len(cleaned) == 1 or cleaned[1] == " "):
+        return REASONS[cleaned[:1]][0]
+    for code, words in _REASON_WORDS:
+        if any(word in cleaned for word in words):
+            return code
+    return "other"
 
 
 def classify_reply(text: str) -> str:
@@ -57,11 +104,19 @@ class WebhookOutcome:
     replies: int = 0
     opt_outs: int = 0
     opt_ins: int = 0
+    reasons: int = 0
+    questions: int = 0
 
 
-def handle_webhook(store: PlanStore, payload: dict[str, Any]) -> WebhookOutcome:
-    """Apply one webhook payload to the store."""
-    statuses = replies = opt_outs = opt_ins = 0
+def handle_webhook(
+    store: PlanStore, payload: dict[str, Any], *, send_text: TextSender | None = None
+) -> WebhookOutcome:
+    """Apply one webhook payload to the store.
+
+    send_text, when given, is used to ask why after a reply of 2, and to thank
+    the person for the answer.
+    """
+    statuses = replies = opt_outs = opt_ins = reasons = questions = 0
     for entry in payload.get("entry", []):
         for change in entry.get("changes", []):
             value = change.get("value", {})
@@ -84,6 +139,17 @@ def handle_webhook(store: PlanStore, payload: dict[str, Any]) -> WebhookOutcome:
                     continue
                 kind = classify_reply(text)
                 at = _when(message.get("timestamp"))
+                plan = store.last_delivery_to(who)
+                reason = None
+                previous = store.last_feedback_from(who)
+                if kind == "other" and _awaiting_reason(previous, at):
+                    assert previous is not None
+                    kind, reason = "reason", classify_reason(text)
+                    plan = (
+                        str(previous["operator_id"]),
+                        str(previous["site_id"]),
+                        pd.Timestamp(previous["plan_date"]).date(),
+                    )
                 if kind == "stop":
                     store.set_opt_out(who, True, "whatsapp reply", at)
                     opt_outs += 1
@@ -96,10 +162,38 @@ def handle_webhook(store: PlanStore, payload: dict[str, Any]) -> WebhookOutcome:
                     recipient_hash=who,
                     kind=kind,
                     text=text[:500],
-                    plan=store.last_delivery_to(who),
+                    plan=plan,
+                    reason=reason,
                 ):
                     replies += 1
-    return WebhookOutcome(statuses, replies, opt_outs, opt_ins)
+                    if kind == "reason":
+                        reasons += 1
+                        _send(send_text, sender, REASON_THANKS)
+                    elif kind == "not_followed" and plan is not None:
+                        if _send(send_text, sender, REASON_QUESTION):
+                            questions += 1
+    return WebhookOutcome(statuses, replies, opt_outs, opt_ins, reasons, questions)
+
+
+def _awaiting_reason(previous: dict[str, Any] | None, at: datetime) -> bool:
+    """True if the person's last reply was a 2 for a plan, recently enough."""
+    if previous is None or previous.get("kind") != "not_followed":
+        return False
+    if previous.get("operator_id") is None or pd.isna(previous.get("plan_date")):
+        return False
+    received = pd.Timestamp(previous["received_at"])
+    received = received.tz_localize("UTC") if received.tzinfo is None else received
+    return bool(pd.Timestamp(at) - received <= REASON_WINDOW)
+
+
+def _send(send_text: TextSender | None, to: str, text: str) -> bool:
+    if send_text is None:
+        return False
+    try:
+        send_text(to, text)
+    except Exception:  # a failed courtesy message must never lose the reply
+        return False
+    return True
 
 
 def _message_text(message: dict[str, Any]) -> str:

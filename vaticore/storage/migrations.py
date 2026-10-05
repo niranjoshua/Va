@@ -46,6 +46,21 @@ class Migration:
     duckdb: tuple[str, ...] = ()
 
 
+_SUMMARY_DELIVERIES = """
+CREATE TABLE IF NOT EXISTS summary_deliveries (
+    operator_id TEXT NOT NULL,
+    week_start DATE NOT NULL,
+    channel TEXT NOT NULL,
+    recipient_hash TEXT NOT NULL,
+    recipient_masked TEXT,
+    status TEXT NOT NULL,
+    provider_message_id TEXT,
+    error TEXT,
+    created_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (operator_id, week_start, channel, recipient_hash)
+)
+"""
+
 # Append only. DuckDB gets no secondary indexes: its tables are small, it scans
 # them fast, and its indexes complicate updates of indexed columns.
 MIGRATIONS: tuple[Migration, ...] = (
@@ -72,6 +87,20 @@ MIGRATIONS: tuple[Migration, ...] = (
         PLANS,
         "index plan runs by end time, for finding days to score",
         postgres=("CREATE INDEX IF NOT EXISTS pipeline_runs_plan_end ON pipeline_runs (plan_end)",),
+    ),
+    Migration(
+        4,
+        PLANS,
+        "why a plan was not followed: a reason on each reply",
+        postgres=("ALTER TABLE IF EXISTS feedback ADD COLUMN IF NOT EXISTS reason TEXT",),
+        duckdb=("ALTER TABLE IF EXISTS feedback ADD COLUMN IF NOT EXISTS reason TEXT",),
+    ),
+    Migration(
+        5,
+        PLANS,
+        "weekly summaries sent to supervisors",
+        postgres=(_SUMMARY_DELIVERIES,),
+        duckdb=(_SUMMARY_DELIVERIES,),
     ),
 )
 

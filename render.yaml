@@ -29,10 +29,15 @@ services:
       #   python -m vaticore.pipeline apikey create --operator ...
       - key: VATICORE_API_TOKEN
         sync: false
-      # WhatsApp webhook (replies, receipts, STOP).
+      # WhatsApp webhook (replies, receipts, STOP). The token and phone number
+      # ID let it ask "why not?" after a reply of 2.
       - key: VATICORE_WHATSAPP_APP_SECRET
         sync: false
       - key: VATICORE_WHATSAPP_VERIFY_TOKEN
+        sync: false
+      - key: VATICORE_WHATSAPP_TOKEN
+        sync: false
+      - key: VATICORE_WHATSAPP_PHONE_NUMBER_ID
         sync: false
       - key: VATICORE_PORTFOLIO_FILE
         value: /etc/secrets/portfolio.toml
@@ -75,6 +80,9 @@ services:
     name: vaticore-daily-plans
     runtime: docker
     dockerfilePath: ./Dockerfile
+    # Chronos-2 with PyTorch needs about 1 to 1.5 GB of memory: Render's
+    # default 512 MB instance would kill the job. Standard has 2 GB.
+    plan: standard
     autoDeploy: false
     schedule: "0 17 * * *"
     dockerCommand: >-
@@ -122,6 +130,44 @@ services:
       - key: VATICORE_HEARTBEAT_URL
         sync: false
 
+  # Supervisors' week: every Monday at 07:00 Lagos, a short summary of the last
+  # week (plans followed, value, reasons, fuel checks, data) to each recipient
+  # with weekly_summary = true. Add "--channel email" once SMTP is set.
+  - type: cron
+    name: vaticore-weekly-summary
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    autoDeploy: false
+    schedule: "0 6 * * 1"
+    dockerCommand: >-
+      sh -c "uv run python -m vaticore.pipeline summary --channel whatsapp"
+    envVars:
+      - key: VATICORE_ENVIRONMENT
+        value: production
+      - key: VATICORE_LOG_FORMAT
+        value: json
+      - key: VATICORE_PORTFOLIO_FILE
+        value: /etc/secrets/portfolio.toml
+      - key: VATICORE_RECIPIENTS_FILE
+        value: /etc/secrets/recipients.toml
+      - key: VATICORE_DATABASE_URL
+        sync: false
+      - key: VATICORE_WHATSAPP_TOKEN
+        sync: false
+      - key: VATICORE_WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+      - key: VATICORE_SMTP_HOST
+        sync: false
+      - key: VATICORE_SMTP_USERNAME
+        sync: false
+      - key: VATICORE_SMTP_PASSWORD
+        sync: false
+      - key: VATICORE_EMAIL_FROM
+        sync: false
+      - key: VATICORE_SENTRY_DSN
+        sync: false
+
   # Weekly restore drill: back up production, restore it into a scratch
   # database, and check every table came back whole. Fails (and alerts through
   # Sentry and the heartbeat) if a restore would not work. Render's managed
@@ -130,6 +176,7 @@ services:
     name: vaticore-restore-drill
     runtime: docker
     dockerfilePath: ./Dockerfile
+    plan: starter
     autoDeploy: false
     schedule: "15 3 * * 1"
     dockerCommand: >-
@@ -190,6 +237,7 @@ services:
     name: vaticore-daily-plans-staging
     runtime: docker
     dockerfilePath: ./Dockerfile
+    plan: standard  # same models as production, same memory
     schedule: "0 16 * * *"
     dockerCommand: >-
       sh -c "uv run python -m vaticore.pipeline migrate &&
