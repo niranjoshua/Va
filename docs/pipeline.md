@@ -181,7 +181,23 @@ the same starting battery charge, and compared with:
 
 These are values **had the plan been followed**. In a shadow pilot sites run
 as usual, so this is the value on offer, not yet the value taken. Replies of 1
-and 2 record which days were followed, so the two can be separated.
+and 2 record which days were followed, so the two can be separated. After a 2,
+Vaticore asks why (generator fault, no diesel, grid was on, battery problem,
+told to run it differently, or free text) and stores the answer with the day.
+
+## Reporting: the sponsor's month and the supervisors' week
+
+- **Pilot report** (`report`): for one operator, a baseline period and a pilot
+  period. Measured diesel per day from each site's generator readings, before
+  against during, net of control sites when there are some (difference in
+  differences); plans followed, not followed and why; the modelled value of
+  following, split into value taken and value on offer; fuel checks; data
+  coverage. Markdown to read or email, JSON to keep. How to agree the periods
+  and control sites with the operator: `docs/pilot-measurement.md`.
+- **Weekly summary** (`summary`): every Monday, six lines per supervisor
+  (`weekly_summary = true` in the recipients file) on WhatsApp or email:
+  plans followed, value, reasons, fuel checks, data gaps. Sent once per week
+  per person and channel.
 
 From the third scored day, the morning message quotes the last week's track
 record, honestly in either direction ("used 40 L more diesel to avoid 25 kWh
@@ -200,6 +216,10 @@ uv run python -m vaticore.pipeline run --channel whatsapp --channel email
 uv run python -m vaticore.pipeline run --site OPERATOR/SITE --date 2026-10-06
 uv run python -m vaticore.pipeline score                 # score finished days
 uv run python -m vaticore.pipeline scorecard --days 30   # each site's track record
+uv run python -m vaticore.pipeline report --operator OPERATOR \
+    --baseline 2026-09-01:2026-09-30 --pilot 2026-10-01:2026-10-31 \
+    --control SITE_ID --out reports/ --email sponsor@example.com  # pilot savings report
+uv run python -m vaticore.pipeline summary --channel whatsapp   # supervisors' week (Mondays)
 uv run python -m vaticore.pipeline monitor --weeks 8     # each model, week by week
 uv run python -m vaticore.pipeline fuel add --site OPERATOR/SITE --litres 500 --at 2026-10-06T10:30+01:00
 uv run python -m vaticore.pipeline fuel import --csv deliveries.csv
@@ -263,9 +283,10 @@ refused address) are stored as failed at once.
    monitoring alerts.
 6. **Weather:** an Open-Meteo API key (`VATICORE_WEATHER_API_KEY`) for
    commercial use; without it production plans run without live weather.
-7. **Schedule:** `render.yaml` defines the job (`vaticore-daily-plans`,
-   17:00 UTC daily, 18:00 in Lagos: ingest, score, run). Any scheduler that
-   runs the three commands works.
+7. **Schedule:** `render.yaml` defines the jobs: `vaticore-daily-plans`
+   (17:00 UTC daily, 18:00 in Lagos: ingest, score, run) and
+   `vaticore-weekly-summary` (Mondays, 07:00 in Lagos). Any scheduler that
+   runs the same commands works.
 
 ## Safety
 
@@ -286,5 +307,5 @@ refused address) are stored as failed at once.
 - The weather model has no backtest yet: there were no archived forecasts
   for these sites. It earns its place in shadow, against the default model,
   on each site's own scored days, and is promoted only on that evidence.
-- Next: production basics (sign-in for the dashboard, staging, migrations,
-  error tracking, tested backups).
+- The pilot report is a command, not yet a dashboard page.
+- What remains before the first pilot: `docs/pilot-checklist.md`.

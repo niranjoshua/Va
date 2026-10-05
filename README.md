@@ -109,7 +109,7 @@ vaticore/
   api/           # FastAPI service (thin handlers over the engine)
   dashboard/     # Streamlit app
   copilot/       # LLM explanations grounded on the engine's numbers
-  pipeline/      # the daily loop: data health, plan, store, score (docs/pipeline.md)
+  pipeline/      # the daily loop, scoring, pilot report, weekly summary (docs/pipeline.md)
   delivery/      # daily plans on WhatsApp and email, replies, opt-outs
   fuel/          # diesel delivered against burned, flags for checking (docs/fuel.md)
   storage/       # multi-tenant, multi-site persistence

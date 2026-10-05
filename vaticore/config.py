@@ -66,6 +66,7 @@ class Settings(BaseSettings):
     whatsapp_api_version: str = Field(default="v23.0")
     whatsapp_template_name: str = Field(default="vaticore_daily_plan")
     whatsapp_template_language: str = Field(default="en")
+    whatsapp_summary_template: str = Field(default="vaticore_weekly_summary")
     # Webhook security: the app secret signs every callback; the verify token
     # is the shared word Meta sends when the webhook is first registered.
     whatsapp_app_secret: SecretStr | None = Field(default=None)

@@ -14,6 +14,7 @@ file.
     sites = ["lag-ikd-0142"]          # or ["*"] for every site of the operator
     consent = true
     consent_note = "Agreed at pilot kick-off, 2026-10-06"
+    weekly_summary = false            # true: also the Monday summary of the week
 """
 
 from __future__ import annotations
@@ -85,6 +86,8 @@ class Recipient(BaseModel):
     consent: bool
     consent_note: str | None = None
     language: str = "en"
+    # Supervisors: a short summary of their sites' week, every Monday.
+    weekly_summary: bool = False
 
     @field_validator("whatsapp")
     @classmethod

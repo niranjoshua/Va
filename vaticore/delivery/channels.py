@@ -138,6 +138,15 @@ class EmailChannel:
         mail.set_content(body)
         return self._deliver(mail)
 
+    def send_html(self, to: str, subject: str, text: str, html_body: str) -> SendResult:
+        """A two-part email to a recipient (such as the weekly summary), with unsubscribe."""
+        mail = self._mail(to, subject)
+        unsubscribe = parseaddr(self._reply_to)[1] or self._reply_to
+        mail["List-Unsubscribe"] = f"<mailto:{unsubscribe}?subject=unsubscribe>"
+        mail.set_content(text)
+        mail.add_alternative(html_body, subtype="html")
+        return self._deliver(mail)
+
     def _mail(self, to: str, subject: str) -> EmailMessage:
         mail = EmailMessage()
         mail["Subject"] = subject
@@ -227,6 +236,29 @@ class WhatsAppChannel:
                 },
             }
         return self._post(to, body)
+
+    def send_text(self, to: str, body: str) -> SendResult:
+        """Free text: only inside the 24 hours after the person last wrote to us."""
+        return self._post(to, {"type": "text", "text": {"preview_url": False, "body": body}})
+
+    def send_template(self, to: str, template_name: str, params: list[str]) -> SendResult:
+        """Any approved template by name, with its body variables in order."""
+        return self._post(
+            to,
+            {
+                "type": "template",
+                "template": {
+                    "name": template_name,
+                    "language": {"code": self._language},
+                    "components": [
+                        {
+                            "type": "body",
+                            "parameters": [{"type": "text", "text": p} for p in params],
+                        }
+                    ],
+                },
+            },
+        )
 
     def send_hello_world(self, to: str) -> SendResult:
         """Meta's pre-approved sample template: checks the credentials work."""

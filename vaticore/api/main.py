@@ -41,7 +41,8 @@ from vaticore.api.schemas import (
 from vaticore.config import Settings, get_settings
 from vaticore.datasets import make_synthetic_fleet
 from vaticore.decisions.dispatch import SiteAssets
-from vaticore.delivery.webhook import handle_webhook, verify_signature
+from vaticore.delivery.channels import WhatsAppChannel
+from vaticore.delivery.webhook import TextSender, handle_webhook, verify_signature
 from vaticore.forecasting.base import ForecasterError, quantile_column
 from vaticore.fuel import reconcile
 from vaticore.observability import init_error_tracking, setup_logging
@@ -585,15 +586,31 @@ def create_app() -> FastAPI:
         signature = request.headers.get("x-hub-signature-256")
         if not verify_signature(settings.whatsapp_app_secret.get_secret_value(), body, signature):
             raise HTTPException(401, "bad signature")
-        outcome = handle_webhook(store, json.loads(body or b"{}"))
+        outcome = handle_webhook(store, json.loads(body or b"{}"), send_text=reply_sender(settings))
         return {
             "statuses": outcome.statuses,
             "replies": outcome.replies,
             "opt_outs": outcome.opt_outs,
             "opt_ins": outcome.opt_ins,
+            "reasons": outcome.reasons,
+            "questions": outcome.questions,
         }
 
     return app
+
+
+def reply_sender(settings: Settings) -> TextSender | None:
+    """Free-text WhatsApp replies (the "why not?" question), if credentials are set."""
+    if settings.whatsapp_token is None or not settings.whatsapp_phone_number_id:
+        return None
+    channel = WhatsAppChannel(
+        token=settings.whatsapp_token.get_secret_value(),
+        phone_number_id=settings.whatsapp_phone_number_id,
+        api_version=settings.whatsapp_api_version,
+        mode="text",
+        max_attempts=2,
+    )
+    return channel.send_text
 
 
 app = create_app()

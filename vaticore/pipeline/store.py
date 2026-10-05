@@ -14,7 +14,8 @@ proves nothing. So each daily run writes:
                     baseline and a perfect-forecast bound.
   deliveries        every message per recipient and channel, with its status.
   recipient_prefs   opt-outs (a reply of STOP), which always win over config.
-  feedback          replies: followed the plan, did not, or free text.
+  feedback          replies: followed the plan, did not (and why), or free text.
+  summary_deliveries  weekly summaries sent to supervisors, so none goes twice.
 
 Phone numbers are personal data: the store keeps only a one-way hash (to match
 replies and opt-outs) and a masked form for display.
@@ -183,7 +184,20 @@ CREATE TABLE IF NOT EXISTS feedback (
     site_id TEXT,
     plan_date DATE,
     kind TEXT NOT NULL,
-    text TEXT
+    text TEXT,
+    reason TEXT
+);
+CREATE TABLE IF NOT EXISTS summary_deliveries (
+    operator_id TEXT NOT NULL,
+    week_start DATE NOT NULL,
+    channel TEXT NOT NULL,
+    recipient_hash TEXT NOT NULL,
+    recipient_masked TEXT,
+    status TEXT NOT NULL,
+    provider_message_id TEXT,
+    error TEXT,
+    created_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (operator_id, week_start, channel, recipient_hash)
 );
 """
 
@@ -510,6 +524,7 @@ class PlanStore:
         kind: str,
         text: str | None,
         plan: tuple[str, str, date] | None,
+        reason: str | None = None,
     ) -> bool:
         """Store a reply once (providers retry webhooks). Returns False if seen before."""
         seen = self._df(
@@ -520,7 +535,7 @@ class PlanStore:
         operator_id, site_id, plan_date = plan if plan is not None else (None, None, None)
         self._exec(
             "INSERT INTO feedback (provider_message_id, received_at, recipient_hash, operator_id,"
-            " site_id, plan_date, kind, text) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            " site_id, plan_date, kind, text, reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 provider_message_id,
                 received_at,
@@ -530,9 +545,59 @@ class PlanStore:
                 plan_date,
                 kind,
                 text,
+                reason,
             ),
         )
         return True
+
+    def last_feedback_from(self, recipient_hash: str) -> dict[str, Any] | None:
+        """The person's most recent reply, to read the next one in its light."""
+        frame = self._df(
+            "SELECT * FROM feedback WHERE recipient_hash = ? ORDER BY received_at DESC LIMIT 1",
+            (recipient_hash,),
+        )
+        return None if frame.empty else {str(k): v for k, v in frame.iloc[0].items()}
+
+    # -- weekly summaries ----------------------------------------------------
+
+    def summary_sent(
+        self, operator_id: str, week_start: date, channel: str, recipient_hash: str
+    ) -> bool:
+        frame = self._df(
+            "SELECT status FROM summary_deliveries WHERE operator_id = ? AND week_start = ?"
+            " AND channel = ? AND recipient_hash = ?",
+            (operator_id, week_start, channel, recipient_hash),
+        )
+        return not frame.empty and str(frame.iloc[0]["status"]) in SENT_STATES
+
+    def record_summary(
+        self,
+        *,
+        operator_id: str,
+        week_start: date,
+        channel: str,
+        recipient_hash: str,
+        recipient_masked: str,
+        status: str,
+        provider_message_id: str | None,
+        error: str | None,
+        at: datetime,
+    ) -> None:
+        self._upsert(
+            "summary_deliveries",
+            {
+                "operator_id": operator_id,
+                "week_start": week_start,
+                "channel": channel,
+                "recipient_hash": recipient_hash,
+                "recipient_masked": recipient_masked,
+                "status": status,
+                "provider_message_id": provider_message_id,
+                "error": error,
+                "created_at": at,
+            },
+            ("operator_id", "week_start", "channel", "recipient_hash"),
+        )
 
     def feedback(self, operator_id: str | None = None) -> pd.DataFrame:
         query, params = "SELECT * FROM feedback", []
