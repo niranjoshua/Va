@@ -37,9 +37,9 @@ def test_migrations_apply_once_and_in_order(tmp_path: Path) -> None:
     url = f"duckdb:///{tmp_path / 'plans.duckdb'}"
     PlanStore(url).close()  # the baseline tables
     before = migrations.status(url, migrations.PLANS)
-    assert before.applied == () and [m.version for m in before.pending] == [1, 2, 3, 4, 5]
+    assert before.applied == () and [m.version for m in before.pending] == [1, 2, 3, 4, 5, 6]
     applied = migrations.migrate(url, migrations.PLANS, now=NOW)
-    assert [m.version for m in applied] == [1, 2, 3, 4, 5]
+    assert [m.version for m in applied] == [1, 2, 3, 4, 5, 6]
     assert migrations.migrate(url, migrations.PLANS) == []
     assert migrations.status(url, migrations.PLANS).current
     assert migrations.status(url, migrations.READINGS).current  # nothing for readings yet
@@ -222,3 +222,29 @@ def test_jobs_that_run_the_foundation_models_have_the_memory_for_them() -> None:
         env = {e["key"]: e.get("value") for e in service.get("envVars", [])}
         if env.get("VATICORE_WITH_FOUNDATION") == "1":
             assert service.get("plan") in ("standard", "pro", "pro plus"), service["name"]
+
+
+def test_the_blueprint_wires_every_database_and_keeps_data_in_one_region() -> None:
+    """Connection strings come from the blueprint's own databases, all in Frankfurt."""
+    import yaml
+
+    blueprint = yaml.safe_load((Path(__file__).parents[1] / "render.yaml").read_text())
+    databases = {d["name"]: d for d in blueprint["databases"]}
+    assert all(d["region"] == "frankfurt" for d in databases.values())
+    assert all(d.get("ipAllowList") == [] for d in databases.values())
+    names = set()
+    for service in blueprint["services"]:
+        names.add(service["name"])
+        assert service.get("region") == "frankfurt", service["name"]
+        env = {e["key"]: e for e in service.get("envVars", [])}
+        url = env.get("VATICORE_DATABASE_URL")
+        assert url is not None and "fromDatabase" in url, service["name"]
+        assert url["fromDatabase"]["name"] in databases
+        staging = env["VATICORE_ENVIRONMENT"]["value"] == "staging"
+        assert url["fromDatabase"]["name"] == (
+            "vaticore-db-staging" if staging else "vaticore-db"
+        ), service["name"]
+    drill = next(s for s in blueprint["services"] if s["name"] == "vaticore-restore-drill")
+    scratch = next(e for e in drill["envVars"] if e["key"] == "VATICORE_RESTORE_TEST_URL")
+    assert scratch["fromDatabase"]["name"] == "vaticore-db-restore-scratch"
+    assert {"vaticore-safety-net", "vaticore-weekly-summary", "vaticore-daily-plans"} <= names

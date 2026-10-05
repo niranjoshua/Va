@@ -29,22 +29,26 @@ docker compose up --build
 
 The repo ships a `render.yaml` blueprint and a `Dockerfile`.
 
+Step by step, with every click: `docs/pilot/launch-guide.md`, part 2.
+
 1. Push this repo to GitHub.
-2. In Render, create two Postgres databases (staging and production) and a
-   third, small, empty one for restore checks.
-3. **New > Blueprint**, select the repo. Render reads `render.yaml`: a staging
-   environment that deploys every push to `main`, and a production one that
-   deploys when you press Deploy (`docs/operations.md`).
-4. Set secrets in the Render dashboard (never commit them), per service:
-   - `VATICORE_DATABASE_URL`: that environment's Postgres connection string;
-   - `VATICORE_API_TOKEN`: the admin token (a long random string);
-   - `VATICORE_RESTORE_TEST_URL` on the restore drill: the empty database;
-   - optional: `VATICORE_SENTRY_DSN`, `VATICORE_HEARTBEAT_URL`,
+2. **New > Blueprint**, select the repo. Render reads `render.yaml` and
+   creates three Postgres databases (production, staging, and an empty one for
+   restore checks) and every service, all in Frankfurt, with each database's
+   connection string wired in. Staging deploys every push to `main`;
+   production deploys when you press Deploy (`docs/operations.md`).
+3. Render asks for the secrets (never commit them):
+   - `VATICORE_API_TOKEN`: the admin token (a long random string), different
+     for staging and production;
+   - the WhatsApp settings (`docs/whatsapp-setup.md`);
+   - optional: `VATICORE_SENTRY_DSN`, `VATICORE_HEARTBEAT_URL`, SMTP,
      `ANTHROPIC_API_KEY` (the LLM copilot degrades to a template without one).
+4. Upload the secret files (`portfolio.toml`, `recipients.toml`,
+   `sources.toml`) to the services that need them (launch guide, part 2.4).
 5. Deploy. Each API deploy first applies database migrations; Render then
    checks `GET /ready` (database reachable, schema current).
-6. Give each operator a key: `python -m vaticore.pipeline apikey create
-   --operator <id> --name <who>` (run in the API's Render shell).
+6. Give each operator a key: `uv run python -m vaticore.pipeline apikey create
+   --operator <id> --name <who>` (run in the API's Render Shell).
 
 The same `Dockerfile` runs on Railway, Fly.io, Google Cloud Run, or any
 container host. The container honours the platform provided `PORT`.

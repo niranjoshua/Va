@@ -11,13 +11,34 @@ operator. `DEPLOY.md` is the first-time setup; this page is how it runs.
 |---|---|---|
 | Deploys | every push to `main`, automatically | only when you press Deploy in Render |
 | Database | its own Postgres | its own Postgres |
+| Region | Frankfurt | Frankfurt |
 | Daily plans | made and stored, never sent | made, stored and sent (WhatsApp, email) |
-| Services | `vaticore-api-staging`, `vaticore-dashboard-staging`, `vaticore-daily-plans-staging` | `vaticore-api`, `vaticore-dashboard`, `vaticore-daily-plans`, `vaticore-weekly-summary`, `vaticore-restore-drill` |
+| Services | `vaticore-api-staging`, `vaticore-dashboard-staging`, `vaticore-daily-plans-staging` | `vaticore-api`, `vaticore-dashboard`, `vaticore-daily-plans`, `vaticore-safety-net`, `vaticore-weekly-summary`, `vaticore-restore-drill` |
 
 A change reaches production like this: merge to `main` (CI green), watch
 staging deploy and run its next daily plans, then deploy production by hand.
 Staging uses real-shaped data (a copy of a pilot's readings, or the example
-portfolio) and never messages anyone.
+portfolio) and never messages anyone on its schedule; the rehearsal sends to
+Vaticore staff by hand (docs/pilot/launch-guide.md, part 3).
+
+The blueprint creates the databases itself and wires their connection
+strings into every service. They accept connections only from Vaticore's own
+services (`ipAllowList: []`); history from a laptop goes in through the API
+(`examples/push_csv.py`). Everything runs in Frankfurt, which the data
+processing agreement names.
+
+## Nobody left guessing
+
+- A site whose data is too poor gets "no plan today, run as usual", with the
+  reason.
+- A site whose planning crashes gets the same, saying the fault is on
+  Vaticore's side.
+- At 19:30 Lagos, `vaticore-safety-net` resends any message whose send failed,
+  and tells any site the daily job never reached to run as usual, emailing
+  `VATICORE_OPS_EMAIL`. A site told "run as usual" never then gets a plan for
+  the same day: the two would contradict.
+
+What to do when something fails: `docs/runbook.md`.
 
 ## Operators' data kept separate
 

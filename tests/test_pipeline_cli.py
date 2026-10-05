@@ -217,3 +217,17 @@ def test_the_pilot_report_and_the_weekly_summary(
     )  # fmt: skip
     out = capsys.readouterr().out
     assert "Vaticore week of 7 Sep to 13 Sep, 1 site." in out and "(console): dry_run" in out
+
+
+def test_recent_replies_are_listed(env: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    from datetime import UTC, date, datetime
+
+    store = _store(env)
+    store.record_feedback(
+        provider_message_id="m1", received_at=datetime.now(tz=UTC), recipient_hash="h",
+        kind="reason", text="B", plan=("op", "s1", date(2026, 10, 6)), reason="no_diesel",
+    )  # fmt: skip
+    store.close()
+    assert main(["replies", "--days", "3"]) == 0
+    out = capsys.readouterr().out
+    assert "op/s1 2026-10-06  reason (no_diesel)  'B'" in out

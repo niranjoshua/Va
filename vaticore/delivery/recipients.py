@@ -85,7 +85,7 @@ class Recipient(BaseModel):
     sites: tuple[str, ...] = Field(min_length=1)
     consent: bool
     consent_note: str | None = None
-    language: str = "en"
+    language: str = "en"  # "en" English, "pcm" Nigerian Pidgin
     # Supervisors: a short summary of their sites' week, every Monday.
     weekly_summary: bool = False
 
@@ -98,6 +98,15 @@ class Recipient(BaseModel):
     @classmethod
     def _email(cls, value: str | None) -> str | None:
         return None if value is None else normalise_email(value)
+
+    @field_validator("language")
+    @classmethod
+    def _language(cls, value: str) -> str:
+        from vaticore.delivery.message import LANGUAGES
+
+        if value not in LANGUAGES:
+            raise ValueError(f"language {value!r} is not one of {', '.join(LANGUAGES)}")
+        return value
 
     @model_validator(mode="after")
     def _reachable(self) -> Recipient:
