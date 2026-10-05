@@ -14,6 +14,8 @@
     uv run python -m vaticore.pipeline whatsapp-test --to +234...
     uv run python -m vaticore.pipeline email-test --to someone@example.com
     uv run python -m vaticore.pipeline demo                     # full loop, synthetic
+    uv run python -m vaticore.pipeline migrate                  # apply schema migrations
+    uv run python -m vaticore.pipeline backup --out /backups --verify
 
 Settings (portfolio, recipients, sources, database, credentials) come from the
 environment or .env (see .env.example); flags override them. run and ingest
@@ -23,7 +25,6 @@ exit with status 1 if any site failed, so a scheduler can alert on it.
 from __future__ import annotations
 
 import argparse
-import logging
 import sys
 from collections.abc import Sequence
 from datetime import UTC, date, datetime
@@ -37,13 +38,15 @@ from vaticore.delivery.message import PlanMessage
 from vaticore.delivery.recipients import Recipient, email_hash, load_recipients, recipient_hash
 from vaticore.features.weather import OpenMeteoProvider
 from vaticore.ingestion.connectors import load_sources, sync_sources
+from vaticore.observability import heartbeat, init_error_tracking, setup_logging
 from vaticore.pipeline import monitoring
 from vaticore.pipeline.health import site_health_report
 from vaticore.pipeline.runner import run_portfolio
 from vaticore.pipeline.scoring import score_due, scorecard
 from vaticore.pipeline.store import PlanStore
 from vaticore.sites.model import Portfolio, load_portfolio
-from vaticore.storage import get_repository
+from vaticore.storage import get_repository, migrations
+from vaticore.storage.backup import backup, prune, verify_restore
 
 DEFAULT_PORTFOLIO = Path("examples/sites/nigeria_portfolio.toml")
 
@@ -52,9 +55,20 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = _parser()
     args = parser.parse_args(argv)
     settings = get_settings()
-    logging.basicConfig(
-        level=settings.log_level.upper(), format="%(asctime)s %(levelname)s %(name)s: %(message)s"
-    )
+    setup_logging(settings)
+    init_error_tracking(settings, f"pipeline-{args.command}")
+
+    if args.command == "migrate":
+        return _migrate(args, settings)
+    if args.command == "backup":
+        return _backup(args, settings)
+    if args.command == "restore-check":
+        scratch = args.scratch or (
+            settings.restore_test_url.get_secret_value() if settings.restore_test_url else None
+        )
+        check = verify_restore(args.dump, scratch)
+        print(check.to_text())
+        return 0 if check.ok else 1
 
     if args.command == "demo":
         from vaticore.pipeline.demo import run_demo
@@ -137,7 +151,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                     print(report.to_text() + "\n")
                     worst = max(worst, {"ok": 0, "warn": 0, "fail": 1}[report.status.value])
                 return worst
-            return _run(args, settings, portfolio, repo, store)
+            code = _run(args, settings, portfolio, repo, store)
+            heartbeat(settings, ok=code == 0)
+            return code
         finally:
             repo.close()
     finally:
@@ -249,6 +265,46 @@ def _apikey(args: argparse.Namespace, store: PlanStore) -> int:
         return 0 if ok else 1
     print(store.api_keys().to_string(index=False))
     return 0
+
+
+def _migrate(args: argparse.Namespace, settings: Settings) -> int:
+    targets = {migrations.READINGS: settings.database_url}
+    targets[migrations.PLANS] = settings.plan_store_url or settings.database_url
+    # Opening each store creates its baseline tables.
+    PlanStore(targets[migrations.PLANS]).close()
+    get_repository(settings).close()
+    for database, url in targets.items():
+        if args.status:
+            state = migrations.status(url, database)
+            pending = ", ".join(f"{m.version} {m.name}" for m in state.pending) or "none"
+            print(f"{database}: applied {list(state.applied)}; pending: {pending}")
+            continue
+        for m in migrations.migrate(url, database):
+            print(f"{database}: applied {m.version} {m.name}")
+    if not args.status:
+        print("migrations: up to date")
+    return 0
+
+
+def _backup(args: argparse.Namespace, settings: Settings) -> int:
+    urls = [settings.database_url]
+    if settings.plan_store_url and settings.plan_store_url != settings.database_url:
+        urls.append(settings.plan_store_url)
+    ok = True
+    for url in urls:
+        result = backup(url, args.out)
+        print(f"backed up {sum(result.tables.values())} rows to {result.path}")
+        if args.verify:
+            scratch = (
+                settings.restore_test_url.get_secret_value() if settings.restore_test_url else None
+            )
+            check = verify_restore(result.path, scratch)
+            print(check.to_text())
+            ok = ok and check.ok
+    if args.keep:
+        for path in prune(args.out, args.keep):
+            print(f"removed old backup {path.name}")
+    return 0 if ok else 1
 
 
 def _fuel_record(args: argparse.Namespace, store: PlanStore) -> int:
@@ -385,6 +441,19 @@ def _parser() -> argparse.ArgumentParser:
     test.add_argument("--to", required=True, help="a number allowed to receive test messages")
     mail = sub.add_parser("email-test", help="send a test email")
     mail.add_argument("--to", required=True)
+
+    mig = sub.add_parser("migrate", help="apply pending database migrations")
+    mig.add_argument("--status", action="store_true", help="list without applying")
+
+    bak = sub.add_parser("backup", help="back up the databases, optionally proving a restore")
+    bak.add_argument("--out", type=Path, required=True, help="directory for backups")
+    bak.add_argument("--keep", type=int, help="keep only the newest N backups")
+    bak.add_argument(
+        "--verify", action="store_true", help="restore into VATICORE_RESTORE_TEST_URL and compare"
+    )
+    chk = sub.add_parser("restore-check", help="restore a backup into a scratch database")
+    chk.add_argument("--dump", type=Path, required=True)
+    chk.add_argument("--scratch", help="scratch database URL (default VATICORE_RESTORE_TEST_URL)")
 
     demo = sub.add_parser("demo", help="a week of the full loop on synthetic data")
     demo.add_argument("--portfolio", type=Path, default=DEFAULT_PORTFOLIO)

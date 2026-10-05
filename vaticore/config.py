@@ -29,6 +29,13 @@ class Settings(BaseSettings):
     # Runtime
     environment: str = Field(default="local", description="local, staging or production.")
     log_level: str = Field(default="INFO")
+    log_format: str = Field(default="text", description="text, or json for hosted log search")
+    # Error tracking (Sentry; needs the ops extra) and the daily job's heartbeat
+    # (Healthchecks.io or Better Stack): see vaticore/observability.py.
+    sentry_dsn: SecretStr | None = Field(default=None)
+    heartbeat_url: SecretStr | None = Field(default=None)
+    # A scratch database that backup checks restore into (never production).
+    restore_test_url: SecretStr | None = Field(default=None)
 
     # Storage. DuckDB is fine for local development and early backtests.
     # Point this at Postgres/TimescaleDB in staging and production.

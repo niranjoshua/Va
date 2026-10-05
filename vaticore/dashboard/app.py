@@ -11,6 +11,10 @@ demo of a real forecast, not a mockup.
 Run with:
     uv sync --extra dashboard
     uv run streamlit run vaticore/dashboard/app.py
+
+Locally it shows a synthetic demo fleet. In staging and production
+(VATICORE_ENVIRONMENT) it asks for an access key, shows real readings, and
+lists only the signed-in operator's sites (see dashboard/data.py).
 """
 
 from __future__ import annotations
@@ -21,11 +25,16 @@ from typing import Any
 import pandas as pd
 
 from vaticore import engine
-from vaticore.datasets import make_synthetic_fleet
+from vaticore.access import Access
+from vaticore.config import Settings, get_settings
+from vaticore.dashboard import data
 from vaticore.decisions.dispatch import DispatchPlan, SiteAssets
 from vaticore.evaluation.calibration import recent_coverage
 from vaticore.forecasting.base import ForecasterError, quantile_column
-from vaticore.schemas import GENERATION_KW, LOAD_KW, OPERATOR_ID, SITE_ID, TIMESTAMP
+from vaticore.observability import init_error_tracking
+from vaticore.pipeline.store import PlanStore
+from vaticore.schemas import GENERATION_KW, LOAD_KW, TIMESTAMP
+from vaticore.storage import get_repository
 
 QUANTILES = (0.1, 0.5, 0.9)
 HISTORY_TAIL = 24 * 7  # show one week of context behind the forecast
@@ -39,9 +48,41 @@ AMBER = "#B86F05"
 ASSETS = Path(__file__).parent / "assets"
 
 
-def _load_fleet(days: int) -> pd.DataFrame:
-    # Demo data. Replace with a repository read against real operator feeds.
-    return make_synthetic_fleet(days=days, seed=1)
+_TRACKING: list[bool] = []
+
+
+def _start_error_tracking(settings: Settings) -> None:
+    """Once per process: Streamlit re-runs this script on every interaction."""
+    if not _TRACKING:
+        _TRACKING.append(init_error_tracking(settings, "dashboard"))
+
+
+def _sign_in(st: Any, settings: Settings) -> Access | None:
+    """The signed-in person's access, or None after showing the sign-in form."""
+    if data.demo_mode(settings):
+        return Access(None)
+    if "access" in st.session_state:
+        return st.session_state["access"]  # type: ignore[no-any-return]
+    guard = st.session_state.setdefault("sign_in_guard", data.SignInGuard())
+    st.subheader("Sign in")
+    with st.form("sign_in"):
+        key = st.text_input("Access key", type="password", help="Your operator key from Vaticore")
+        submitted = st.form_submit_button("Sign in")
+    if submitted:
+        if guard.locked():
+            st.error("Too many attempts. Wait a minute and try again.")
+            return None
+        store = PlanStore(settings.plan_store_url or settings.database_url)
+        try:
+            granted = guard.attempt(key, settings, store)
+        finally:
+            store.close()
+        if granted is None:
+            st.error("That key was not recognised, or has been revoked.")
+            return None
+        st.session_state["access"] = granted
+        st.rerun()
+    return None
 
 
 def _forecast_figure(history: pd.DataFrame, target: str, forecast: pd.DataFrame) -> Any:
@@ -152,12 +193,25 @@ def main() -> None:
     st.logo(str(ASSETS / "vaticore-lockup.png"), icon_image=str(ASSETS / "vaticore-icon-512.png"))
     st.caption("Probabilistic load and solar forecasting for distributed energy operators.")
 
-    fleet = _load_fleet(days=90)
-    sites = fleet[[OPERATOR_ID, SITE_ID]].drop_duplicates()
+    settings = get_settings()
+    _start_error_tracking(settings)
+    granted = _sign_in(st, settings)
+    if granted is None:
+        return
+    repo = None if data.demo_mode(settings) else get_repository(settings)
+    sites = data.visible_sites(settings, granted, repo)
+    if not sites:
+        st.info("No sites with readings yet for this account.")
+        return
 
     with st.sidebar:
+        if not data.demo_mode(settings):
+            st.caption(f"Signed in as {granted.label}")
+            if st.button("Sign out"):
+                st.session_state.pop("access", None)
+                st.rerun()
         st.header("Site")
-        labels = [f"{r[OPERATOR_ID]} / {r[SITE_ID]}" for _, r in sites.iterrows()]
+        labels = [f"{o} / {s}" for o, s in sites]
         choice = st.selectbox("Site", labels)
         operator_id, site_id = (part.strip() for part in choice.split("/"))
         battery = st.number_input("Usable battery (kWh)", min_value=10.0, value=600.0, step=50.0)
@@ -178,7 +232,10 @@ def main() -> None:
         )
         horizon = st.slider("Forecast horizon (hours)", 6, 48, 24, step=6)
 
-    history = engine.select_site(fleet, operator_id, site_id)
+    history = data.site_history(settings, granted, repo, operator_id, site_id)
+    if history.empty:
+        st.info("No recent readings for this site.")
+        return
 
     # Site Today: lead with the schedule an operator acts on, then the chart,
     # then the evidence. Answers first, jargon later. Advisory only.

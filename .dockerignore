@@ -13,6 +13,12 @@ data
 mlruns
 tests
 examples
+!examples/sites
+# Personal data never goes into an image; only the templates do.
+**/recipients*.toml
+**/sources*.toml
+!examples/sites/recipients.example.toml
+!examples/sites/sources.example.toml
 docs
 notebook*.ipynb
 .env

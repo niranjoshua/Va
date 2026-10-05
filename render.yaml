@@ -1,64 +1,108 @@
 # Render blueprint. Push this repo, then in Render: New > Blueprint, point it here.
 # Docs: https://render.com/docs/blueprint-spec
+#
+# Two environments from one image (docs/operations.md):
+#   staging     deploys every push to main automatically. Check it there first.
+#   production  deploys only when you press Deploy (autoDeploy: false), after
+#               staging looks right.
+# Each environment has its own Postgres: set VATICORE_DATABASE_URL per service.
+# Secrets marked "sync: false" are entered in the Render dashboard, never here.
+# Before each API deploy goes live, pending database migrations are applied.
 services:
+  # -- production ---------------------------------------------------------------
   - type: web
     name: vaticore-api
     runtime: docker
     dockerfilePath: ./Dockerfile
     plan: starter
-    healthCheckPath: /health
+    autoDeploy: false
+    healthCheckPath: /ready
+    preDeployCommand: uv run python -m vaticore.pipeline migrate
     envVars:
       - key: VATICORE_ENVIRONMENT
         value: production
-      # Set secrets in the Render dashboard, not here:
-      #   VATICORE_DATABASE_URL, ANTHROPIC_API_KEY
-      - key: ANTHROPIC_API_KEY
-        sync: false
+      - key: VATICORE_LOG_FORMAT
+        value: json
       - key: VATICORE_DATABASE_URL
         sync: false
-      # WhatsApp webhook (replies, receipts, STOP) and the API token for
-      # plan and scorecard endpoints.
+      # Admin token (Vaticore only). Operators get their own keys:
+      #   python -m vaticore.pipeline apikey create --operator ...
+      - key: VATICORE_API_TOKEN
+        sync: false
+      # WhatsApp webhook (replies, receipts, STOP).
       - key: VATICORE_WHATSAPP_APP_SECRET
         sync: false
       - key: VATICORE_WHATSAPP_VERIFY_TOKEN
         sync: false
-      - key: VATICORE_API_TOKEN
+      - key: VATICORE_PORTFOLIO_FILE
+        value: /etc/secrets/portfolio.toml
+      - key: VATICORE_SENTRY_DSN
+        sync: false
+      - key: ANTHROPIC_API_KEY
         sync: false
 
-  # The daily pipeline: pull new readings, score finished days, then plan every
-  # site's next local day (midnight to midnight) and send the plans on WhatsApp.
-  # 17:00 UTC is 18:00 in Lagos: the plan for tomorrow arrives the evening
-  # before. Shares the web service's Postgres (the webhook writes replies to
-  # it). Add "--channel email" to the run once SMTP is set.
+  # The operators' dashboard: sign in with an operator key, see only that
+  # operator's sites.
+  - type: web
+    name: vaticore-dashboard
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    autoDeploy: false
+    healthCheckPath: /_stcore/health
+    dockerCommand: >-
+      sh -c "uv run streamlit run vaticore/dashboard/app.py --server.port $PORT
+      --server.address 0.0.0.0 --server.headless true"
+    envVars:
+      - key: VATICORE_ENVIRONMENT
+        value: production
+      - key: VATICORE_LOG_FORMAT
+        value: json
+      - key: VATICORE_DATABASE_URL
+        sync: false
+      - key: VATICORE_API_TOKEN
+        sync: false
+      - key: VATICORE_SENTRY_DSN
+        sync: false
+
+  # The daily pipeline: migrate, pull new readings, score finished days, then
+  # plan every site's next local day (midnight to midnight) and send the plans
+  # on WhatsApp. 17:00 UTC is 18:00 in Lagos: tomorrow's plan arrives the
+  # evening before. Built with the foundation models baked in (Chronos-2 plans
+  # sites with under eight weeks of history). Add "--channel email" to the run
+  # once SMTP is set. The heartbeat URL alerts if the job does not run.
   - type: cron
     name: vaticore-daily-plans
     runtime: docker
     dockerfilePath: ./Dockerfile
+    autoDeploy: false
     schedule: "0 17 * * *"
     dockerCommand: >-
-      sh -c "uv run python -m vaticore.pipeline ingest;
+      sh -c "uv run python -m vaticore.pipeline migrate &&
+      uv run python -m vaticore.pipeline ingest;
       uv run python -m vaticore.pipeline score;
       uv run python -m vaticore.pipeline run --channel whatsapp"
     envVars:
       - key: VATICORE_ENVIRONMENT
         value: production
-      # Secrets and files, set in the Render dashboard (see docs/pipeline.md):
-      #   VATICORE_DATABASE_URL, VATICORE_WHATSAPP_TOKEN,
-      #   VATICORE_WHATSAPP_PHONE_NUMBER_ID, VATICORE_VRM_TOKEN, the SMTP
-      #   settings if email is used, and the secret files portfolio.toml,
-      #   recipients.toml and sources.toml under /etc/secrets/.
-      - key: VATICORE_DATABASE_URL
-        sync: false
-      - key: VATICORE_WHATSAPP_TOKEN
-        sync: false
-      - key: VATICORE_WHATSAPP_PHONE_NUMBER_ID
-        sync: false
+      - key: VATICORE_WITH_FOUNDATION
+        value: "1"
+      - key: VATICORE_LOG_FORMAT
+        value: json
+      # Secret files, uploaded in the Render dashboard: portfolio.toml,
+      # recipients.toml and sources.toml under /etc/secrets/.
       - key: VATICORE_PORTFOLIO_FILE
         value: /etc/secrets/portfolio.toml
       - key: VATICORE_RECIPIENTS_FILE
         value: /etc/secrets/recipients.toml
       - key: VATICORE_SOURCES_FILE
         value: /etc/secrets/sources.toml
+      - key: VATICORE_DATABASE_URL
+        sync: false
+      - key: VATICORE_WHATSAPP_TOKEN
+        sync: false
+      - key: VATICORE_WHATSAPP_PHONE_NUMBER_ID
+        sync: false
       - key: VATICORE_VRM_TOKEN
         sync: false
       - key: VATICORE_SMTP_HOST
@@ -72,4 +116,100 @@ services:
       - key: VATICORE_WEATHER_API_KEY
         sync: false
       - key: VATICORE_OPS_EMAIL
+        sync: false
+      - key: VATICORE_SENTRY_DSN
+        sync: false
+      - key: VATICORE_HEARTBEAT_URL
+        sync: false
+
+  # Weekly restore drill: back up production, restore it into a scratch
+  # database, and check every table came back whole. Fails (and alerts through
+  # Sentry and the heartbeat) if a restore would not work. Render's managed
+  # Postgres keeps the backups themselves; this proves they restore.
+  - type: cron
+    name: vaticore-restore-drill
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    autoDeploy: false
+    schedule: "15 3 * * 1"
+    dockerCommand: >-
+      sh -c "uv run python -m vaticore.pipeline backup --out /tmp/backups --verify"
+    envVars:
+      - key: VATICORE_ENVIRONMENT
+        value: production
+      - key: VATICORE_DATABASE_URL
+        sync: false
+      # An empty database made for restore checks, never a real one.
+      - key: VATICORE_RESTORE_TEST_URL
+        sync: false
+      - key: VATICORE_SENTRY_DSN
+        sync: false
+
+  # -- staging: every push to main, against its own database -------------------
+  - type: web
+    name: vaticore-api-staging
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    healthCheckPath: /ready
+    preDeployCommand: uv run python -m vaticore.pipeline migrate
+    envVars:
+      - key: VATICORE_ENVIRONMENT
+        value: staging
+      - key: VATICORE_LOG_FORMAT
+        value: json
+      - key: VATICORE_DATABASE_URL
+        sync: false
+      - key: VATICORE_API_TOKEN
+        sync: false
+      - key: VATICORE_PORTFOLIO_FILE
+        value: /etc/secrets/portfolio.toml
+      - key: VATICORE_SENTRY_DSN
+        sync: false
+
+  - type: web
+    name: vaticore-dashboard-staging
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    healthCheckPath: /_stcore/health
+    dockerCommand: >-
+      sh -c "uv run streamlit run vaticore/dashboard/app.py --server.port $PORT
+      --server.address 0.0.0.0 --server.headless true"
+    envVars:
+      - key: VATICORE_ENVIRONMENT
+        value: staging
+      - key: VATICORE_DATABASE_URL
+        sync: false
+      - key: VATICORE_API_TOKEN
+        sync: false
+
+  # Staging plans every day too, stored but never sent, so a change shows its
+  # effect on real-shaped data (staging API and dashboard) before production.
+  - type: cron
+    name: vaticore-daily-plans-staging
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    schedule: "0 16 * * *"
+    dockerCommand: >-
+      sh -c "uv run python -m vaticore.pipeline migrate &&
+      uv run python -m vaticore.pipeline ingest;
+      uv run python -m vaticore.pipeline score;
+      uv run python -m vaticore.pipeline run"
+    envVars:
+      - key: VATICORE_ENVIRONMENT
+        value: staging
+      - key: VATICORE_WITH_FOUNDATION
+        value: "1"
+      - key: VATICORE_LOG_FORMAT
+        value: json
+      - key: VATICORE_PORTFOLIO_FILE
+        value: /etc/secrets/portfolio.toml
+      - key: VATICORE_SOURCES_FILE
+        value: /etc/secrets/sources.toml
+      - key: VATICORE_DATABASE_URL
+        sync: false
+      - key: VATICORE_VRM_TOKEN
+        sync: false
+      - key: VATICORE_SENTRY_DSN
         sync: false

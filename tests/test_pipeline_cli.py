@@ -165,3 +165,22 @@ def test_fuel_deliveries_are_recorded_and_reconciled(
     out = capsys.readouterr().out
     assert "Delivered 250 L" in out and "drop_while_off" not in out  # codes stay internal
     assert "while the generator was off" in out and "INV-9" in out
+
+
+def test_migrate_and_a_verified_backup(env: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["migrate", "--status"]) == 0
+    assert "pending: 1 " in capsys.readouterr().out
+    assert main(["migrate"]) == 0
+    assert "up to date" in capsys.readouterr().out
+    assert main(["migrate", "--status"]) == 0
+    assert "pending: none" in capsys.readouterr().out
+
+    store = _store(env)
+    store.add_delivery("op", "s1", pd.Timestamp("2026-10-01", tz="UTC").to_pydatetime(), 50.0,
+                       None, pd.Timestamp("2026-10-01", tz="UTC").to_pydatetime())  # fmt: skip
+    store.close()
+    assert main(["backup", "--out", str(env / "backups"), "--verify", "--keep", "2"]) == 0
+    out = capsys.readouterr().out
+    assert out.count("Restore check") == 2 and "FAILED" not in out
+    dump = next(p for p in (env / "backups").iterdir() if p.is_dir())
+    assert main(["restore-check", "--dump", str(dump)]) == 0
