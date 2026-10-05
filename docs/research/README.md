@@ -53,6 +53,25 @@ notebooks, and each can be rerun from one command.
 | [2. Vaticore against a grid operator's own forecasts](elia-benchmark.md) | RQ1, RQ2, RQ3 | Elia (Belgium) load 2015 to 2026 and solar 2025 to 2026, with Elia's P10, P50 and P90 | Load: parity with Elia's forecast over 453 held-out days, with a better calibrated range (80.4% against 74.9%), no weather. Solar: weather is the gap (Elia 68% better than persistence, Vaticore 23%). Value: calibrated P90 captured 85% of possible savings, Elia's medians 84% |
 | [3. Pretrained foundation models against Vaticore's planning model](foundation-models.md) | RQ1, RQ5 | Elia load and solar (Spain excluded: it is in the models' pretraining data) | Chronos-2, zero shot, no weather: 21% lower pinball than Elia's own load forecast and Vaticore's GBM over 453 days, calibrated range 80.3%; value 86.7% of possible against 85.2%; with two weeks of history it beat the GBM with three years |
 
+## Results are locked
+
+A published number cannot change without someone deciding it should:
+
+- **Tables and prose.** Every number in every table under `results/` is
+  checked against its JSON record, to the precision printed, and every
+  headline quoted in the notes, this index and the README is checked against
+  the JSON it came from (`tests/test_published_results.py`).
+- **The code behind them.** The backtest harness, conformal calibration, the
+  value backtest, the planner, a full pipeline day and fuel reconciliation run
+  on fixed synthetic data in CI and are compared with golden numbers
+  (`tests/test_golden.py`). Any change that moves a number fails until it is
+  accepted with `uv run pytest tests/test_golden.py --update-golden`, which
+  shows the change as a diff in review.
+- **The studies themselves.** Where the data is, `examples/verify_results.py`
+  reruns each study with the settings its result recorded and lists every
+  number that moved. Run it before publishing and whenever the golden tests
+  flag a change, then update the results, tables and prose together.
+
 ## Data catalogue
 
 | Dataset | Content | Period | Licence and source | Used in |

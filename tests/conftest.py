@@ -64,3 +64,16 @@ def multi_site() -> pd.DataFrame:
     a = _make_site("op1", "siteA", days=20, seed=7)
     b = _make_site("op2", "siteB", days=20, seed=99)
     return pd.concat([a, b], ignore_index=True)
+
+
+def pytest_addoption(parser: pytest.Parser) -> None:
+    parser.addoption(
+        "--update-golden",
+        action="store_true",
+        help="rewrite tests/golden/*.json from the current code (a deliberate change)",
+    )
+
+
+@pytest.fixture
+def update_golden(request: pytest.FixtureRequest) -> bool:
+    return bool(request.config.getoption("--update-golden"))
