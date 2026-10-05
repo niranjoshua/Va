@@ -97,7 +97,7 @@ One image serves the API, the dashboard and the pipeline. It carries the
 Postgres client tools for backups and runs as an unprivileged user.
 
 ```bash
-docker build -t vaticore .                                             # about 1 GB
+docker build -t vaticore .
 docker build -t vaticore-fm --build-arg VATICORE_WITH_FOUNDATION=1 .   # plus Chronos-2
 ```
 
@@ -105,7 +105,8 @@ The foundation build installs CPU-only PyTorch (not PyPI's Linux build, which
 brings several gigabytes of GPU libraries) and every other package at its
 locked version, then downloads the Chronos-2 weights into the image. At run
 time it never contacts Hugging Face (`HF_HUB_OFFLINE`), so a plan never waits
-on a download or fails because one did. The daily jobs use it; the API and
+on a download or fails because one did. Docker reports the base image at
+about 2.3 GB and the foundation image at about 4.1 GB, uncompressed. The daily jobs use it; the API and
 dashboard use the lighter image. CI builds and starts the image on every pull
 request, and builds the foundation image (and forecasts with Chronos-2 with no
 network) whenever its inputs change.
