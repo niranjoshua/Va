@@ -12,7 +12,7 @@ operator. `DEPLOY.md` is the first-time setup; this page is how it runs.
 | Deploys | every push to `main`, automatically | only when you press Deploy in Render |
 | Database | its own Postgres | its own Postgres |
 | Daily plans | made and stored, never sent | made, stored and sent (WhatsApp, email) |
-| Services | `vaticore-api-staging`, `vaticore-dashboard-staging`, `vaticore-daily-plans-staging` | `vaticore-api`, `vaticore-dashboard`, `vaticore-daily-plans`, `vaticore-restore-drill` |
+| Services | `vaticore-api-staging`, `vaticore-dashboard-staging`, `vaticore-daily-plans-staging` | `vaticore-api`, `vaticore-dashboard`, `vaticore-daily-plans`, `vaticore-weekly-summary`, `vaticore-restore-drill` |
 
 A change reaches production like this: merge to `main` (CI green), watch
 staging deploy and run its next daily plans, then deploy production by hand.
@@ -106,8 +106,15 @@ brings several gigabytes of GPU libraries) and every other package at its
 locked version, then downloads the Chronos-2 weights into the image. At run
 time it never contacts Hugging Face (`HF_HUB_OFFLINE`), so a plan never waits
 on a download or fails because one did. Docker reports the base image at
-about 2.3 GB and the foundation image at about 4.1 GB, uncompressed. The daily jobs use it; the API and
-dashboard use the lighter image. CI builds and starts the image on every pull
+about 2.3 GB and the foundation image at about 4.1 GB, uncompressed. The daily
+jobs use it; the API and dashboard use the lighter image.
+
+Memory: one Chronos-2 forecast peaked at 1.3 GB in testing (with a PyTorch
+build that includes GPU libraries; the image's CPU build needs less). The
+daily jobs therefore run on Render's `standard` instance (2 GB), not the
+default `starter` (512 MB), which would kill them partway through.
+`tests/test_operations.py` fails if a job that loads the foundation models is
+given a smaller instance. CI builds and starts the image on every pull
 request, and builds the foundation image (and forecasts with Chronos-2 with no
 network) whenever its inputs change.
 

@@ -83,6 +83,37 @@ Vaticore uses one template for every plan.
 The template's wording lives in `vaticore/delivery/message.py`
 (`TEMPLATE_BODY`). If you change one, change the other to match.
 
+### The weekly summary template
+
+Supervisors get a short summary of their sites' week every Monday (only
+people with `weekly_summary = true` in the recipients file). It is a second
+template; submit it at the same time as the daily plan, since approval is the
+step that takes longest.
+
+1. **Category: Utility.** **Name:** `vaticore_weekly_summary`. **Language:**
+   English.
+2. **Body:** paste exactly:
+
+   ```text
+   Vaticore week of {{1}}.
+   Plans: {{2}}
+   Value: {{3}}
+   Why not followed: {{4}}
+   Fuel: {{5}}
+   Data: {{6}}
+   Advisory only. Reply STOP to stop these messages.
+   ```
+
+3. **Sample values:**
+   1. `28 Sep to 4 Oct, 3 sites`
+   2. `21 sent, 15 followed, 4 not followed, 2 unanswered.`
+   3. `following the plans saved about 85 L (NGN 106,250) (modelled against planning from yesterday).`
+   4. `no diesel 3, generator fault 1.`
+   5. `1 check at Ikorodu tower, 28 L (NGN 35,000).`
+   6. `readings complete at every site.`
+4. If you choose another name, set `VATICORE_WHATSAPP_SUMMARY_TEMPLATE`. The
+   wording lives in `vaticore/pipeline/summary.py` (`SUMMARY_BODY`).
+
 ## 4. A permanent token
 
 The 24-hour token is for testing. For the daily job:
@@ -119,13 +150,17 @@ So Vaticore knows when a plan was delivered and read, and hears replies:
 5. In **App settings > Basic**, copy the **App secret** into
    `VATICORE_WHATSAPP_APP_SECRET` on the API service. Every webhook is checked
    against it; without it the API refuses webhooks.
+6. Also set `VATICORE_WHATSAPP_TOKEN` and `VATICORE_WHATSAPP_PHONE_NUMBER_ID`
+   on the API service, so it can ask "why not?" after a reply of 2. Without
+   them the 2 is still recorded; the question is just not asked.
 
 What replies do:
 
 | Reply | Effect |
 |---|---|
 | `1`, yes, done | Recorded as "followed the plan" for that day |
-| `2`, no | Recorded as "did not follow" |
+| `2`, no | Recorded as "did not follow", and Vaticore asks why: A generator fault, B no diesel, C grid was on, D battery problem, E told to run it differently, or any text |
+| The answer to "why" (within 24 hours) | Stored as the reason for that day; shown in the weekly summary and the pilot report |
 | `STOP` | That number gets no more plans, whatever the recipients file says |
 | `START` | Plans resume |
 | Anything else | Stored as feedback for the team to read |

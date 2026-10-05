@@ -37,9 +37,9 @@ def test_migrations_apply_once_and_in_order(tmp_path: Path) -> None:
     url = f"duckdb:///{tmp_path / 'plans.duckdb'}"
     PlanStore(url).close()  # the baseline tables
     before = migrations.status(url, migrations.PLANS)
-    assert before.applied == () and [m.version for m in before.pending] == [1, 2, 3]
+    assert before.applied == () and [m.version for m in before.pending] == [1, 2, 3, 4, 5]
     applied = migrations.migrate(url, migrations.PLANS, now=NOW)
-    assert [m.version for m in applied] == [1, 2, 3]
+    assert [m.version for m in applied] == [1, 2, 3, 4, 5]
     assert migrations.migrate(url, migrations.PLANS) == []
     assert migrations.status(url, migrations.PLANS).current
     assert migrations.status(url, migrations.READINGS).current  # nothing for readings yet
@@ -184,3 +184,41 @@ def test_the_heartbeat_reports_success_and_failure() -> None:
     heartbeat(settings, ok=False, client=client)
     heartbeat(Settings(), ok=True, client=client)  # not configured: nothing sent
     assert seen == ["https://hc.example/ping/abc", "https://hc.example/ping/abc/fail"]
+
+
+def test_a_database_from_before_reasons_gains_them_on_migrate(tmp_path: Path) -> None:
+    """An existing feedback table, created before replies carried a reason."""
+    import duckdb
+
+    path = tmp_path / "old.duckdb"
+    con = duckdb.connect(str(path))
+    con.execute(
+        "CREATE TABLE feedback (provider_message_id TEXT PRIMARY KEY, received_at TIMESTAMPTZ"
+        " NOT NULL, recipient_hash TEXT NOT NULL, operator_id TEXT, site_id TEXT,"
+        " plan_date DATE, kind TEXT NOT NULL, text TEXT)"
+    )
+    con.execute(
+        "INSERT INTO feedback VALUES ('m1', now(), 'h', 'op', 's', '2026-10-01', 'followed', '1')"
+    )
+    con.close()
+    url = f"duckdb:///{path}"
+    migrations.migrate(url, migrations.PLANS, now=NOW)
+    store = PlanStore(url)
+    assert store.record_feedback(
+        provider_message_id="m2", received_at=NOW, recipient_hash="h", kind="reason",
+        text="B", plan=("op", "s", date(2026, 10, 1)), reason="no_diesel",
+    )  # fmt: skip
+    rows = store.feedback("op")
+    assert "no_diesel" in rows["reason"].tolist() and len(rows) == 2
+    store.close()
+
+
+def test_jobs_that_run_the_foundation_models_have_the_memory_for_them() -> None:
+    """Chronos-2 with PyTorch peaks above 1 GB; Render's default instance has 512 MB."""
+    import yaml
+
+    blueprint = yaml.safe_load((Path(__file__).parents[1] / "render.yaml").read_text())
+    for service in blueprint["services"]:
+        env = {e["key"]: e.get("value") for e in service.get("envVars", [])}
+        if env.get("VATICORE_WITH_FOUNDATION") == "1":
+            assert service.get("plan") in ("standard", "pro", "pro plus"), service["name"]
