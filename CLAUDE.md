@@ -113,6 +113,7 @@ Rules:
 - The backtesting harness lives in `evaluation/` as real, tested code, not notebooks.
 - Log every run to MLflow with the site, model, config and metrics, so comparisons are reproducible for both pilots and the research paper.
 - Calibration is reported with every probabilistic result: does the P10 to P90 range hold about 80% of outcomes?
+- Published numbers are locked. Every table in `docs/research/results/` and every headline quoted in the docs is tested against its result JSON (`tests/test_published_results.py`), and the code paths behind them against golden numbers (`tests/test_golden.py`). A change that moves a number is made on purpose: `--update-golden`, rerun the studies (`examples/verify_results.py`), update results and prose in the same pull request.
 - Decision value is measured with the value backtest (litres, outage hours, money against persistence and a perfect-forecast bound). Follow the protocol in `docs/research/README.md`: design and test periods separate, test run once, assumptions shown with a sensitivity table.
 
 ---

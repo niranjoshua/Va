@@ -1,0 +1,22 @@
+{
+  "burned_l": 160.33499999999998,
+  "delivered_l": 200.0,
+  "findings": [
+    {
+      "code": "short_delivery",
+      "litres": 28.580883238635977,
+      "severity": "alert"
+    },
+    {
+      "code": "drop_while_off",
+      "litres": 24.54368086537079,
+      "severity": "alert"
+    },
+    {
+      "code": "unexplained_loss",
+      "litres": 25.81638073049564,
+      "severity": "warn"
+    }
+  ],
+  "withdrawn_l": 185.99479393252045
+}

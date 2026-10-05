@@ -54,7 +54,7 @@ COPY vaticore ./vaticore
 RUN uv sync --frozen --no-dev --extra service --extra postgres --extra dashboard --extra ops
 
 # Foundation models (Chronos-2) with CPU-only PyTorch and the weights baked in,
-# so plans never wait on a download. Adds about 1 GB.
+# so plans never wait on a download. Adds roughly 2 GB as Docker reports it.
 COPY docker/install_foundation.sh /tmp/install_foundation.sh
 RUN if [ "$VATICORE_WITH_FOUNDATION" = "1" ]; then \
       sh /tmp/install_foundation.sh "$TORCH_INDEX" && chown -R vaticore /app/.hf; \

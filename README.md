@@ -29,9 +29,9 @@ Working end to end, with a real forecasting model, an API and a dashboard.
   which sharply improve the solar generation forecast (see
   `examples/weather_lift.py`).
 - **Evaluation**: pinball loss, calibration and a rolling origin backtest that
-  always scores the candidate against persistence. On synthetic demo data the
-  quantile GBM cuts pinball loss by roughly **40% on load** and **18% on solar
-  generation** versus the baseline.
+  always scores the candidate against persistence. On the quickstart's
+  synthetic demo data the quantile GBM cuts pinball loss by **43% on load** and
+  **17% on solar generation** versus the baseline.
 - **Calibration**: conformal calibration (CQR) so the P10 to P90 range holds
   about 80% of outcomes, as a wrapper for any model
   (`ConformalQuantileForecaster`) and fold by fold inside backtests. Coverage is
