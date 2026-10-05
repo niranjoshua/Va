@@ -176,11 +176,16 @@ command. The protocol is in [`docs/research/README.md`](research/README.md).
 - One Docker image serves the API, the dashboard and the daily pipeline.
 - TimescaleDB is the production store, shared by the API (which receives
   WhatsApp webhooks) and the scheduled pipeline.
-- A Render blueprint is in `render.yaml` (see `DEPLOY.md`): the web service and
-  a daily job that pulls new readings, scores finished days, then plans every
-  site and sends the plans on WhatsApp or email (`docs/pipeline.md`).
-- Operators reach only their own sites: each has its own API key, stored
-  hashed, and every site endpoint checks the key's operator against the path.
+- A Render blueprint is in `render.yaml` (see `DEPLOY.md`): staging (every push
+  to main) and production (deployed by hand), each with the API, the dashboard
+  and the daily job, which pulls new readings, scores finished days, then plans
+  every site and sends the plans on WhatsApp or email (`docs/pipeline.md`).
+- Operators reach only their own sites, in the API and the dashboard: each has
+  its own key, stored hashed, checked by one rule (`vaticore/access.py`).
+- Versioned migrations, JSON logs, Sentry, a readiness check, a heartbeat for
+  the daily job, and a weekly drill that restores a backup and checks every
+  table (`docs/operations.md`). The daily job's image carries Chronos-2 with
+  CPU PyTorch, weights baked in.
 
 ## What comes next architecturally
 

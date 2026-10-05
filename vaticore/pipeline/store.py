@@ -240,6 +240,9 @@ class ScoreRecord:
 _JSON_FIELDS = ("health", "assets", "detail")
 
 
+_SCHEMA_READY: set[str] = set()
+
+
 class PlanStore:
     """Plans, forecasts, scores and deliveries, in DuckDB or Postgres."""
 
@@ -263,9 +266,17 @@ class PlanStore:
             self._con.execute("SET TIME ZONE 'UTC'")
             self._postgres = True
             ddl = _DDL.format(DOUBLE="DOUBLE PRECISION")
-        for statement in ddl.split(";"):
-            if statement.strip():
-                self._con.execute(statement)
+        # The baseline tables, once per database per process (":memory:" is a
+        # new database every time).
+        if url not in _SCHEMA_READY or ":memory:" in url:
+            for statement in ddl.split(";"):
+                if statement.strip():
+                    self._con.execute(statement)
+            _SCHEMA_READY.add(url)
+
+    def ping(self) -> None:
+        """Raise if the database cannot be reached."""
+        self._df("SELECT 1 AS ok")
 
     # -- runs ----------------------------------------------------------------
 

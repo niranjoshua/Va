@@ -14,13 +14,16 @@ from __future__ import annotations
 
 import hmac
 import json
+import logging
+import time
+from collections.abc import Iterator
 from datetime import date
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
-from vaticore import __version__, engine
+from vaticore import __version__, access, engine
 from vaticore.api.schemas import (
     AdvisoryRequest,
     AdvisoryResponse,
@@ -41,13 +44,14 @@ from vaticore.decisions.dispatch import SiteAssets
 from vaticore.delivery.webhook import handle_webhook, verify_signature
 from vaticore.forecasting.base import ForecasterError, quantile_column
 from vaticore.fuel import reconcile
+from vaticore.observability import init_error_tracking, setup_logging
 from vaticore.pipeline import monitoring
 from vaticore.pipeline.health import site_health_report
 from vaticore.pipeline.scoring import scorecard
 from vaticore.pipeline.store import PlanStore
 from vaticore.schemas import GENERATION_KW, LOAD_KW, OPERATOR_ID, SITE_ID, TIMESTAMP
 from vaticore.sites.model import Portfolio, Site, load_portfolio
-from vaticore.storage import TimeSeriesRepository
+from vaticore.storage import TimeSeriesRepository, migrations
 
 try:  # FastAPI resolves this annotation at runtime; it needs the service extra.
     from fastapi import Request
@@ -57,6 +61,7 @@ except ImportError:  # pragma: no cover - service extra not installed
 if TYPE_CHECKING:
     from fastapi import FastAPI
 
+access_log = logging.getLogger("vaticore.api")
 
 _VALID_TARGETS = {LOAD_KW, GENERATION_KW}
 
@@ -105,10 +110,14 @@ def _portfolio(path: str) -> Portfolio:
 
 
 @lru_cache(maxsize=1)
-def get_plan_store() -> PlanStore:
-    """The pipeline's plan store (plans, scores, deliveries, replies)."""
+def get_plan_store() -> Iterator[PlanStore]:
+    """The pipeline's plan store (plans, scores, deliveries, replies), per request."""
     settings = get_settings()
-    return PlanStore(settings.plan_store_url or settings.database_url)
+    store = PlanStore(settings.plan_store_url or settings.database_url)
+    try:
+        yield store
+    finally:
+        store.close()
 
 
 def create_app() -> FastAPI:
@@ -116,15 +125,59 @@ def create_app() -> FastAPI:
     from fastapi import Depends, FastAPI, Header, HTTPException, Query
     from fastapi.responses import PlainTextResponse
 
+    settings_now = get_settings()
+    setup_logging(settings_now)
+    init_error_tracking(settings_now, "api")
+
     app = FastAPI(
         title="Vaticore",
         version=__version__,
         summary="Probabilistic energy forecasting for distributed energy operators.",
     )
 
+    @app.middleware("http")
+    async def log_requests(request: Request, call_next: Any) -> Any:
+        started = time.perf_counter()
+        response = await call_next(request)
+        if request.url.path not in ("/health", "/ready"):
+            access_log.info(
+                "%s %s %s %.0f ms",
+                request.method,
+                request.url.path,
+                response.status_code,
+                (time.perf_counter() - started) * 1000,
+            )
+        return response
+
     @app.get("/health")
     def health() -> dict[str, str]:
+        """Liveness: the process is up. Uptime monitors should use /ready."""
         return {"status": "ok", "version": __version__}
+
+    @app.get("/ready")
+    def ready(settings: Settings = Depends(get_app_settings)) -> Any:
+        """Readiness: the database answers and its schema is current."""
+        from fastapi.responses import JSONResponse
+
+        problems = []
+        plans_url = settings.plan_store_url or settings.database_url
+        try:
+            store = PlanStore(plans_url)
+            try:
+                store.ping()
+            finally:
+                store.close()
+            for database, url in (
+                (migrations.PLANS, plans_url),
+                (migrations.READINGS, settings.database_url),
+            ):
+                pending = migrations.status(url, database).pending
+                if pending:
+                    problems.append(f"{database}: {len(pending)} migration(s) pending")
+        except Exception as exc:
+            problems.append(f"database: {type(exc).__name__}")
+        body = {"status": "ready" if not problems else "not ready", "problems": problems}
+        return JSONResponse(body, status_code=200 if not problems else 503)
 
     @app.get("/models")
     def models() -> list[str]:
@@ -290,20 +343,17 @@ def create_app() -> FastAPI:
         """Each operator reaches only its own sites; the admin token reaches all.
 
         Without any credential the API serves data only in local development
-        with no admin token set, so a demo works out of the box.
+        with no admin token set, so a demo works out of the box. Staging and
+        production always need a key.
         """
         if not authorization:
-            if settings.api_token is None and settings.environment != "production":
+            if access.open_without_credentials(settings):
                 return
             raise HTTPException(401, "send Authorization: Bearer <key>")
-        token = authorization.removeprefix("Bearer ").strip()
-        admin = settings.api_token
-        if admin is not None and hmac.compare_digest(token, admin.get_secret_value()):
-            return
-        owner = store.operator_for_key(token)
-        if owner is None:
+        granted = access.resolve(authorization, settings, store)
+        if granted is None:
             raise HTTPException(401, "unknown or revoked key")
-        if owner != operator_id:
+        if not granted.may_see(operator_id):
             raise HTTPException(403, "this key belongs to another operator")
 
     @app.get(
