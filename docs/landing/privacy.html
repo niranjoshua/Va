@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Privacy | Vaticore</title>
+<meta name="description" content="How Vaticore uses personal data: the people who receive daily energy plans, operators' contacts and visitors to this site." />
+<meta name="color-scheme" content="light" />
+<link rel="icon" href="brand/favicon.svg" type="image/svg+xml" />
+<link rel="icon" href="brand/favicon-32.png" sizes="32x32" type="image/png" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..700&display=swap" />
+<style>
+:root{
+  --ink:#1D1A1E; --ink-2:#6B676D; --bg:#FFFFFF; --tile:#F5F4F0; --hair:rgba(29,26,30,.10); --link:#0B7F74;
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","Inter","Helvetica Neue",Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:17px;line-height:1.55;
+  letter-spacing:-.011em;-webkit-font-smoothing:antialiased}
+a{color:var(--link)}
+header,main,footer{max-width:720px;margin:0 auto;padding-inline:22px}
+header{padding-block:22px;border-bottom:1px solid var(--hair)}
+header img{height:22px;display:block}
+main{padding-block:40px 64px}
+h1{font-size:clamp(32px,5vw,44px);line-height:1.1;letter-spacing:-.03em;margin:0 0 8px;font-weight:600}
+.updated{color:var(--ink-2);font-size:15px;margin:0 0 32px}
+h2{font-size:21px;letter-spacing:-.015em;margin:36px 0 8px;font-weight:600}
+p,li{max-width:65ch}
+ul{padding-left:1.2em}
+li{margin:4px 0}
+table{border-collapse:collapse;width:100%;font-size:15px;margin:12px 0}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--hair);vertical-align:top}
+th{font-weight:600;background:var(--tile)}
+.wide{overflow-x:auto}
+.fill{background:#FFF4D6;padding:0 4px;border-radius:4px}
+footer{color:var(--ink-2);font-size:13px;border-top:1px solid var(--hair);padding-block:22px 40px}
+</style>
+</head>
+<body>
+<header><a href="./"><img src="brand/vaticore-lockup.svg" alt="Vaticore" /></a></header>
+<main>
+  <h1>Privacy</h1>
+  <p class="updated">Last updated 6 October 2026</p>
+
+  <p>Vaticore forecasts energy use at operators' sites (telecom towers, bank
+  branches, factories, hospitals, mini-grids) and sends their teams a daily
+  plan. This page explains what personal data that involves, why, and your
+  rights. It is short on purpose.</p>
+
+  <h2>Who we are</h2>
+  <p>Vaticore Ltd, <span class="fill">company number [fill in]</span>,
+  registered office <span class="fill">[fill in]</span>. Contact:
+  <a href="mailto:privacy@vaticore.co.uk">privacy@vaticore.co.uk</a>.</p>
+  <p>When we send plans to an operator's staff, we act on behalf of that
+  operator, who decides who receives them. For the website and our own
+  business contacts, we decide.</p>
+
+  <h2>If you receive Vaticore plans</h2>
+  <div class="wide">
+  <table>
+    <tr><th>What we hold</th><td>Your name and role, your WhatsApp number and/or email, which sites you cover, your preferred language, your replies to plans (1, 2, the reason you give, STOP), and when messages were delivered and read.</td></tr>
+    <tr><th>Why</th><td>To send you daily plans and, if you supervise sites, a weekly summary; to know whether plans were followed and why; to stop messages when you ask; and to measure the pilot's results for your employer.</td></tr>
+    <tr><th>On what basis</th><td>Your agreement, which you gave before the first message, and which you can withdraw at any time.</td></tr>
+    <tr><th>How long</th><td>For the pilot or service, then 12 months for verifying its results, then deleted.</td></tr>
+  </table>
+  </div>
+  <p><strong>To stop the messages,</strong> reply STOP. It takes effect at once,
+  on WhatsApp and email.</p>
+
+  <h2>Operators' site data</h2>
+  <p>Energy readings from sites (load, solar, grid supply, generator output,
+  fuel) belong to the operator. They are generally not personal data. We use
+  them to make forecasts and plans for that operator, and, with names and
+  site identities removed, to improve our models.</p>
+
+  <h2>Who else handles the data</h2>
+  <div class="wide">
+  <table>
+    <tr><th>Company</th><th>For</th><th>Where</th></tr>
+    <tr><td>Render</td><td>Hosting the service and its database</td><td>Frankfurt, Germany</td></tr>
+    <tr><td>Meta (WhatsApp Business Platform)</td><td>Delivering WhatsApp messages and replies</td><td>EU and US</td></tr>
+    <tr><td>Brevo</td><td>Delivering email</td><td>EU</td></tr>
+    <tr><td>Sentry</td><td>Error reports, which exclude message content and phone numbers</td><td>US</td></tr>
+    <tr><td>Cloudflare</td><td>This website and our email routing</td><td>Global network</td></tr>
+  </table>
+  </div>
+  <p>We never sell personal data or use it for advertising.</p>
+
+  <h2>How we protect it</h2>
+  <ul>
+    <li>Encrypted in transit and at rest.</li>
+    <li>Databases reachable only from our own services, not the internet.</li>
+    <li>Phone numbers stored for matching replies only in a one-way protected form, and shown masked (+234******5678) in reports.</li>
+    <li>Each operator has its own access keys and can never see another operator's data.</li>
+    <li>Daily backups, with restores tested every week.</li>
+  </ul>
+
+  <h2>Your rights</h2>
+  <p>You can ask to see the data we hold about you, to correct it, or to delete
+  it, by writing to <a href="mailto:privacy@vaticore.co.uk">privacy@vaticore.co.uk</a>.
+  We answer within a week. If you are not satisfied, you can complain to the
+  Nigeria Data Protection Commission (<a href="https://ndpc.gov.ng">ndpc.gov.ng</a>)
+  or, in the UK, the Information Commissioner's Office
+  (<a href="https://ico.org.uk">ico.org.uk</a>).</p>
+
+  <h2>This website</h2>
+  <p>This site sets no tracking or advertising cookies. Cloudflare, which
+  serves it, keeps standard technical logs to keep it running and secure.</p>
+</main>
+<footer>Copyright &copy; 2026 Vaticore Ltd. <a href="./">Home</a></footer>
+</body>
+</html>

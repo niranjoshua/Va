@@ -12,7 +12,7 @@ check Meta's own documentation (developers.facebook.com/docs/whatsapp).
 
 - **The registered company.** Meta verifies the business behind the account.
   Use Vaticore Ltd's certificate of incorporation, a business address, the
-  website (vaticore.com) and an email at the company domain.
+  website (vaticore.co.uk) and an email at the company domain.
 - **A phone number for Vaticore's sender** that is **not** already registered
   on the WhatsApp or WhatsApp Business app. A new SIM or a virtual number both
   work; it only needs to receive one SMS or call for verification.

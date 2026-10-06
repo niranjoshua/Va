@@ -9,6 +9,8 @@
 # string into every service: no database URL is typed by hand.
 # Everything runs in Frankfurt, the region nearest Lagos; the data protection
 # documents name it (docs/pilot/data-processing-agreement.md).
+# Web services answer on vaticore.co.uk subdomains (api, app, api-staging,
+# app-staging): CNAME records in Cloudflare, "DNS only" (docs/domain.md).
 # Secrets marked "sync: false" are entered in the Render dashboard, never here.
 # Before each API deploy goes live, pending database migrations are applied.
 
@@ -40,6 +42,8 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile
     region: frankfurt
+    domains:
+      - api.vaticore.co.uk
     plan: starter
     autoDeploy: false
     healthCheckPath: /ready
@@ -81,6 +85,8 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile
     region: frankfurt
+    domains:
+      - app.vaticore.co.uk
     plan: starter
     autoDeploy: false
     healthCheckPath: /_stcore/health
@@ -291,6 +297,8 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile
     region: frankfurt
+    domains:
+      - api-staging.vaticore.co.uk
     plan: starter
     healthCheckPath: /ready
     preDeployCommand: uv run python -m vaticore.pipeline migrate
@@ -331,6 +339,8 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile
     region: frankfurt
+    domains:
+      - app-staging.vaticore.co.uk
     plan: starter
     healthCheckPath: /_stcore/health
     dockerCommand: >-
