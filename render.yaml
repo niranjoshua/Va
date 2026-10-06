@@ -166,6 +166,8 @@ services:
         sync: false
       - key: VATICORE_EMAIL_FROM
         sync: false
+      - key: VATICORE_EMAIL_LEGAL_FOOTER
+        sync: false
       - key: VATICORE_WEATHER_API_KEY
         sync: false
       - key: VATICORE_OPS_EMAIL
@@ -216,6 +218,8 @@ services:
         sync: false
       - key: VATICORE_EMAIL_FROM
         sync: false
+      - key: VATICORE_EMAIL_LEGAL_FOOTER
+        sync: false
       - key: VATICORE_OPS_EMAIL
         sync: false
       - key: VATICORE_SENTRY_DSN
@@ -258,6 +262,8 @@ services:
       - key: VATICORE_SMTP_PASSWORD
         sync: false
       - key: VATICORE_EMAIL_FROM
+        sync: false
+      - key: VATICORE_EMAIL_LEGAL_FOOTER
         sync: false
       - key: VATICORE_SENTRY_DSN
         sync: false

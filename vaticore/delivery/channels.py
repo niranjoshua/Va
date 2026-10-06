@@ -16,6 +16,7 @@ attempt's outcome is returned so it can be stored.
 
 from __future__ import annotations
 
+import html
 import smtplib
 import time
 from collections.abc import Callable
@@ -91,6 +92,10 @@ class EmailChannel:
     Zoho, Amazon SES, Postmark). Each message has a text and an HTML part and a
     List-Unsubscribe header; unsubscribe requests are applied with
     `python -m vaticore.pipeline optout --email ...`.
+
+    `legal_footer` is added to every email: a UK company must show its
+    registered name, number, place of registration and registered office on
+    its business letters and emails (VATICORE_EMAIL_LEGAL_FOOTER).
     """
 
     name = "email"
@@ -108,6 +113,7 @@ class EmailChannel:
         max_attempts: int = 3,
         smtp_factory: Callable[..., Any] | None = None,
         sleep: Callable[[float], None] = time.sleep,
+        legal_footer: str | None = None,
     ) -> None:
         if not host or not sender:
             raise ValueError("email needs an SMTP host and a sender address")
@@ -119,6 +125,7 @@ class EmailChannel:
         self._max_attempts = max_attempts
         self._factory = smtp_factory or (smtplib.SMTP_SSL if use_ssl else smtplib.SMTP)
         self._sleep = sleep
+        self._footer = (legal_footer or "").strip()
 
     def address(self, person: Recipient) -> str | None:
         return person.email
@@ -128,14 +135,14 @@ class EmailChannel:
         # Addresses may carry a display name ("Vaticore <plans@vaticore.co.uk>").
         unsubscribe = parseaddr(self._reply_to)[1] or self._reply_to
         mail["List-Unsubscribe"] = f"<mailto:{unsubscribe}?subject=unsubscribe>"
-        mail.set_content(message.email_text)
-        mail.add_alternative(message.email_html, subtype="html")
+        mail.set_content(self._text(message.email_text))
+        mail.add_alternative(self._html(message.email_html), subtype="html")
         return self._deliver(mail)
 
     def send_text(self, to: str, subject: str, body: str) -> SendResult:
         """A plain internal email, such as an alert to Vaticore's own team."""
         mail = self._mail(to, subject)
-        mail.set_content(body)
+        mail.set_content(self._text(body))
         return self._deliver(mail)
 
     def send_html(self, to: str, subject: str, text: str, html_body: str) -> SendResult:
@@ -143,9 +150,18 @@ class EmailChannel:
         mail = self._mail(to, subject)
         unsubscribe = parseaddr(self._reply_to)[1] or self._reply_to
         mail["List-Unsubscribe"] = f"<mailto:{unsubscribe}?subject=unsubscribe>"
-        mail.set_content(text)
-        mail.add_alternative(html_body, subtype="html")
+        mail.set_content(self._text(text))
+        mail.add_alternative(self._html(html_body), subtype="html")
         return self._deliver(mail)
+
+    def _text(self, body: str) -> str:
+        return f"{body.rstrip()}\n\n--\n{self._footer}\n" if self._footer else body
+
+    def _html(self, body: str) -> str:
+        if not self._footer:
+            return body
+        footer = html.escape(self._footer)
+        return f'{body}<p style="color:#98949A;font-size:12px;margin-top:24px">{footer}</p>'
 
     def _mail(self, to: str, subject: str) -> EmailMessage:
         mail = EmailMessage()

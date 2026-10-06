@@ -801,6 +801,7 @@ def _email(settings: Settings) -> EmailChannel:
         sender=settings.email_from,
         reply_to=settings.email_reply_to,
         use_ssl=settings.smtp_ssl,
+        legal_footer=settings.email_legal_footer,
     )
 
 
