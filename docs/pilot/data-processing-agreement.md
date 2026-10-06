@@ -57,12 +57,17 @@ Controller if it believes an instruction breaks the NDPA.
 The Processor tells the Controller [14] days before adding or replacing one,
 and the Controller may object.
 
-**6. Transfers outside Nigeria.** The data is stored and processed outside
-Nigeria (clause 5). The Processor relies on [the adequacy of the destination's
-data protection law, the EU General Data Protection Regulation / contractual
+**6. Transfers outside Nigeria.** The Processor is a company in the United
+Kingdom, and the data is stored and processed outside Nigeria (clause 5). The
+Processor relies on [the adequacy of the destination's data protection law,
+the UK GDPR and the EU General Data Protection Regulation / contractual
 safeguards with each sub-processor that give protection no lower than the
-NDPA], as Part VIII of the NDPA requires, and will provide copies of the
-relevant terms on request.
+NDPA], as Part VIII of the NDPA requires. Onward transfers from the UK follow
+UK GDPR rules: the EU (Render, Frankfurt) is covered by UK adequacy
+regulations; the United States (Meta, Sentry) by the UK extension to the
+EU-US Data Privacy Framework where the recipient is certified, or the ICO's
+international data transfer addendum otherwise. The Processor will provide
+copies of the relevant terms on request.
 
 **7. Security.** The Processor keeps the data:
 
@@ -105,15 +110,19 @@ Signed for the Processor: ______________ Name, title, date
 
 ---
 
-## Vaticore's own obligations under the NDPA
+## Vaticore's own obligations
 
-If Vaticore Ltd is registered in the UK, the UK GDPR and the Data Protection
-Act 2018 also apply to its processing, alongside the NDPA (which covers
-Nigerian data subjects wherever the processor is). In practice: pay the ICO's
-data protection fee (most small companies are in the lowest tier), and keep
-the same records and breach process described above.
+Vaticore Ltd is registered at Companies House, so two regimes apply at once:
 
-Beyond this agreement, check with your lawyer or DPCO:
+- **UK GDPR and the Data Protection Act 2018**, because Vaticore processes
+  personal data from the UK. In practice: pay the ICO data protection fee
+  (ico.org.uk; a small company is in the lowest tier), keep a short record
+  of processing, and report a serious breach to the ICO within 72 hours as
+  well as to the operator. Clause 9 already covers the operator.
+- **The NDPA**, because the people concerned are in Nigeria, wherever the
+  processor is.
+
+For the NDPA, check with your lawyer or DPCO:
 
 - **Registration with the NDPC.** Organisations processing the personal data
   of more than 200 people in six months are "data controllers or processors

@@ -1,12 +1,13 @@
 # Pilot agreement: template
 
 A starting draft for the pilot agreement between Vaticore Ltd and the
-operator. **It is not legal advice.** Have a commercial lawyer review
-it before signing (one qualified in Nigerian law, since the operator and the
-sites are in Nigeria); budget one or two hours of their time. If Vaticore Ltd
-is a UK company, ask them about the governing-law clause and about invoicing
-a Nigerian customer from the UK. Square brackets are
-for you to fill in. Keep it short: a pilot agreement that takes two months to
+operator. **It is not legal advice.** Vaticore Ltd is registered at
+Companies House, and the operator and its sites are in Nigeria, so: have a UK
+commercial lawyer review it (one or two hours), ideally with a Nigerian
+lawyer's quick read of the data protection clauses, and ask your accountant
+about invoicing a Nigerian customer (UK VAT treatment of services to an
+overseas business, and Nigerian withholding tax on fees paid abroad) before
+the first invoice. Square brackets are for you to fill in. Keep it short: a pilot agreement that takes two months to
 sign has already cost the pilot.
 
 ---
@@ -15,9 +16,8 @@ sign has already cost the pilot.
 
 This agreement is made on [date] between:
 
-**Vaticore Ltd**, a company registered in [Nigeria with RC number / England and
-Wales with company number] [number], whose registered office is at [address]
-("Vaticore"); and
+**Vaticore Ltd**, a company registered in England and Wales with company
+number [number], whose registered office is at [address] ("Vaticore"); and
 
 **[Operator legal name]**, RC number [number], whose registered office is at
 [address] (the "Operator").
@@ -136,10 +136,18 @@ days of notice.
 
 ## 10. General
 
-Nigerian law governs this agreement. The parties will try to settle any
-dispute by discussion between their pilot leads, then senior managers, before
-[arbitration in Lagos under the Arbitration and Mediation Act 2023 / the
-courts of Lagos State].
+[The law of England and Wales] governs this agreement. The parties will try
+to settle any dispute by discussion between their pilot leads, then senior
+managers, before arbitration [in London under the LCIA Rules / in Lagos under
+the Arbitration and Mediation Act 2023], in English, by a single arbitrator.
+Nothing in this clause changes either party's duties under the Nigeria Data
+Protection Act 2023 or UK data protection law.
+
+(For the lawyer: English law with arbitration is a common choice for a UK
+supplier. Nigeria enforces arbitration awards under the New York Convention;
+an English court judgment can also be registered there, but with time limits
+and conditions. A Nigerian operator may ask for Nigerian law and Lagos; for a
+free or small pilot, conceding that is often cheaper than negotiating it.)
 
 Signed for Vaticore Ltd: ______________ Name, title, date
 

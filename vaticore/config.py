@@ -90,6 +90,9 @@ class Settings(BaseSettings):
     smtp_ssl: bool = Field(default=False, description="SSL from the start (port 465)")
     email_from: str | None = Field(default=None, description="for example plans@vaticore.co.uk")
     email_reply_to: str | None = Field(default=None)
+    # Required on a UK company's emails: name, place of registration, number,
+    # registered office. "Vaticore Ltd, registered in England and Wales, ..."
+    email_legal_footer: str | None = Field(default=None)
 
     # Monitoring connectors: which source each site's readings come from.
     sources_file: Path | None = Field(default=None)

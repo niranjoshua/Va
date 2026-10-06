@@ -27,8 +27,9 @@ Last updated: 6 October 2026.
 ## Week 1: the domain (docs/domain.md)
 
 - [ ] Cloudflare: two-factor on, auto-renew on, DNSSEC on, SSL Full (strict).
-- [ ] Legal name, company number and registered address filled in on the
-      website footer and privacy page.
+- [ ] Company details from Companies House (name, "registered in England and
+      Wales", number, registered office) on the website footer and privacy
+      page, in `VATICORE_EMAIL_LEGAL_FOOTER`, and in your email signature.
 - [ ] Website live on Cloudflare Pages at vaticore.co.uk and www.
 - [ ] Email Routing: hello@, privacy@, tech@, ops@ forward to your inbox.
 - [ ] Brevo: domain authenticated (one combined SPF record, DKIM, DMARC);
@@ -39,8 +40,8 @@ Last updated: 6 October 2026.
 
 ## Week 1: accounts (launch guide, parts 1 and 2)
 
-- [ ] Meta business portfolio created; **verification submitted** with the CAC
-      certificate and an address document.
+- [ ] Meta business portfolio created; **verification submitted** (United
+      Kingdom) with the Companies House certificate and an address document.
 - [ ] Meta app created; the test number sends you "Hello World"
       (`whatsapp-test`).
 - [ ] Templates **submitted**: `vaticore_daily_plan`, `vaticore_weekly_summary`.
@@ -57,8 +58,12 @@ Last updated: 6 October 2026.
 - [ ] Kickoff meeting: pilot and control sites, measurement and success
       threshold, data access, people, dates. Note sent the same day.
 - [ ] Draft pilot agreement (`docs/pilot/pilot-agreement.md`) and data
-      processing agreement (`docs/pilot/data-processing-agreement.md`) to a
-      Nigerian lawyer, then to the operator.
+      processing agreement (`docs/pilot/data-processing-agreement.md`) to a UK
+      commercial lawyer (with a Nigerian lawyer's read of the data protection
+      clauses), then to the operator.
+- [ ] ICO data protection fee paid; registration number on the privacy page.
+- [ ] Accountant asked about invoicing a Nigerian customer (UK VAT, Nigerian
+      withholding tax).
 
 ## Week 2: rehearsal and preparation (launch guide, parts 3 and 4)
 
@@ -75,7 +80,8 @@ Last updated: 6 October 2026.
       checked by a native speaker; Pidgin template submitted if wanted.
 - [ ] Consent from every recipient (`docs/pilot/privacy-and-consent.md`);
       privacy notice on vaticore.co.uk.
-- [ ] Agreements signed. NDPC registration question answered by the lawyer.
+- [ ] Agreements signed. NDPC registration question answered by the lawyer or
+      DPCO.
 - [ ] Real sender number and display name approved; permanent token on every
       service.
 

@@ -48,11 +48,16 @@ assets and `privacy.html`. Nothing to build.
 5. **Custom domains > Set up a custom domain:** add `vaticore.co.uk`, then
    `www.vaticore.co.uk`. Cloudflare adds the DNS records itself, because the
    domain is in the same account.
-6. **Before Meta verification:** fill in the company's legal name, company
-   number and registered address in the footer of `docs/landing/index.html`
-   and in `docs/landing/privacy.html` (both marked "fill in"), exactly as on
-   the certificate of incorporation, and merge to `main`. Pages redeploys on
-   every push.
+6. **Before the site goes live:** fill in the company details in the footer
+   of `docs/landing/index.html` and in `docs/landing/privacy.html` (both
+   marked "fill in"), exactly as on the company's Companies House page:
+   registered name, "registered in England and Wales" (Scotland or Northern
+   Ireland if the company number starts SC or NI), company number and
+   registered office address. UK law requires these on a company's website
+   (and its emails: see step 4), and Meta compares them with the documents
+   you upload. Add the ICO registration number to the privacy page once the
+   data protection fee is paid. Merge to `main`; Pages redeploys on every
+   push.
 
 Every push to `main` then redeploys the site. Pull requests get preview
 addresses of their own.
@@ -105,7 +110,13 @@ summary, the pilot report and alerts.
    with `VATICORE_EMAIL_FROM=Vaticore <plans@vaticore.co.uk>`,
    `VATICORE_EMAIL_REPLY_TO=hello@vaticore.co.uk` and
    `VATICORE_OPS_EMAIL=ops@vaticore.co.uk` (launch guide, part 2.7).
-7. **To write as hello@vaticore.co.uk from Gmail:** Gmail > Settings >
+   Also set `VATICORE_EMAIL_LEGAL_FOOTER` to the company line, for example
+   `Vaticore Ltd, registered in England and Wales, company number 12345678.
+   Registered office: <address>.` Every email the service sends ends with it,
+   as UK law requires of a company's business emails.
+7. **Your own emails** need the same company line: add it to your Gmail
+   signature.
+8. **To write as hello@vaticore.co.uk from Gmail:** Gmail > Settings >
    Accounts > **Send mail as** > add `hello@vaticore.co.uk`, SMTP server
    `smtp-relay.brevo.com`, port 587, the same login and key. Gmail sends a code
    to hello@, which Email Routing forwards back to you.
