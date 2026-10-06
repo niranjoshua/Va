@@ -1,8 +1,11 @@
 # Pilot agreement: template
 
 A starting draft for the pilot agreement between Vaticore Ltd and the
-operator. **It is not legal advice.** Have a Nigerian commercial lawyer review
-it before signing; budget one or two hours of their time. Square brackets are
+operator. **It is not legal advice.** Have a commercial lawyer review
+it before signing (one qualified in Nigerian law, since the operator and the
+sites are in Nigeria); budget one or two hours of their time. If Vaticore Ltd
+is a UK company, ask them about the governing-law clause and about invoicing
+a Nigerian customer from the UK. Square brackets are
 for you to fill in. Keep it short: a pilot agreement that takes two months to
 sign has already cost the pilot.
 
@@ -12,8 +15,9 @@ sign has already cost the pilot.
 
 This agreement is made on [date] between:
 
-**Vaticore Ltd**, a company registered in Nigeria with RC number [number],
-whose registered office is at [address] ("Vaticore"); and
+**Vaticore Ltd**, a company registered in [Nigeria with RC number / England and
+Wales with company number] [number], whose registered office is at [address]
+("Vaticore"); and
 
 **[Operator legal name]**, RC number [number], whose registered office is at
 [address] (the "Operator").

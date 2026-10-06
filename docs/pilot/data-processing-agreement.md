@@ -107,6 +107,12 @@ Signed for the Processor: ______________ Name, title, date
 
 ## Vaticore's own obligations under the NDPA
 
+If Vaticore Ltd is registered in the UK, the UK GDPR and the Data Protection
+Act 2018 also apply to its processing, alongside the NDPA (which covers
+Nigerian data subjects wherever the processor is). In practice: pay the ICO's
+data protection fee (most small companies are in the lowest tier), and keep
+the same records and breach process described above.
+
 Beyond this agreement, check with your lawyer or DPCO:
 
 - **Registration with the NDPC.** Organisations processing the personal data
@@ -116,7 +122,7 @@ Beyond this agreement, check with your lawyer or DPCO:
   ₦10,000, ₦100,000 and ₦250,000). A first pilot with a few dozen recipients
   is likely under the threshold; a second operator may not be. Check the
   current thresholds on ndpc.gov.ng before relying on these numbers.
-- **A privacy policy** on vaticore.com that covers recipients, site data and
+- **A privacy policy** on vaticore.co.uk that covers recipients, site data and
   the sub-processors above (docs/pilot/privacy-and-consent.md has the short
   notice for recipients).
 - **A Data Protection Officer** once registration requires one.

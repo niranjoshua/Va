@@ -4,7 +4,7 @@ What is left before, and during, the first pilot. Every step is written out,
 click by click, in **docs/pilot/launch-guide.md**; the documents it needs are
 in **docs/pilot/**. Tick items off as they are done.
 
-Last updated: 5 October 2026.
+Last updated: 6 October 2026.
 
 ## Built and ready
 
@@ -23,6 +23,19 @@ Last updated: 5 October 2026.
   databases, in Frankfurt; migrations, logs, Sentry, uptime, heartbeat,
   tested backups, operator keys; published numbers locked by tests.
 - The runbook (`docs/runbook.md`).
+
+## Week 1: the domain (docs/domain.md)
+
+- [ ] Cloudflare: two-factor on, auto-renew on, DNSSEC on, SSL Full (strict).
+- [ ] Legal name, company number and registered address filled in on the
+      website footer and privacy page.
+- [ ] Website live on Cloudflare Pages at vaticore.co.uk and www.
+- [ ] Email Routing: hello@, privacy@, tech@, ops@ forward to your inbox.
+- [ ] Brevo: domain authenticated (one combined SPF record, DKIM, DMARC);
+      Gmail can send as hello@vaticore.co.uk.
+- [ ] Meta domain verification TXT record added.
+- [ ] After the blueprint: api, app, api-staging and app-staging CNAMEs
+      (DNS only); `https://api.vaticore.co.uk/ready` answers "ready".
 
 ## Week 1: accounts (launch guide, parts 1 and 2)
 
@@ -61,7 +74,7 @@ Last updated: 5 October 2026.
 - [ ] Technician tests (`docs/pilot/technician-test.md`); Pidgin wording
       checked by a native speaker; Pidgin template submitted if wanted.
 - [ ] Consent from every recipient (`docs/pilot/privacy-and-consent.md`);
-      privacy notice on vaticore.com.
+      privacy notice on vaticore.co.uk.
 - [ ] Agreements signed. NDPC registration question answered by the lawyer.
 - [ ] Real sender number and display name approved; permanent token on every
       service.

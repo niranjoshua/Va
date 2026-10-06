@@ -88,7 +88,7 @@ class Settings(BaseSettings):
     smtp_username: str | None = Field(default=None)
     smtp_password: SecretStr | None = Field(default=None)
     smtp_ssl: bool = Field(default=False, description="SSL from the start (port 465)")
-    email_from: str | None = Field(default=None, description="for example plans@vaticore.com")
+    email_from: str | None = Field(default=None, description="for example plans@vaticore.co.uk")
     email_reply_to: str | None = Field(default=None)
 
     # Monitoring connectors: which source each site's readings come from.

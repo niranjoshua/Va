@@ -248,3 +248,16 @@ def test_the_blueprint_wires_every_database_and_keeps_data_in_one_region() -> No
     scratch = next(e for e in drill["envVars"] if e["key"] == "VATICORE_RESTORE_TEST_URL")
     assert scratch["fromDatabase"]["name"] == "vaticore-db-restore-scratch"
     assert {"vaticore-safety-net", "vaticore-weekly-summary", "vaticore-daily-plans"} <= names
+
+
+def test_web_services_answer_on_the_company_domain() -> None:
+    import yaml
+
+    blueprint = yaml.safe_load((Path(__file__).parents[1] / "render.yaml").read_text())
+    domains = {s["name"]: s.get("domains", []) for s in blueprint["services"] if s["type"] == "web"}
+    assert domains == {
+        "vaticore-api": ["api.vaticore.co.uk"],
+        "vaticore-dashboard": ["app.vaticore.co.uk"],
+        "vaticore-api-staging": ["api-staging.vaticore.co.uk"],
+        "vaticore-dashboard-staging": ["app-staging.vaticore.co.uk"],
+    }
