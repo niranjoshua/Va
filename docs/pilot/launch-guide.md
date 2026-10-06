@@ -23,23 +23,29 @@ two weeks), so part 1 starts on day one, in parallel with everything else.
 
 ## What you need before you start
 
-- **Company documents:** the certificate of incorporation (from the CAC if
-  Vaticore Ltd is registered in Nigeria, from Companies House if in the UK),
-  and a document showing the company's registered address (a CAC status
-  report or Companies House record, a utility bill or a bank statement in the
-  company's name, under three months old).
+- **Company documents:** Vaticore Ltd is registered at Companies House, so:
+  the **certificate of incorporation** (download a copy free from the
+  company's page on find-and-update.company-information.service.gov.uk, or
+  use the one emailed at incorporation), and a document showing the
+  **registered office address** in the company's name: a utility bill, bank
+  statement or HMRC letter under three months old. If the registered office
+  is a formation agent's or accountant's address, use a document addressed to
+  the company there (a bank statement usually is).
 - **The domain, vaticore.co.uk,** set up first (docs/domain.md): the website
-  live with the company's legal name and registered address in its footer,
-  exactly as on the certificate (Meta compares them), and email at the domain
-  (for example hello@vaticore.co.uk).
-- **A new SIM** (MTN, Airtel, Glo or 9mobile) that has never been on WhatsApp:
-  this becomes Vaticore's sender number. A virtual number also works, as long
-  as it can receive one SMS or call.
-- **A payment card** that works online in dollars (Render, Meta). A
-  domiciliary account card avoids the naira card limits.
+  live with the company's registered name, number, place of registration and
+  registered office in its footer, exactly as on Companies House (UK law
+  requires it, and Meta compares them), and email at the domain (for example
+  hello@vaticore.co.uk).
+- **A new number that has never been on WhatsApp:** this becomes Vaticore's
+  sender. A Nigerian SIM (MTN, Airtel, Glo, 9mobile) reads as local to site
+  teams; a UK SIM or virtual number works just as well and is easier to keep
+  from the UK. It only needs to receive one SMS or call. Meta prices messages
+  by the recipient's country, so the sender's country does not change cost.
+- **The company's card** (Render and Meta bill in dollars; a UK business
+  card is fine).
 - **Your laptop** with the repository checked out and `uv` installed
   (`uv sync --all-extras` once).
-- **About ₦120,000 (about $75) a month** of running costs during the pilot;
+- **About £55 to £60 (about $75) a month** of running costs during the pilot;
   the breakdown is in part 2.
 
 ---
@@ -60,7 +66,9 @@ for 30 days is about $4 a month.
    address, phone and website (`https://vaticore.co.uk`) exactly as on the
    certificate.
 4. Open **Security Center** > **Start verification**.
-   - Choose Nigeria, and enter the legal name, address and phone.
+   - Choose **United Kingdom**, and enter the registered name, the registered
+     office address and a phone number, exactly as on Companies House. Meta
+     may also find the company in the Companies House register itself.
    - When asked how to confirm, choose **domain verification** if you can
      add a DNS record at your domain host (most reliable), or **email** to
      your company address.
@@ -333,8 +341,10 @@ pilot report, and alerts to you (`VATICORE_OPS_EMAIL`). Pick one provider:
 2. On `vaticore-daily-plans`, `vaticore-safety-net` and
    `vaticore-weekly-summary`, set `VATICORE_SMTP_HOST`,
    `VATICORE_SMTP_USERNAME`, `VATICORE_SMTP_PASSWORD`,
-   `VATICORE_EMAIL_FROM` (for example `Vaticore <plans@vaticore.co.uk>`) and
-   `VATICORE_OPS_EMAIL` (where alerts go: you).
+   `VATICORE_EMAIL_FROM` (for example `Vaticore <plans@vaticore.co.uk>`),
+   `VATICORE_OPS_EMAIL` (where alerts go: you) and
+   `VATICORE_EMAIL_LEGAL_FOOTER` (the company line UK law requires on
+   business emails: docs/domain.md, step 4).
 3. Test from a Shell where they are set (or locally with `.env`):
    `uv run python -m vaticore.pipeline email-test --to you@vaticore.co.uk`.
 
@@ -537,7 +547,12 @@ Send a one-page note of what was agreed the same day.
 
 1. Fill in `docs/pilot/pilot-agreement.md`: parties, company numbers, dates,
    sites, fees, and Schedule 2 from the kickoff.
-2. Have a Nigerian commercial lawyer review it (one to two hours).
+2. Have it reviewed (one to two hours): a UK commercial lawyer for the
+   contract itself, since Vaticore Ltd is an English company, and ideally a
+   Nigerian lawyer's quick read of the clauses that touch Nigerian law
+   (data protection, any regulated sites). Ask your accountant about invoicing
+   a Nigerian customer (VAT, Nigerian withholding tax) before the first
+   invoice.
 3. Send it to the operator as a Word or PDF document. Expect them to send it
    to their legal team: offer a call to walk through it, since a pilot this
    size should take days, not months.
@@ -546,13 +561,17 @@ Send a one-page note of what was agreed the same day.
 ### 4.3 Data protection (weeks 1 to 2)
 
 1. Fill in `docs/pilot/data-processing-agreement.md`, attach it as Schedule 3.
-2. Ask the lawyer, or a licensed Data Protection Compliance Organisation
-   (DPCO), the questions in its last section: whether Vaticore must register
-   with the NDPC yet (likely not below 200 people in six months, but check),
-   and whether the transfer to Render in Frankfurt and to Meta needs anything
-   beyond the agreement.
-3. Publish the privacy notice from `docs/pilot/privacy-and-consent.md` at
-   vaticore.co.uk/privacy.
+2. **UK:** pay the ICO data protection fee (ico.org.uk, "Pay the data
+   protection fee"; a small company is in the lowest tier, a modest annual
+   fee). Vaticore processes personal data from the UK, so UK GDPR applies.
+3. **Nigeria:** ask the lawyer, or a licensed Data Protection Compliance
+   Organisation (DPCO), the questions in the agreement's last section:
+   whether Vaticore must register with the NDPC (likely not below 200 people
+   in six months, but a foreign company serving Nigerian sites should check),
+   and that the transfers to Render in Frankfurt, Meta and Sentry are
+   covered.
+4. Publish the privacy notice at vaticore.co.uk/privacy (it is already in
+   `docs/landing/privacy.html`; fill in the company details).
 
 ### 4.4 Consent (week 2)
 

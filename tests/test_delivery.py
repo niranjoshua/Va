@@ -492,3 +492,22 @@ def test_email_recipients_are_validated_and_kept_private() -> None:
     assert only_email.masked == "a**@bank.ng" and only_email.hash == email_hash("ada@bank.ng")
     with pytest.raises(ValueError, match="whatsapp number or an email"):
         Recipient(name="Nobody", operator_id="op", sites=("s1",), consent=True)
+
+
+def test_every_email_carries_the_company_details_when_set() -> None:
+    footer = (
+        "Vaticore Ltd, registered in England and Wales, company 12345678. Office: 1 A St, London."
+    )
+    channel, _ = _email(legal_footer=footer)
+    channel.send("ada@bank.example", _message())
+    channel.send_html("ada@bank.example", "Week", "Plans: 7 sent.", "<p>Plans: 7 sent.</p>")
+    channel.send_text("ops@vaticore.example", "Report", "# Pilot report")
+    for session in _FakeSMTP.sessions:
+        mail = session.sent[0]
+        assert mail.get_body(("plain",)).get_content().rstrip().endswith(footer)  # type: ignore[attr-defined]
+        if mail.get_body(("html",)) is not None:  # type: ignore[attr-defined]
+            assert "company 12345678" in mail.get_body(("html",)).get_content()  # type: ignore[attr-defined]
+    plain, _ = _email()
+    plain.send("ada@bank.example", _message())
+    text = _FakeSMTP.sessions[0].sent[0].get_body(("plain",)).get_content()  # type: ignore[attr-defined]
+    assert "\n--\n" not in text  # nothing added when unset
