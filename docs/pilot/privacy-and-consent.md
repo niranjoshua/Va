@@ -29,7 +29,7 @@ them, the consent message, and how to record the answer.
 >
 > We keep your name, number and replies only to send the plans and measure
 > the pilot, and delete them [12] months after it ends. Details:
-> [vaticore.com/privacy].
+> [vaticore.co.uk/privacy].
 >
 > Is it OK to send you the plans? Reply YES or NO.
 
@@ -46,11 +46,11 @@ Have a native speaker check this before sending.
 >
 > We go keep your name, number and replies only to send the plans and measure
 > the pilot, and we go delete them [12] months after the pilot end. More
-> info: [vaticore.com/privacy].
+> info: [vaticore.co.uk/privacy].
 >
 > We fit dey send you the plans? Reply YES or NO.
 
-## Short privacy notice (for vaticore.com/privacy or the pilot pack)
+## Short privacy notice (for vaticore.co.uk/privacy or the pilot pack)
 
 > **How Vaticore uses your details in the [Operator] pilot**
 >

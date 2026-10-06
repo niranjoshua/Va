@@ -125,7 +125,7 @@ class EmailChannel:
 
     def send(self, to: str, message: PlanMessage) -> SendResult:
         mail = self._mail(to, message.email_subject)
-        # Addresses may carry a display name ("Vaticore <plans@vaticore.com>").
+        # Addresses may carry a display name ("Vaticore <plans@vaticore.co.uk>").
         unsubscribe = parseaddr(self._reply_to)[1] or self._reply_to
         mail["List-Unsubscribe"] = f"<mailto:{unsubscribe}?subject=unsubscribe>"
         mail.set_content(message.email_text)

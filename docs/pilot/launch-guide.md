@@ -12,7 +12,7 @@ check each provider's pricing page before quoting anyone.
 
 | Week | You | With the operator |
 |---|---|---|
-| 1 | Start Meta verification (part 1). Set up Render, Sentry, Better Stack, email (part 2). Submit the WhatsApp templates. | Kickoff meeting. Send the draft pilot agreement and data processing agreement. Ask for site details and monitoring access. |
+| 1 | Domain: website, email, DNS (docs/domain.md). Start Meta verification (part 1). Set up Render, Sentry, Better Stack, email (part 2). Submit the WhatsApp templates. | Kickoff meeting. Send the draft pilot agreement and data processing agreement. Ask for site details and monitoring access. |
 | 2 | Rehearse on staging with one real site (part 3). | Site details forms (part 4). Technician tests. Consent messages. Lawyer reviews, then signatures. |
 | 3 to 6 | Shadow weeks: plans made and scored, not sent (part 5). Monday checks. | Week 4 check-in on data quality. |
 | 7 | Go/no-go review. Go live on the GO sites. | Go/no-go meeting; decision in writing. |
@@ -23,12 +23,15 @@ two weeks), so part 1 starts on day one, in parallel with everything else.
 
 ## What you need before you start
 
-- **Company documents:** CAC certificate of incorporation, and a document
-  showing the company's address (CAC status report, a utility bill or a bank
-  statement in the company's name, under three months old).
-- **A company email at your domain** (for example tech@vaticore.com) and the
-  website live, showing the company's legal name and address exactly as on
-  the CAC certificate. Meta compares them.
+- **Company documents:** the certificate of incorporation (from the CAC if
+  Vaticore Ltd is registered in Nigeria, from Companies House if in the UK),
+  and a document showing the company's registered address (a CAC status
+  report or Companies House record, a utility bill or a bank statement in the
+  company's name, under three months old).
+- **The domain, vaticore.co.uk,** set up first (docs/domain.md): the website
+  live with the company's legal name and registered address in its footer,
+  exactly as on the certificate (Meta compares them), and email at the domain
+  (for example hello@vaticore.co.uk).
 - **A new SIM** (MTN, Airtel, Glo or 9mobile) that has never been on WhatsApp:
   this becomes Vaticore's sender number. A virtual number also works, as long
   as it can receive one SMS or call.
@@ -52,15 +55,18 @@ for 30 days is about $4 a month.
 1. Go to **business.facebook.com** and sign in with your personal Facebook
    account (Meta requires a real person as the admin; nobody else sees it).
 2. **Create a business portfolio:** name `Vaticore Ltd` (exactly as on the
-   CAC certificate), your name, and your company email.
+   certificate of incorporation), your name, and your company email.
 3. Open **Settings** (the gear) > **Business info**. Fill in the legal name,
-   address, phone and website exactly as on the CAC documents.
+   address, phone and website (`https://vaticore.co.uk`) exactly as on the
+   certificate.
 4. Open **Security Center** > **Start verification**.
    - Choose Nigeria, and enter the legal name, address and phone.
    - When asked how to confirm, choose **domain verification** if you can
      add a DNS record at your domain host (most reliable), or **email** to
      your company address.
-   - Upload the **CAC certificate** and the **address document**.
+   - Upload the **certificate of incorporation** and the **address document**.
+   - For domain verification, Meta gives you a TXT record: add it in
+     Cloudflare > DNS (docs/domain.md, step 5).
 5. You will see "In review". Meta says a decision can take up to 14 working
    days; often it is 2 to 5. Carry on with everything else meanwhile.
 
@@ -244,7 +250,8 @@ Save all three in your password manager.
    production service and click **Manual Deploy** > **Deploy latest commit**.
    Start with `vaticore-api`.
 
-**Check:** open `https://vaticore-api-staging.onrender.com/ready` (the exact
+**Check:** open `https://api-staging.vaticore.co.uk/ready` (before the DNS records
+of docs/domain.md are in, use the service's `onrender.com` address; the exact
 address is at the top of the service's page). You should see
 `{"status":"ready","problems":[]}`. A 503 that lists "migration(s) pending" means the
 pre-deploy step did not run: open the service's **Shell** tab and run
@@ -296,7 +303,7 @@ plan).
 1. **betterstack.com** > sign up > **Uptime**.
 2. **Monitors** > **Create monitor**:
    - Alert us when: **URL becomes unavailable**.
-   - URL: `https://vaticore-api.onrender.com/ready` (your production address).
+   - URL: `https://api.vaticore.co.uk/ready`.
    - Check frequency: 3 minutes (the free plan's fastest).
    - On-call: you, by email and push (install the Better Stack app). Add SMS
      or a call if you have credit.
@@ -307,7 +314,8 @@ plan).
    The job pings it when it finishes, and pings `.../fail` if any site
    failed, so you hear about a job that never ran as well as one that broke.
 4. Optional: a second monitor on the dashboard,
-   `https://vaticore-dashboard.onrender.com/_stcore/health`.
+   `https://app.vaticore.co.uk/_stcore/health`, and one on the website,
+   `https://vaticore.co.uk`.
 
 ### 2.7 Email (optional, but needed for alerts by email)
 
@@ -325,10 +333,10 @@ pilot report, and alerts to you (`VATICORE_OPS_EMAIL`). Pick one provider:
 2. On `vaticore-daily-plans`, `vaticore-safety-net` and
    `vaticore-weekly-summary`, set `VATICORE_SMTP_HOST`,
    `VATICORE_SMTP_USERNAME`, `VATICORE_SMTP_PASSWORD`,
-   `VATICORE_EMAIL_FROM` (for example `Vaticore <plans@vaticore.com>`) and
+   `VATICORE_EMAIL_FROM` (for example `Vaticore <plans@vaticore.co.uk>`) and
    `VATICORE_OPS_EMAIL` (where alerts go: you).
 3. Test from a Shell where they are set (or locally with `.env`):
-   `uv run python -m vaticore.pipeline email-test --to you@vaticore.com`.
+   `uv run python -m vaticore.pipeline email-test --to you@vaticore.co.uk`.
 
 ---
 
@@ -340,7 +348,7 @@ details and data, and your own phone. Nobody at the operator gets anything.
 ### 3.1 Point Meta at staging
 
 1. In the Meta app: **WhatsApp** > **Configuration** > **Webhook** > **Edit**.
-2. Callback URL: `https://vaticore-api-staging.onrender.com/webhooks/whatsapp`.
+2. Callback URL: `https://api-staging.vaticore.co.uk/webhooks/whatsapp`.
 3. Verify token: the one you made in part 2.2. It must already be set as
    `VATICORE_WHATSAPP_VERIFY_TOKEN` on `vaticore-api-staging`.
 4. **Verify and save**, then under **Webhook fields** subscribe to
@@ -408,7 +416,7 @@ thing:
 
 ```bash
 uv run python examples/push_csv.py ~/vaticore-private/export.csv \
-    --api https://vaticore-api-staging.onrender.com \
+    --api https://api-staging.vaticore.co.uk \
     --operator <operator_id> --site <site_id> --key <the key from 3.4> \
     --timezone Africa/Lagos \
     --map "Time=timestamp" --map "Load (kW)=load_kw" --map "Genset (kW)=genset_kw" \
@@ -482,7 +490,7 @@ All five should run without errors. The summary arrives on your phone once
 the weekly template is approved. The review and report will say there is too
 little data to judge yet, which is correct.
 
-Then open `https://vaticore-dashboard-staging.onrender.com`, sign in with
+Then open `https://app-staging.vaticore.co.uk`, sign in with
 the operator key, and look at **Site today** and **Pilot report**.
 
 ### 3.11 Fire each alert once
@@ -527,7 +535,7 @@ Send a one-page note of what was agreed the same day.
 
 ### 4.2 The pilot agreement (weeks 1 to 2)
 
-1. Fill in `docs/pilot/pilot-agreement.md`: parties, RC numbers, dates,
+1. Fill in `docs/pilot/pilot-agreement.md`: parties, company numbers, dates,
    sites, fees, and Schedule 2 from the kickoff.
 2. Have a Nigerian commercial lawyer review it (one to two hours).
 3. Send it to the operator as a Word or PDF document. Expect them to send it
@@ -544,7 +552,7 @@ Send a one-page note of what was agreed the same day.
    and whether the transfer to Render in Frankfurt and to Meta needs anything
    beyond the agreement.
 3. Publish the privacy notice from `docs/pilot/privacy-and-consent.md` at
-   vaticore.com/privacy.
+   vaticore.co.uk/privacy.
 
 ### 4.4 Consent (week 2)
 
@@ -623,7 +631,7 @@ what date.
 ### 5.4 Going live (week 7)
 
 1. **Point Meta's webhook at production:**
-   `https://vaticore-api.onrender.com/webhooks/whatsapp`, with production's
+   `https://api.vaticore.co.uk/webhooks/whatsapp`, with production's
    verify token and app secret set on `vaticore-api` (part 3.1).
 2. **Real sender number and permanent token** on every service that has
    `VATICORE_WHATSAPP_TOKEN` (part 1.5 and 1.6).
