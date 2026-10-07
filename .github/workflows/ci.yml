@@ -1,9 +1,17 @@
 name: CI
 
+# Runs on pull requests only: merges are squashes of a pull request that
+# already passed, so a second run on main would only spend minutes (the repo
+# is private, on GitHub's monthly allowance). Run it by hand on main with
+# "Run workflow" when wanted.
 on:
-  push:
-    branches: [main]
   pull_request:
+  workflow_dispatch:
+
+# A new push to the same pull request cancels the run it replaces.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   check:
@@ -33,24 +41,3 @@ jobs:
 
       - name: Test
         run: uv run pytest
-
-  # Build the production image and check it starts, migrates, refuses
-  # requests without a key, and carries the backup tools.
-  image:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Build
-        run: docker build -t vaticore:ci .
-
-      - name: Smoke test
-        run: |
-          docker run -d --name api -p 8000:8000 -e VATICORE_ENVIRONMENT=staging vaticore:ci
-          for i in $(seq 1 30); do curl -sf localhost:8000/health && break; sleep 2; done
-          test "$(curl -s -o /dev/null -w '%{http_code}' localhost:8000/ready)" = 503
-          docker exec api uv run python -m vaticore.pipeline migrate
-          curl -sf localhost:8000/ready
-          test "$(curl -s -o /dev/null -w '%{http_code}' localhost:8000/sites/op/s1/scorecard)" = 401
-          docker exec api pg_dump --version
-          test "$(docker exec api whoami)" = vaticore

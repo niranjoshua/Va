@@ -38,6 +38,12 @@ In Cloudflare:
 The site is `docs/landing/` in the repository: a static page with the brand
 assets and `privacy.html`. Nothing to build.
 
+Until now GitHub Pages served it from this repository. The repository is
+going private, and GitHub's free plan serves Pages only for public
+repositories, so the site moves to Cloudflare Pages, which builds from
+private repositories. Do this step **before** making the repository private,
+so the site is never offline.
+
 1. **Workers & Pages > Create > Pages > Connect to Git.** Authorise Cloudflare
    on GitHub for the `niranjoshua/Vaticore` repository only.
 2. Project name `vaticore-site`; production branch `main`.
@@ -49,8 +55,9 @@ assets and `privacy.html`. Nothing to build.
    `www.vaticore.co.uk`. Cloudflare adds the DNS records itself, because the
    domain is in the same account.
 6. **Before the site goes live:** fill in the company details in the footer
-   of `docs/landing/index.html` and in `docs/landing/privacy.html` (both
-   marked "fill in"), exactly as on the company's Companies House page:
+   of `docs/landing/index.html` and in `docs/landing/privacy.html` (each
+   waits in an HTML comment: uncomment it and replace the placeholders),
+   exactly as on the company's Companies House page:
    registered name, "registered in England and Wales" (Scotland or Northern
    Ireland if the company number starts SC or NI), company number and
    registered office address. UK law requires these on a company's website
@@ -61,6 +68,13 @@ assets and `privacy.html`. Nothing to build.
 
 Every push to `main` then redeploys the site. Pull requests get preview
 addresses of their own.
+
+7. **Then make the repository private:** GitHub > the repository >
+   **Settings > General > Danger Zone > Change visibility > Make private**.
+   Cloudflare and Render keep deploying (their GitHub apps have access to
+   private repositories). The old GitHub Pages address stops working, which
+   is expected; vaticore.co.uk is the site from now on. Anything already
+   public may have been copied while it was; nothing secret was in it.
 
 ## 3. Email in: Cloudflare Email Routing (15 minutes, free)
 
