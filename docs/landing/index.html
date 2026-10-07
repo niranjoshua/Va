@@ -503,13 +503,13 @@ footer{background:#F5F5F7;color:var(--ink-2);font-size:12px;line-height:1.5;padd
 <footer>
   <div class="wrap">
     <div class="notes">
-      <p>1. Rolling-origin backtest, one day-ahead forecast per day at 00:00 UTC, every hour of 453 days from January 2025 on Belgian national load (Elia open data), trained from 2022 on calendar and lag features only, with conformal calibration. Scored on the same hours against seasonal persistence and against Elia's published day-ahead (6 PM) P10, P50 and P90. Full method and limitations available on request from hello@vaticore.co.uk.</p>
+      <p>1. Rolling-origin backtest, one day-ahead forecast per day at 00:00 UTC, every hour of 453 days from January 2025 on Belgian national load (Elia open data), trained from 2022 on calendar and lag features only, with conformal calibration. Scored on the same hours against seasonal persistence and against Elia's published day-ahead (6 PM) P10, P50 and P90. Method, limitations and code: docs/research/elia-benchmark.md on GitHub.</p>
       <p>2. The console replays real Elia grid data for 17 to 28 March 2026. Net load shapes are real. Reserve, generator and diesel figures come from the Vaticore advisory engine applied to those shapes, scaled to a representative 120 kW solar mini-grid with a 600 kWh battery.</p>
-      <p>3. One-year held-out value study (all 365 days of 2018) on public ENTSO-E demand and solar data for Spain, scaled to a representative 120 kW solar mini-grid with a 600 kWh battery and a 100 kW generator. Each forecast planned the generator day ahead; each day then ran on the actual outcome. Compared with planning on persistence; the 2017 data was used for training only. Calibrated Vaticore forecast, P90 plan. A second site with a 300 kWh battery gave the same picture (84% less unserved energy, 72% fewer outage hours). Full method and limitations available on request from hello@vaticore.co.uk.</p>
+      <p>3. One-year held-out value study (all 365 days of 2018) on public ENTSO-E demand and solar data for Spain, scaled to a representative 120 kW solar mini-grid with a 600 kWh battery and a 100 kW generator. Each forecast planned the generator day ahead; each day then ran on the actual outcome. Compared with planning on persistence; the 2017 data was used for training only. Calibrated Vaticore forecast, P90 plan. A second site with a 300 kWh battery gave the same picture (84% less unserved energy, 72% fewer outage hours). Full method, limitations and code: docs/research/value-study-2018.md on GitHub.</p>
     </div>
     <div class="fcols">
       <span>Copyright &copy; 2026 Vaticore Ltd. Built in the UK.</span>
-      <div class="l"><a href="#product">Product</a><a href="#accuracy">Accuracy</a><a href="#how">How it works</a><a href="mailto:hello@vaticore.co.uk">Contact</a><a href="privacy.html">Privacy</a></div>
+      <div class="l"><a href="#product">Product</a><a href="#accuracy">Accuracy</a><a href="#how">How it works</a><a href="mailto:hello@vaticore.co.uk">Contact</a><a href="privacy.html">Privacy</a><a href="https://github.com/niranjoshua/Vaticore">GitHub</a></div>
     </div>
     <!-- Required on a UK company's website. Uncomment and fill in exactly as on
          Companies House before Meta verification (docs/domain.md, step 2.6):

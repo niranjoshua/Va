@@ -1,5 +1,5 @@
 # Render blueprint. Push this repo, then in Render: New > Blueprint, point it here.
-# Docs: https://render.com/docs/blueprint-spec. Step by step: docs/pilot/launch-guide.md.
+# Docs: https://render.com/docs/blueprint-spec. Setup: DEPLOY.md.
 #
 # Two environments from one image (docs/operations.md):
 #   staging     deploys every push to main automatically. Check it there first.
@@ -7,8 +7,8 @@
 #               staging looks right.
 # The blueprint creates each environment's Postgres and wires its connection
 # string into every service: no database URL is typed by hand.
-# Everything runs in Frankfurt, the region nearest Lagos; the data protection
-# documents name it (docs/pilot/data-processing-agreement.md).
+# Everything runs in Frankfurt, the region nearest Lagos; the privacy notice
+# and the data protection documents name it (docs/landing/privacy.html).
 # Web services answer on vaticore.co.uk subdomains (api, app, api-staging,
 # app-staging): CNAME records in Cloudflare, "DNS only" (docs/domain.md).
 # Secrets marked "sync: false" are entered in the Render dashboard, never here.
@@ -319,8 +319,8 @@ services:
           property: connectionString
       - key: VATICORE_API_TOKEN
         sync: false
-      # The rehearsal runs from this service's Shell (docs/pilot/launch-guide.md,
-      # part 3), with Meta's webhook pointed here until production goes live.
+      # The rehearsal runs from this service's Shell, with Meta's webhook
+      # pointed here until production goes live.
       - key: VATICORE_PORTFOLIO_FILE
         value: /etc/secrets/portfolio.toml
       - key: VATICORE_RECIPIENTS_FILE
@@ -367,7 +367,7 @@ services:
   # Staging plans every day too, stored but never sent, so a change shows its
   # effect on real-shaped data (staging API and dashboard) before production.
   # For the rehearsal, run it by hand from this job's Shell with your own
-  # number as the only recipient (docs/pilot/launch-guide.md, part 3).
+  # number as the only recipient.
   - type: cron
     name: vaticore-daily-plans-staging
     runtime: docker

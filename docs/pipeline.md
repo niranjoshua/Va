@@ -319,5 +319,3 @@ refused address) are stored as failed at once.
 - The weather model has no backtest yet: there were no archived forecasts
   for these sites. It earns its place in shadow, against the default model,
   on each site's own scored days, and is promoted only on that evidence.
-- The pilot report is a command, not yet a dashboard page.
-- What remains before the first pilot: `docs/pilot-checklist.md`.

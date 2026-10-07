@@ -122,7 +122,7 @@ Meta's template languages do not include Pidgin, so it is submitted under
 **English** with its own name.
 
 Before submitting: have a native speaker read the wording, and test it with
-two or three technicians (docs/pilot/technician-test.md). Change it in
+two or three technicians. Change it in
 `vaticore/delivery/message.py` (`PIDGIN_TEMPLATE_BODY` and the `"pcm"` phrase
 table) if they suggest better words, then submit exactly what is there.
 
