@@ -4,7 +4,7 @@ What is left before, and during, the first pilot. Every step is written out,
 click by click, in **docs/pilot/launch-guide.md**; the documents it needs are
 in **docs/pilot/**. Tick items off as they are done.
 
-Last updated: 6 October 2026.
+Last updated: 7 October 2026.
 
 ## Built and ready
 
@@ -31,6 +31,8 @@ Last updated: 6 October 2026.
       Wales", number, registered office) on the website footer and privacy
       page, in `VATICORE_EMAIL_LEGAL_FOOTER`, and in your email signature.
 - [ ] Website live on Cloudflare Pages at vaticore.co.uk and www.
+- [ ] Then the repository made private (GitHub > Settings > General >
+      Danger Zone); the old GitHub Pages address stops, as expected.
 - [ ] Email Routing: hello@, privacy@, tech@, ops@ forward to your inbox.
 - [ ] Brevo: domain authenticated (one combined SPF record, DKIM, DMARC);
       Gmail can send as hello@vaticore.co.uk.
