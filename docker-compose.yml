@@ -9,7 +9,7 @@ services:
       POSTGRES_PASSWORD: vaticore
       POSTGRES_DB: vaticore
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"  # this machine only: the password is public
     volumes:
       - vaticore_db:/var/lib/postgresql/data
     healthcheck:
@@ -21,7 +21,7 @@ services:
   api:
     build: .
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
       VATICORE_ENVIRONMENT: local
       VATICORE_DATABASE_URL: postgresql://vaticore:vaticore@db:5432/vaticore

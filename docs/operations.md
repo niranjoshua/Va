@@ -19,7 +19,7 @@ A change reaches production like this: merge to `main` (CI green), watch
 staging deploy and run its next daily plans, then deploy production by hand.
 Staging uses real-shaped data (a copy of a pilot's readings, or the example
 portfolio) and never messages anyone on its schedule; the rehearsal sends to
-Vaticore staff by hand (docs/pilot/launch-guide.md, part 3).
+Vaticore staff by hand, from a staging Shell.
 
 The blueprint creates the databases itself and wires their connection
 strings into every service. They accept connections only from Vaticore's own
@@ -136,23 +136,8 @@ daily jobs therefore run on Render's `standard` instance (2 GB), not the
 default `starter` (512 MB), which would kill them partway through.
 `tests/test_operations.py` fails if a job that loads the foundation models is
 given a smaller instance. CI builds and starts the image on every pull
-request that changes code or dependencies, and builds the foundation image
-(and forecasts with Chronos-2 with no network) whenever its inputs change.
-
-## CI and Actions minutes
-
-The repository is private, so GitHub Actions runs on the account's monthly
-allowance of minutes (2,000 a month on GitHub's free plan at the time of
-writing). To stay well inside it:
-
-- tests, lint and types run on pull requests only, not again after the
-  merge (a squash merge is the pull request that already passed);
-- the image build runs only when code, dependencies or the Dockerfile
-  change; the foundation image only when its own inputs change;
-- a new push to a pull request cancels the run it replaces.
-
-A typical code pull request costs about 8 minutes, a docs-only one about 4.
-Run any workflow by hand from the Actions tab when wanted.
+request, and builds the foundation image (and forecasts with Chronos-2 with no
+network) whenever its inputs change.
 
 ## What needs your accounts
 
