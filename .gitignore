@@ -54,3 +54,13 @@ dist-web/
 # Recipient lists hold phone numbers (personal data): never commit them.
 recipients*.toml
 !examples/sites/recipients.example.toml
+
+# Operators' site and data-source files hold their data and credentials.
+sources*.toml
+!examples/sites/sources.example.toml
+portfolio*.toml
+
+# Pilot reports and backups hold operator data.
+reports/
+backups/
+*.dump

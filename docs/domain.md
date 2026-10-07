@@ -38,11 +38,10 @@ In Cloudflare:
 The site is `docs/landing/` in the repository: a static page with the brand
 assets and `privacy.html`. Nothing to build.
 
-Until now GitHub Pages served it from this repository. The repository is
-going private, and GitHub's free plan serves Pages only for public
-repositories, so the site moves to Cloudflare Pages, which builds from
-private repositories. Do this step **before** making the repository private,
-so the site is never offline.
+GitHub Pages also publishes it from this repository on every push to `main`
+(`.github/workflows/pages.yml`), at the repository's `github.io` address.
+Cloudflare Pages serves the same folder at vaticore.co.uk, the address to
+give people.
 
 1. **Workers & Pages > Create > Pages > Connect to Git.** Authorise Cloudflare
    on GitHub for the `niranjoshua/Vaticore` repository only.
@@ -68,13 +67,6 @@ so the site is never offline.
 
 Every push to `main` then redeploys the site. Pull requests get preview
 addresses of their own.
-
-7. **Then make the repository private:** GitHub > the repository >
-   **Settings > General > Danger Zone > Change visibility > Make private**.
-   Cloudflare and Render keep deploying (their GitHub apps have access to
-   private repositories). The old GitHub Pages address stops working, which
-   is expected; vaticore.co.uk is the site from now on. Anything already
-   public may have been copied while it was; nothing secret was in it.
 
 ## 3. Email in: Cloudflare Email Routing (15 minutes, free)
 
@@ -123,7 +115,7 @@ summary, the pilot report and alerts.
    `VATICORE_SMTP_HOST`, `VATICORE_SMTP_USERNAME`, `VATICORE_SMTP_PASSWORD`,
    with `VATICORE_EMAIL_FROM=Vaticore <plans@vaticore.co.uk>`,
    `VATICORE_EMAIL_REPLY_TO=hello@vaticore.co.uk` and
-   `VATICORE_OPS_EMAIL=ops@vaticore.co.uk` (launch guide, part 2.7).
+   `VATICORE_OPS_EMAIL=ops@vaticore.co.uk` (`DEPLOY.md`).
    Also set `VATICORE_EMAIL_LEGAL_FOOTER` to the company line, for example
    `Vaticore Ltd, registered in England and Wales, company number 12345678.
    Registered office: <address>.` Every email the service sends ends with it,
@@ -149,7 +141,7 @@ carry the business's identity.
 ## 6. The service addresses on Render (20 minutes, after the blueprint)
 
 `render.yaml` already declares the four names on their services. After the
-blueprint is applied (launch guide, part 2.3), add the DNS records:
+blueprint is applied (`DEPLOY.md`), add the DNS records:
 
 | Type | Name | Target | Proxy |
 |---|---|---|---|

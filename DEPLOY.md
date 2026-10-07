@@ -29,8 +29,6 @@ docker compose up --build
 
 The repo ships a `render.yaml` blueprint and a `Dockerfile`.
 
-Step by step, with every click: `docs/pilot/launch-guide.md`, part 2.
-
 1. Push this repo to GitHub.
 2. **New > Blueprint**, select the repo. Render reads `render.yaml` and
    creates three Postgres databases (production, staging, and an empty one for
@@ -44,7 +42,9 @@ Step by step, with every click: `docs/pilot/launch-guide.md`, part 2.
    - optional: `VATICORE_SENTRY_DSN`, `VATICORE_HEARTBEAT_URL`, SMTP,
      `ANTHROPIC_API_KEY` (the LLM copilot degrades to a template without one).
 4. Upload the secret files (`portfolio.toml`, `recipients.toml`,
-   `sources.toml`) to the services that need them (launch guide, part 2.4).
+   `sources.toml`) as Render secret files: the portfolio on every service,
+   recipients on the jobs that send and on the staging API, sources on the
+   daily-plans jobs and the staging API.
 5. Deploy. Each API deploy first applies database migrations; Render then
    checks `GET /ready` (database reachable, schema current).
 6. Give each operator a key: `uv run python -m vaticore.pipeline apikey create
@@ -103,5 +103,4 @@ token and phone number ID, and the `portfolio.toml` and `recipients.toml`
 secret files. The daily jobs run on Render's `standard` instance because
 Chronos-2 needs more than the default 512 MB.
 
-What is left before the first pilot: `docs/pilot-checklist.md`. Step by step: `docs/whatsapp-setup.md`
-and `docs/pipeline.md`.
+Step by step: `docs/whatsapp-setup.md` and `docs/pipeline.md`.
