@@ -12,12 +12,32 @@ grid will be on** for each site an operator runs, and turns those forecasts
 into an hourly plan: when to run the generator, when to lean on the grid, and
 how much battery to hold. Built first for Nigerian operators who spend heavily
 on diesel. See [`docs/architecture.md`](docs/architecture.md) for how it fits
-together and [`docs/research/`](docs/research/README.md) for the evidence. Forecasts are probabilistic, the pipeline tolerates messy and sparse
-data, and evaluation is a first-class concern.
+together and [`docs/research/`](docs/research/README.md) for the evidence.
+Forecasts are probabilistic, the pipeline tolerates messy and sparse data, and
+evaluation is a first-class concern.
 
 ## Status
 
-Working end to end, with a real forecasting model, an API and a dashboard.
+Ready for a first pilot: a daily service that plans each site the evening
+before, tells the people who run it, and scores itself.
+
+- **Daily pipeline**: every evening, each site's next-day plan is made,
+  stored and sent on WhatsApp or email, in English or Nigerian Pidgin per
+  person. Replies of 1 (followed) and 2 (not, and why) are recorded; STOP
+  always wins. A site with poor data is told "no plan today, run as usual",
+  and a 19:30 safety net catches anything the job missed. Yesterday's plans
+  are scored against what happened; supervisors get a Monday summary
+  (`docs/pipeline.md`).
+- **Pilot measurement**: shadow weeks (plans made and scored, never sent),
+  the go/no-go verdict (`shadow-review`) and the savings report (`report`),
+  in the CLI, the API and the dashboard (`docs/pilot-measurement.md`).
+- **Fuel and monitoring**: diesel delivered against burned
+  (`docs/fuel.md`), data health per site, and model monitoring that falls
+  back to a safer model when one drifts.
+- **Production**: staging and production on Render from one image, operator
+  keys that reach only that operator's sites, migrations, logs, error
+  tracking, uptime and heartbeat checks, and backups proven by restoring
+  them (`docs/operations.md`, `docs/runbook.md`).
 
 - **Ingestion and schema**: CSV/API intake, timezone normalisation, gap
   detection, and strict validation against the internal schema.
@@ -49,8 +69,7 @@ Working end to end, with a real forecasting model, an API and a dashboard.
 - **Sizing studies**: sweeps solar and battery sizes for a site through the same
   hour by hour model, with a real year of weather at its location, and reports
   diesel, outages, payback and CO2 for each (`size_site`,
-  `examples/sizing_study.py`). This is the business case behind a hybrid
-  retrofit: Vaticore sizes it, partners build it, Vaticore runs it.
+  `examples/sizing_study.py`).
 - **Value backtest**: replays each forecast's plans against what actually
   happened and reports litres, outage hours and money against persistence and
   a perfect forecast (`run_value_backtest`, `examples/value_study.py`).
@@ -65,17 +84,16 @@ Working end to end, with a real forecasting model, an API and a dashboard.
   page, all driven by one engine facade so they never disagree.
 - **Ops**: Dockerfile, docker-compose (with TimescaleDB), and a Render blueprint
   (`DEPLOY.md`).
-
 - **Storage**: DuckDB (local) and Postgres/TimescaleDB (production) repositories
   behind one interface, wired into the API, which seeds demo data on first run
   and serves from the store. `examples/ingest_csv.py` loads a real operator CSV.
   The database is chosen by the `VATICORE_DATABASE_URL` scheme.
-
 - **Foundation models**: Chronos-2 and TimesFM wrapped behind the same
   interface (`foundation` extra). Chronos-2 is a planning model in the engine
   (`chronos_2`); see [research note 3](docs/research/foundation-models.md).
 
-Next: weather covariates, fleet models and a real pilot data feed.
+Next: the first pilot's own data, then the weather model in shadow on the
+pilot's scored days.
 
 ## Evidence
 
@@ -112,17 +130,37 @@ vaticore/
   pipeline/      # the daily loop, scoring, pilot report, weekly summary (docs/pipeline.md)
   delivery/      # daily plans on WhatsApp and email, replies, opt-outs
   fuel/          # diesel delivered against burned, flags for checking (docs/fuel.md)
-  storage/       # multi-tenant, multi-site persistence
+  storage/       # multi-tenant, multi-site persistence, numbered migrations
   engine.py      # orchestration facade used by api and dashboard
+  schemas.py     # the internal schema, validated at every ingestion boundary
+  access.py      # who may see which operator's sites (keys, admin token)
+  observability.py  # JSON logs, Sentry, heartbeat
   datasets.py    # synthetic demo data
   config.py      # typed settings (pydantic-settings), env-driven
 examples/        # quickstart, research studies, example site portfolios
-docs/architecture.md  # how the system fits together
-docs/research/   # research programme, protocol and study notes
-docs/landing/    # static marketing landing page (index.html)
-tests/           # mirrors the package layout
+docs/            # guides, below; docs/research/ holds the evidence
+docs/landing/    # the website (index.html, privacy.html)
+tests/           # one module per area; golden numbers in tests/golden/
 Dockerfile, docker-compose.yml, render.yaml, DEPLOY.md   # deployment
 ```
+
+## Documentation
+
+| Read | For |
+|---|---|
+| [`docs/architecture.md`](docs/architecture.md) | How the system fits together |
+| [`docs/research/README.md`](docs/research/README.md) | The research programme, protocol and the three study notes |
+| [`docs/pipeline.md`](docs/pipeline.md) | The daily loop: data health, plan, send, score |
+| [`docs/pilot-measurement.md`](docs/pilot-measurement.md) | How a pilot's savings are measured, agreed before it starts |
+| [`docs/pilot/`](docs/pilot/) | The site onboarding form; privacy and consent messages |
+| [`docs/data-connectors.md`](docs/data-connectors.md) | Pulling readings from monitoring platforms |
+| [`docs/fuel.md`](docs/fuel.md) | Fuel reconciliation |
+| [`docs/whatsapp-setup.md`](docs/whatsapp-setup.md) | WhatsApp Business Platform: templates, webhook, recipients |
+| [`DEPLOY.md`](DEPLOY.md) | Local, Docker and Render setup |
+| [`docs/operations.md`](docs/operations.md) | Running production: environments, access, migrations, monitoring, backups |
+| [`docs/runbook.md`](docs/runbook.md) | What to do when something fails |
+| [`docs/domain.md`](docs/domain.md) | vaticore.co.uk: website, email, service addresses |
+| [`SECURITY.md`](SECURITY.md) | Reporting a security problem |
 
 ## Quickstart
 
@@ -206,4 +244,5 @@ Two contracts hold the system together and should not be broken:
 - Built for messy, sparse data and cold-start sites.
 - Advisory only. No closed-loop control that touches an operator's dispatch.
 
-See `CLAUDE.md` for build conventions.
+See `CLAUDE.md` for build conventions. The code is published to show the
+method and let results be checked; it is not open source (`LICENSE`).

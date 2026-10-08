@@ -167,7 +167,7 @@ services:
       - key: VATICORE_EMAIL_FROM
         sync: false
       - key: VATICORE_EMAIL_LEGAL_FOOTER
-        sync: false
+        value: "Vaticore Ltd, registered in England and Wales, company number 17501412. Registered office: Hull, United Kingdom."
       - key: VATICORE_WEATHER_API_KEY
         sync: false
       - key: VATICORE_OPS_EMAIL
@@ -219,7 +219,7 @@ services:
       - key: VATICORE_EMAIL_FROM
         sync: false
       - key: VATICORE_EMAIL_LEGAL_FOOTER
-        sync: false
+        value: "Vaticore Ltd, registered in England and Wales, company number 17501412. Registered office: Hull, United Kingdom."
       - key: VATICORE_OPS_EMAIL
         sync: false
       - key: VATICORE_SENTRY_DSN
@@ -264,7 +264,7 @@ services:
       - key: VATICORE_EMAIL_FROM
         sync: false
       - key: VATICORE_EMAIL_LEGAL_FOOTER
-        sync: false
+        value: "Vaticore Ltd, registered in England and Wales, company number 17501412. Registered office: Hull, United Kingdom."
       - key: VATICORE_SENTRY_DSN
         sync: false
 
