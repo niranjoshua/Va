@@ -53,17 +53,16 @@ give people.
 5. **Custom domains > Set up a custom domain:** add `vaticore.co.uk`, then
    `www.vaticore.co.uk`. Cloudflare adds the DNS records itself, because the
    domain is in the same account.
-6. **Before the site goes live:** fill in the company details in the footer
-   of `docs/landing/index.html` and in `docs/landing/privacy.html` (each
-   waits in an HTML comment: uncomment it and replace the placeholders),
-   exactly as on the company's Companies House page:
-   registered name, "registered in England and Wales" (Scotland or Northern
-   Ireland if the company number starts SC or NI), company number and
-   registered office address. UK law requires these on a company's website
-   (and its emails: see step 4), and Meta compares them with the documents
-   you upload. Add the ICO registration number to the privacy page once the
-   data protection fee is paid. Merge to `main`; Pages redeploys on every
-   push.
+6. **The company details** are in the footer of `docs/landing/index.html`
+   and in `docs/landing/privacy.html`: registered name, "registered in
+   England and Wales", company number 17501412 and the registered office.
+   UK law requires them on a company's website and emails (step 4), and Meta
+   compares them with the documents you upload, so they must read exactly as
+   on the company's Companies House page; the law asks for the registered
+   office's full address. If the registered office moves, change both pages
+   and `VATICORE_EMAIL_LEGAL_FOOTER` in `render.yaml`. Add the ICO
+   registration number to the privacy page once the data protection fee is
+   paid (it waits in an HTML comment there).
 
 Every push to `main` then redeploys the site. Pull requests get preview
 addresses of their own.
@@ -116,10 +115,9 @@ summary, the pilot report and alerts.
    with `VATICORE_EMAIL_FROM=Vaticore <plans@vaticore.co.uk>`,
    `VATICORE_EMAIL_REPLY_TO=hello@vaticore.co.uk` and
    `VATICORE_OPS_EMAIL=ops@vaticore.co.uk` (`DEPLOY.md`).
-   Also set `VATICORE_EMAIL_LEGAL_FOOTER` to the company line, for example
-   `Vaticore Ltd, registered in England and Wales, company number 12345678.
-   Registered office: <address>.` Every email the service sends ends with it,
-   as UK law requires of a company's business emails.
+   `VATICORE_EMAIL_LEGAL_FOOTER`, the company line, is already set in
+   `render.yaml`: every email the service sends ends with it, as UK law
+   requires of a company's business emails.
 7. **Your own emails** need the same company line: add it to your Gmail
    signature.
 8. **To write as hello@vaticore.co.uk from Gmail:** Gmail > Settings >

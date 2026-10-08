@@ -44,6 +44,7 @@ vaticore/
   features/      # calendar, lags, weather enrichment
   forecasting/   # baselines, quantile GBM, (later) LSTM, TIME-LLM, ensemble
   evaluation/    # backtesting harness, pinball loss, calibration, baseline comparison
+  tracking/      # MLflow experiment tracking, with a no-op fallback
   sites/         # site and asset registry: towers, banks, C&I, institutions, mini-grids
   decisions/     # forecast -> hourly plan: grid, generator, battery (advisory only)
   pipeline/      # daily loop: data health, plan, store, score (docs/pipeline.md)
@@ -51,6 +52,7 @@ vaticore/
   fuel/          # fuel reconciliation: delivered against burned, flags for checking
   api/           # FastAPI service
   dashboard/     # Streamlit app
+  copilot/       # optional LLM explanations, grounded on the engine's numbers
   storage/       # multi-tenant, multi-site persistence
   config.py      # typed settings (pydantic-settings), env-driven
 tests/           # mirrors the package layout
