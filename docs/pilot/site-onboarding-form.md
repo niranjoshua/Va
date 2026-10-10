@@ -42,6 +42,7 @@ write down how the number was reached.
 |---|---|---|
 | Rated output in kW (nameplate kVA times 0.8 if only kVA is shown) | `16` | `generator.rated_kw` |
 | Shortest run once started, in hours (operator's rule) | `2` | `generator.min_run_hours` |
+| Can the battery charger load the generator while it runs ("charge at full rate" on the inverter or hybrid controller)? If yes, the generator runs hard, then off, and burns less | yes: `0.8` | `generator.charge_setpoint` |
 | Diesel price per litre, delivered to site, in naira | `1250` | `generator.fuel_price_per_l` |
 | Tank size in litres | `500` | `generator.tank_l` |
 | Does a sensor report the tank level? | yes / no | readings: `fuel_level_l` |

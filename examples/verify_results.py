@@ -11,6 +11,8 @@ after any change the golden tests flag:
 
     uv run python examples/verify_results.py elia_load foundation_short ...
 
+The diesel studies (research note 4) take about half an hour each.
+
 Each study is rerun into a temporary folder with the settings recorded in its
 committed result (assets, period, scored days), then every number is compared
 with docs/research/results/<study>.json. Runtimes, file paths and timing
@@ -88,6 +90,19 @@ def _command(name: str, args: argparse.Namespace) -> tuple[list[str], str]:
     }  # fmt: skip
     if name.startswith("value_study_"):
         return _value_study_args(name, args), f"value_study_{name.removeprefix('value_study_')}"
+    if name.startswith("diesel_"):
+        if args.spain_csv is None:
+            raise SystemExit(f"{name} needs its data files (see --help)")
+        meta = _committed(name)["meta"]
+        return [
+            str(ROOT / "examples" / "diesel_study.py"), str(args.spain_csv),
+            "--phase", str(meta["phase"]), "--sites", str(meta["site_id"]),
+            "--initial-days", str(meta.get("initial_days", 365)),
+            "--setpoint", *(str(x) for x in meta["setpoints"]),
+            "--plan-quantile", *(str(x) for x in meta["plan_quantiles"]),
+            *(["--grid-quantile", str(meta["grid_quantile"])]
+              if meta.get("grid_quantile") is not None else []),
+        ], name  # fmt: skip
     if name not in data:
         raise SystemExit(f"unknown study {name!r}; known: {', '.join(studies())}")
     command = [str(c) for c in data[name]]
@@ -98,7 +113,7 @@ def _command(name: str, args: argparse.Namespace) -> tuple[list[str], str]:
 
 def _needs(name: str) -> tuple[str, ...]:
     """The data files a study reads."""
-    if name.startswith("value_study_"):
+    if name.startswith(("value_study_", "diesel_")):
         return ("spain_csv",)
     if name in ("elia_value", "foundation_value"):
         return ("elia_load_csv", "elia_solar_csv")

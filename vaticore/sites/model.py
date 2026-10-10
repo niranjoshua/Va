@@ -74,9 +74,24 @@ class Generator(_Strict):
     fuel_intercept_l_per_kw_h: float = Field(default=0.08145, ge=0)
     fuel_slope_l_per_kwh: float = Field(default=0.246, ge=0)
     fuel_price_per_l: float = Field(ge=0)
+    charge_setpoint: float | None = Field(
+        default=None,
+        gt=0,
+        le=1,
+        description="Cycle charging: while running, the generator is loaded to this "
+        "fraction of its rating and the surplus charges the battery (run hard, then "
+        "off). Set only where the site's battery charger can load the generator; "
+        "unset means load following",
+    )
     tank_l: float | None = Field(
         default=None, gt=0, description="Fuel tank capacity in litres, for fuel reconciliation"
     )
+
+    @model_validator(mode="after")
+    def _setpoint_above_minimum_load(self) -> Generator:
+        if self.charge_setpoint is not None and self.charge_setpoint < self.min_load_fraction:
+            raise ValueError("charge_setpoint must be at least min_load_fraction")
+        return self
 
 
 class GridConnection(_Strict):
@@ -119,6 +134,11 @@ class Site(_Strict):
         description="Local hour each daily plan starts: 0 plans the local day, midnight to "
         "midnight, issued the evening before",
     )
+    look_ahead: bool = Field(
+        default=False,
+        description="Plan each day's generator hours all at once for the fewest litres, "
+        "instead of hour by hour; never less reliable than the hour-by-hour plan",
+    )
 
     @field_validator("timezone")
     @classmethod
@@ -156,6 +176,7 @@ class Site(_Strict):
             genset_kw=gen.rated_kw if gen else 0.0,
             genset_min_load=gen.min_load_fraction if gen else 0.3,
             genset_min_run_hours=gen.min_run_hours if gen else 1.0,
+            genset_charge_setpoint=gen.charge_setpoint if gen else None,
             fuel_intercept_l_per_kw_h=gen.fuel_intercept_l_per_kw_h if gen else 0.08145,
             fuel_slope_l_per_kwh=gen.fuel_slope_l_per_kwh if gen else 0.246,
             diesel_price_per_l=gen.fuel_price_per_l if gen else 0.0,
@@ -163,6 +184,7 @@ class Site(_Strict):
             grid_kw=grid.capacity_kw if grid else 0.0,
             grid_price_per_kwh=grid.price_per_kwh if grid else 0.0,
             grid_charges_battery=grid.charges_battery if grid else True,
+            look_ahead=self.look_ahead,
         )
 
 

@@ -65,7 +65,10 @@ before, tells the people who run it, and scores itself.
 - **Decisions**: an hour by hour plan ("run the generator 18:00 to midnight;
   the plan counts on grid power 06:00 to 14:00") from a merit order model:
   grid, then generator, then battery, with a HOMER-standard fuel curve. Served
-  at `POST /plan` and on the dashboard. Advisory only.
+  at `POST /plan` and on the dashboard. Advisory only. Per site, the generator
+  can run hard, then off (`generator.charge_setpoint`), and the day can be
+  planned at once for the fewest litres (`look_ahead`); research note 4 says
+  where each pays.
 - **Sizing studies**: sweeps solar and battery sizes for a site through the same
   hour by hour model, with a real year of weather at its location, and reports
   diesel, outages, payback and CO2 for each (`size_site`,
@@ -112,6 +115,15 @@ national load it matched Elia's day-ahead forecast on pinball loss (95.2 MW
 each) and MAE (287.8 against 292.4 MW), without weather data. Its range was
 better calibrated: 80.4% of outcomes against Elia's 74.9%, target 80%. On
 solar, where Elia uses weather, Elia is far ahead; weather is the next study.
+
+[Research note 4](docs/research/diesel-practice.md) measures diesel against
+how sites run today, on a held-out year. At an off-grid telecom tower,
+Vaticore's plan used 19.6% less diesel than the best-run practice and 30.4%
+less than an evening timer, with no outages; most of it came from running the
+generator hard, then off. At a tower on a weak grid (a synthetic outage
+pattern), letting the battery go first used 83.5% less diesel than running
+the generator whenever the grid is off. On the mini-grid, diesel fell 2.0% and
+outage hours fell from 94 to 30.
 
 ## Layout
 

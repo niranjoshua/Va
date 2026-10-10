@@ -1,0 +1,256 @@
+{
+  "meta": {
+    "period_utc": [
+      "2016-01-01 00:00:00+00:00",
+      "2017-12-31 23:00:00+00:00"
+    ],
+    "mean_load_kw": 3.3,
+    "mean_daily_pv_kwh": 48.08149824755779,
+    "missing_load_hours": 7,
+    "missing_solar_hours": 1,
+    "grid_on_share": 0.6263679890560876,
+    "site_id": "tower-grid",
+    "description": "telecom tower with solar on a weak grid (synthetic grid pattern)",
+    "phase": "design",
+    "setpoints": [
+      0.6,
+      0.7,
+      0.8,
+      0.9,
+      1.0
+    ],
+    "plan_quantiles": [
+      0.5,
+      0.9
+    ],
+    "scored_days": 366,
+    "seconds": 615.5337343215942,
+    "initial_days": 365,
+    "grid_quantile": 0.1
+  },
+  "assets": {
+    "battery_kwh": 20.0,
+    "battery_power_kw": 10.0,
+    "genset_kw": 16.0,
+    "charge_efficiency": 0.95,
+    "discharge_efficiency": 0.95,
+    "min_soc_kwh": 2.0,
+    "genset_min_load": 0.3,
+    "genset_min_run_hours": 2.0,
+    "genset_charge_setpoint": null,
+    "look_ahead": false,
+    "fuel_intercept_l_per_kw_h": 0.08145,
+    "fuel_slope_l_per_kwh": 0.246,
+    "diesel_price_per_l": 1.1,
+    "value_of_lost_load_per_kwh": 1.0,
+    "step_hours": 1.0,
+    "grid_kw": 10.0,
+    "grid_price_per_kwh": 0.15,
+    "grid_charges_battery": true
+  },
+  "reference": "Today: start when the battery runs out",
+  "value": {
+    "Today: start when the battery runs out": {
+      "fuel_l": 1073.088,
+      "genset_hours": 432.0,
+      "genset_starts": 231,
+      "unserved_kwh": 0.0,
+      "unserved_hours": 0.0,
+      "grid_kwh": 14166.128177162302,
+      "days": 366,
+      "fuel_saved_vs_reference": 0.0
+    },
+    "P50 plan, setpoint 0.6": {
+      "fuel_l": 1735.0756110909902,
+      "genset_hours": 546.0,
+      "genset_starts": 322,
+      "unserved_kwh": 0.0,
+      "unserved_hours": 0.0,
+      "grid_kwh": 12601.833395305199,
+      "days": 366,
+      "fuel_saved_vs_reference": -0.6168996495077665
+    },
+    "P50 plan, setpoint 0.7": {
+      "fuel_l": 1787.0317729035778,
+      "genset_hours": 551.0,
+      "genset_starts": 330,
+      "unserved_kwh": 0.0,
+      "unserved_hours": 0.0,
+      "grid_kwh": 12475.485993879236,
+      "days": 366,
+      "fuel_saved_vs_reference": -0.6653170782858235
+    },
+    "P50 plan, setpoint 0.8": {
+      "fuel_l": 1813.914639866718,
+      "genset_hours": 559.0,
+      "genset_starts": 337,
+      "unserved_kwh": 0.0,
+      "unserved_hours": 0.0,
+      "grid_kwh": 12437.403440458049,
+      "days": 366,
+      "fuel_saved_vs_reference": -0.6903689537733328
+    },
+    "P50 plan, setpoint 0.9": {
+      "fuel_l": 1816.759867693747,
+      "genset_hours": 559.0,
+      "genset_starts": 337,
+      "unserved_kwh": 0.0,
+      "unserved_hours": 0.0,
+      "grid_kwh": 12429.2708596518,
+      "days": 366,
+      "fuel_saved_vs_reference": -0.693020393195849
+    },
+    "P50 plan, setpoint 1.0": {
+      "fuel_l": 1816.759867693747,
+      "genset_hours": 559.0,
+      "genset_starts": 337,
+      "unserved_kwh": 0.0,
+      "unserved_hours": 0.0,
+      "grid_kwh": 12429.2708596518,
+      "days": 366,
+      "fuel_saved_vs_reference": -0.693020393195849
+    },
+    "P90 plan, setpoint 0.6": {
+      "fuel_l": 2168.9433518573223,
+      "genset_hours": 718.0,
+      "genset_starts": 435,
+      "unserved_kwh": 0.0,
+      "unserved_hours": 0.0,
+      "grid_kwh": 12073.433531545785,
+      "days": 366,
+      "fuel_saved_vs_reference": -1.021216668024731
+    },
+    "P90 plan, setpoint 0.7": {
+      "fuel_l": 2112.5607712272927,
+      "genset_hours": 679.0,
+      "genset_starts": 409,
+      "unserved_kwh": 0.0,
+      "unserved_hours": 0.0,
+      "grid_kwh": 12084.863766915418,
+      "days": 366,
+      "fuel_saved_vs_reference": -0.9686743037172094
+    },
+    "P90 plan, setpoint 0.8": {
+      "fuel_l": 2089.601079385514,
+      "genset_hours": 662.0,
+      "genset_starts": 404,
+      "unserved_kwh": 0.0,
+      "unserved_hours": 0.0,
+      "grid_kwh": 12065.80381385635,
+      "days": 366,
+      "fuel_saved_vs_reference": -0.947278395980119
+    },
+    "P90 plan, setpoint 0.9": {
+      "fuel_l": 2094.1319512345913,
+      "genset_hours": 663.0,
+      "genset_starts": 404,
+      "unserved_kwh": 0.0,
+      "unserved_hours": 0.0,
+      "grid_kwh": 12057.879748364545,
+      "days": 366,
+      "fuel_saved_vs_reference": -0.9515006702475393
+    },
+    "P90 plan, setpoint 1.0": {
+      "fuel_l": 2094.1319512345913,
+      "genset_hours": 663.0,
+      "genset_starts": 404,
+      "unserved_kwh": 0.0,
+      "unserved_hours": 0.0,
+      "grid_kwh": 12057.879748364545,
+      "days": 366,
+      "fuel_saved_vs_reference": -0.9515006702475393
+    }
+  },
+  "calibration": {
+    "persistence": [
+      {
+        "model": "persistence",
+        "kind": "quantile",
+        "nominal": 0.1,
+        "observed": 0.0867683899,
+        "mean_width": null
+      },
+      {
+        "model": "persistence",
+        "kind": "quantile",
+        "nominal": 0.5,
+        "observed": 0.5079708495,
+        "mean_width": null
+      },
+      {
+        "model": "persistence",
+        "kind": "quantile",
+        "nominal": 0.9,
+        "observed": 0.9063994534,
+        "mean_width": null
+      },
+      {
+        "model": "persistence",
+        "kind": "band 0.1-0.9",
+        "nominal": 0.8,
+        "observed": 0.8196310635,
+        "mean_width": 2.0195015692
+      }
+    ],
+    "quantile_gbm_day_ahead": [
+      {
+        "model": "quantile_gbm_day_ahead",
+        "kind": "quantile",
+        "nominal": 0.1,
+        "observed": 0.1481439308,
+        "mean_width": null
+      },
+      {
+        "model": "quantile_gbm_day_ahead",
+        "kind": "quantile",
+        "nominal": 0.5,
+        "observed": 0.5142336598,
+        "mean_width": null
+      },
+      {
+        "model": "quantile_gbm_day_ahead",
+        "kind": "quantile",
+        "nominal": 0.9,
+        "observed": 0.8670006832,
+        "mean_width": null
+      },
+      {
+        "model": "quantile_gbm_day_ahead",
+        "kind": "band 0.1-0.9",
+        "nominal": 0.8,
+        "observed": 0.7188567524,
+        "mean_width": 1.7485653811
+      }
+    ],
+    "quantile_gbm_day_ahead+conformal": [
+      {
+        "model": "quantile_gbm_day_ahead+conformal",
+        "kind": "quantile",
+        "nominal": 0.1,
+        "observed": 0.1158050558,
+        "mean_width": null
+      },
+      {
+        "model": "quantile_gbm_day_ahead+conformal",
+        "kind": "quantile",
+        "nominal": 0.5,
+        "observed": 0.5142336598,
+        "mean_width": null
+      },
+      {
+        "model": "quantile_gbm_day_ahead+conformal",
+        "kind": "quantile",
+        "nominal": 0.9,
+        "observed": 0.918925074,
+        "mean_width": null
+      },
+      {
+        "model": "quantile_gbm_day_ahead+conformal",
+        "kind": "band 0.1-0.9",
+        "nominal": 0.8,
+        "observed": 0.8031200182,
+        "mean_width": 1.9077060774
+      }
+    ]
+  }
+}

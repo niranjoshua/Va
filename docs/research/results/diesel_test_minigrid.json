@@ -1,0 +1,210 @@
+{
+  "meta": {
+    "period_utc": [
+      "2017-01-01 00:00:00+00:00",
+      "2018-12-31 23:00:00+00:00"
+    ],
+    "mean_load_kw": 84.7318963293301,
+    "mean_daily_pv_kwh": 1188.4319932331641,
+    "missing_load_hours": 5,
+    "missing_solar_hours": 2,
+    "site_id": "minigrid",
+    "description": "solar mini-grid, off grid",
+    "phase": "test",
+    "setpoints": [
+      0.8
+    ],
+    "plan_quantiles": [
+      0.5
+    ],
+    "initial_days": 365,
+    "grid_quantile": null,
+    "scored_days": 365,
+    "seconds": 584.9021899700165
+  },
+  "assets": {
+    "battery_kwh": 600.0,
+    "battery_power_kw": 150.0,
+    "genset_kw": 100.0,
+    "charge_efficiency": 0.95,
+    "discharge_efficiency": 0.95,
+    "min_soc_kwh": 60.0,
+    "genset_min_load": 0.3,
+    "genset_min_run_hours": 2.0,
+    "genset_charge_setpoint": null,
+    "look_ahead": false,
+    "fuel_intercept_l_per_kw_h": 0.08145,
+    "fuel_slope_l_per_kwh": 0.246,
+    "diesel_price_per_l": 1.1,
+    "value_of_lost_load_per_kwh": 1.0,
+    "step_hours": 1.0,
+    "grid_kw": 0.0,
+    "grid_price_per_kwh": 0.0,
+    "grid_charges_battery": true
+  },
+  "reference": "Today: start when the battery runs out",
+  "value": {
+    "Today: start when the battery runs out": {
+      "fuel_l": 126257.00146351253,
+      "genset_hours": 5017.0,
+      "genset_starts": 610,
+      "unserved_kwh": 479.1818460236068,
+      "unserved_hours": 94.0,
+      "grid_kwh": 0.0,
+      "days": 365,
+      "fuel_saved_vs_reference": 0.0
+    },
+    "Today: evening timer": {
+      "fuel_l": 127822.35026275752,
+      "genset_hours": 5116.0,
+      "genset_starts": 657,
+      "unserved_kwh": 607.8069010327059,
+      "unserved_hours": 106.0,
+      "grid_kwh": 0.0,
+      "days": 365,
+      "fuel_saved_vs_reference": -0.012398114806309257
+    },
+    "Vaticore plan, today's planner": {
+      "fuel_l": 127333.89800420044,
+      "genset_hours": 5077.0,
+      "genset_starts": 642,
+      "unserved_kwh": 529.5843709361673,
+      "unserved_hours": 94.0,
+      "grid_kwh": 0.0,
+      "days": 365,
+      "fuel_saved_vs_reference": -0.00852940057347329
+    },
+    "Vaticore plan, run hard": {
+      "fuel_l": 123757.25622282967,
+      "genset_hours": 4329.0,
+      "genset_starts": 887,
+      "unserved_kwh": 163.18637304023383,
+      "unserved_hours": 30.0,
+      "grid_kwh": 0.0,
+      "days": 365,
+      "fuel_saved_vs_reference": 0.01979886431411304
+    },
+    "Vaticore plan, run hard + look ahead": {
+      "fuel_l": 123968.5343364231,
+      "genset_hours": 4344.0,
+      "genset_starts": 851,
+      "unserved_kwh": 213.66012272073488,
+      "unserved_hours": 35.0,
+      "grid_kwh": 0.0,
+      "days": 365,
+      "fuel_saved_vs_reference": 0.01812546710726992
+    },
+    "Charger setting alone, no forecast": {
+      "fuel_l": 122130.68196153411,
+      "genset_hours": 4261.0,
+      "genset_starts": 938,
+      "unserved_kwh": 272.1273622118471,
+      "unserved_hours": 51.0,
+      "grid_kwh": 0.0,
+      "days": 365,
+      "fuel_saved_vs_reference": 0.03268190638260082
+    },
+    "Perfect forecast, run hard + look ahead": {
+      "fuel_l": 121671.62760777786,
+      "genset_hours": 4257.0,
+      "genset_starts": 825,
+      "unserved_kwh": 21.088258734003173,
+      "unserved_hours": 3.0,
+      "grid_kwh": 0.0,
+      "days": 365,
+      "fuel_saved_vs_reference": 0.03631777883668341
+    }
+  },
+  "calibration": {
+    "persistence": [
+      {
+        "model": "persistence",
+        "kind": "quantile",
+        "nominal": 0.1,
+        "observed": 0.1052871988,
+        "mean_width": null
+      },
+      {
+        "model": "persistence",
+        "kind": "quantile",
+        "nominal": 0.5,
+        "observed": 0.5294050474,
+        "mean_width": null
+      },
+      {
+        "model": "persistence",
+        "kind": "quantile",
+        "nominal": 0.9,
+        "observed": 0.9019070458,
+        "mean_width": null
+      },
+      {
+        "model": "persistence",
+        "kind": "band 0.1-0.9",
+        "nominal": 0.8,
+        "observed": 0.796619847,
+        "mean_width": 55.1394019966
+      }
+    ],
+    "quantile_gbm_day_ahead": [
+      {
+        "model": "quantile_gbm_day_ahead",
+        "kind": "quantile",
+        "nominal": 0.1,
+        "observed": 0.1317802901,
+        "mean_width": null
+      },
+      {
+        "model": "quantile_gbm_day_ahead",
+        "kind": "quantile",
+        "nominal": 0.5,
+        "observed": 0.5059952038,
+        "mean_width": null
+      },
+      {
+        "model": "quantile_gbm_day_ahead",
+        "kind": "quantile",
+        "nominal": 0.9,
+        "observed": 0.84149823,
+        "mean_width": null
+      },
+      {
+        "model": "quantile_gbm_day_ahead",
+        "kind": "band 0.1-0.9",
+        "nominal": 0.8,
+        "observed": 0.7097179399,
+        "mean_width": 44.8040445159
+      }
+    ],
+    "quantile_gbm_day_ahead+conformal": [
+      {
+        "model": "quantile_gbm_day_ahead+conformal",
+        "kind": "quantile",
+        "nominal": 0.1,
+        "observed": 0.0846180199,
+        "mean_width": null
+      },
+      {
+        "model": "quantile_gbm_day_ahead+conformal",
+        "kind": "quantile",
+        "nominal": 0.5,
+        "observed": 0.5059952038,
+        "mean_width": null
+      },
+      {
+        "model": "quantile_gbm_day_ahead+conformal",
+        "kind": "quantile",
+        "nominal": 0.9,
+        "observed": 0.8914011648,
+        "mean_width": null
+      },
+      {
+        "model": "quantile_gbm_day_ahead+conformal",
+        "kind": "band 0.1-0.9",
+        "nominal": 0.8,
+        "observed": 0.8067831449,
+        "mean_width": 51.9658523151
+      }
+    ]
+  }
+}

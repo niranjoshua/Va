@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -197,3 +199,130 @@ def test_minimum_run_counts_whole_steps() -> None:
     assert ASSETS.genset_min_run_steps == 1
     with pytest.raises(ValueError):
         SiteAssets(**{**ASSETS.__dict__, "genset_min_run_hours": 0.0})
+
+
+# Run hard, then off (cycle charging), and the look-ahead planner.
+
+CYCLING = SiteAssets(
+    battery_kwh=100.0,
+    battery_power_kw=50.0,
+    genset_kw=40.0,
+    charge_efficiency=1.0,
+    discharge_efficiency=1.0,
+    genset_min_load=0.25,
+    genset_charge_setpoint=0.8,  # 32 kW while running
+)
+
+
+def test_cycle_charging_loads_the_generator_and_charges_the_battery() -> None:
+    out = _run([4.0], [True], soc=50.0, assets=CYCLING)
+    assert out.genset_kw[0] == pytest.approx(32.0)
+    assert out.soc_end_kwh == pytest.approx(78.0)  # 28 kW of surplus into the battery
+
+
+def test_cycle_charging_stops_at_what_the_battery_can_take() -> None:
+    nearly_full = _run([4.0], [True], soc=95.0, assets=CYCLING)
+    assert nearly_full.genset_kw[0] == pytest.approx(10.0)  # 5 kW of room, but the 10 kW floor
+    assert nearly_full.soc_end_kwh == pytest.approx(100.0)
+    assert nearly_full.curtailed_kwh == pytest.approx(1.0)
+    power_limited = _run([4.0], [True], soc=0.0, assets=replace(CYCLING, battery_power_kw=10.0))
+    assert power_limited.genset_kw[0] == pytest.approx(14.0)  # load plus the charger's 10 kW
+
+
+def test_cycle_charging_still_serves_a_load_above_the_setpoint() -> None:
+    out = _run([38.0], [True], soc=50.0, assets=CYCLING)
+    assert out.genset_kw[0] == pytest.approx(38.0)
+    assert out.soc_end_kwh == pytest.approx(50.0)
+
+
+def test_cycle_charging_needs_a_valid_setpoint() -> None:
+    with pytest.raises(ValueError):
+        replace(CYCLING, genset_charge_setpoint=0.2)  # below the 0.25 minimum load
+    with pytest.raises(ValueError):
+        replace(CYCLING, genset_charge_setpoint=1.2)
+
+
+def _tower_days(days: int, assets: SiteAssets) -> tuple[float, float]:
+    """Fuel and unserved energy over back to back planned days, battery carried."""
+    rng = np.random.default_rng(3)
+    shape = np.clip(np.sin((np.arange(24) - 6) / 12 * np.pi), 0, None)
+    soc = (assets.min_soc_kwh + assets.battery_kwh) / 2
+    fuel = unserved = 0.0
+    for day in range(days):
+        net = 3.3 * (1 + 0.1 * rng.standard_normal(24)) - 8.0 * shape * rng.uniform(0.3, 1.0)
+        index = pd.date_range("2024-01-01", periods=24, freq="h", tz="UTC") + pd.Timedelta(days=day)
+        plan = plan_dispatch(pd.Series(net, index=index), soc_kwh=soc, assets=assets)
+        out = simulate_dispatch(net, plan.genset_on, soc_kwh=soc, assets=assets)
+        soc, fuel, unserved = out.soc_end_kwh, fuel + out.fuel_l, unserved + out.unserved_kwh
+    return fuel, unserved
+
+
+TOWER = SiteAssets(
+    battery_kwh=20.0,
+    battery_power_kw=10.0,
+    genset_kw=16.0,  # large for a 3.3 kW tower, as many are
+    min_soc_kwh=2.0,
+    genset_min_run_hours=2.0,
+)
+
+
+def test_running_hard_then_off_burns_less_at_a_lightly_loaded_tower() -> None:
+    following, lost_following = _tower_days(20, TOWER)
+    hard, lost_hard = _tower_days(20, replace(TOWER, genset_charge_setpoint=0.8))
+    assert lost_following == pytest.approx(0.0) and lost_hard == pytest.approx(0.0)
+    assert hard < 0.85 * following
+
+
+def test_look_ahead_burns_no_more_and_is_as_reliable() -> None:
+    hard, lost_hard = _tower_days(20, replace(TOWER, genset_charge_setpoint=0.8))
+    ahead, lost_ahead = _tower_days(20, replace(TOWER, genset_charge_setpoint=0.8, look_ahead=True))
+    assert lost_ahead <= lost_hard + 1e-6
+    assert ahead < hard
+
+
+@pytest.mark.parametrize("seed", range(8))
+def test_look_ahead_plan_is_never_worse_on_its_forecast(seed: int) -> None:
+    rng = np.random.default_rng(seed)
+    assets = SiteAssets(
+        battery_kwh=float(rng.uniform(5, 60)),
+        battery_power_kw=float(rng.uniform(3, 20)),
+        genset_kw=float(rng.uniform(8, 30)),
+        min_soc_kwh=1.0,
+        genset_min_run_hours=float(rng.integers(1, 4)),
+        genset_charge_setpoint=None if seed % 2 else 0.8,
+        grid_kw=20.0 if seed % 3 == 0 else 0.0,
+    )
+    net = _series(list(rng.uniform(-6, 12, 24)))
+    grid = (rng.uniform(size=24) > 0.4).astype(float) if assets.grid_kw else None
+    soc = float(rng.uniform(1.0, assets.battery_kwh))
+    plain = plan_dispatch(net, soc_kwh=soc, assets=assets, planned_grid_available=grid)
+    ahead = plan_dispatch(
+        net, soc_kwh=soc, assets=replace(assets, look_ahead=True), planned_grid_available=grid
+    )
+    assert ahead.expected.unserved_kwh <= plain.expected.unserved_kwh + 1e-6
+    assert ahead.expected.soc_end_kwh >= plain.expected.soc_end_kwh - 1e-6
+    assert (
+        ahead.expected.fuel_l <= plain.expected.fuel_l + 0.01 * plain.expected.genset_starts + 1e-6
+    )
+
+
+@pytest.mark.parametrize("seed", range(6))
+def test_the_search_model_matches_the_simulator(seed: int) -> None:
+    from vaticore.decisions.dispatch import _step, _step_levels
+
+    rng = np.random.default_rng(seed)
+    assets = SiteAssets(
+        battery_kwh=50.0,
+        battery_power_kw=15.0,
+        genset_kw=20.0,
+        min_soc_kwh=5.0,
+        genset_charge_setpoint=0.8 if seed % 2 else None,
+        grid_kw=10.0,
+        grid_price_per_kwh=0.1,
+    )
+    levels = np.linspace(5.0, 50.0, 13)
+    for _ in range(20):
+        net, on, grid_on = float(rng.uniform(-20, 30)), bool(rng.integers(2)), bool(rng.integers(2))
+        socs, _ = _step_levels(net, on, grid_on, levels, assets)
+        for level, soc in zip(levels, socs, strict=True):
+            assert _step(net, on, grid_on, float(level), assets).soc == pytest.approx(soc)
