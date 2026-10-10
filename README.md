@@ -34,6 +34,10 @@ before, tells the people who run it, and scores itself.
 - **Fuel and monitoring**: diesel delivered against burned
   (`docs/fuel.md`), data health per site, and model monitoring that falls
   back to a safer model when one drifts.
+- **Efficiency review**: replays each site's own history under the operating
+  rules that save the most diesel (battery first; run hard, then off) and
+  says which to adopt, with the litres and money against what the site did
+  (`efficiency`, `docs/pipeline.md`).
 - **Production**: staging and production on Render from one image, operator
   keys that reach only that operator's sites, migrations, logs, error
   tracking, uptime and heartbeat checks, and backups proven by restoring

@@ -418,3 +418,52 @@ def test_ready_means_the_database_answers_with_a_current_schema(tmp_path: object
     assert pending.status_code == 503 and "pending" in pending.json()["problems"][0]
     migrations.migrate(url, migrations.PLANS)
     assert client.get("/ready").status_code == 200
+
+
+def test_efficiency_review_for_a_site(tmp_path: object, monkeypatch: pytest.MonkeyPatch) -> None:
+    from pathlib import Path
+
+    import numpy as np
+    import pandas as pd
+
+    from vaticore.api.main import get_repository
+    from vaticore.storage import DuckDBRepository
+
+    portfolio = Path(str(tmp_path)) / "sites.toml"
+    portfolio.write_text(
+        '[[site]]\noperator_id = "op"\nsite_id = "s1"\nname = "Site One"\n'
+        'site_type = "telecom_tower"\nlatitude = 6.5\nlongitude = 3.4\n'
+        'timezone = "Africa/Lagos"\ncurrency = "NGN"\nvalue_of_lost_load_per_kwh = 5000.0\n'
+        "[site.battery]\nusable_kwh = 20.0\npower_kw = 10.0\nmin_soc_kwh = 2.0\n"
+        "[site.generator]\nrated_kw = 16.0\nfuel_price_per_l = 1250.0\nmin_run_hours = 2\n"
+        "[site.grid]\ncapacity_kw = 10.0\nprice_per_kwh = 225.0\n"
+    )
+    monkeypatch.setenv("VATICORE_PORTFOLIO_FILE", str(portfolio))
+    client, _ = _pipeline_client(api_token="admin")
+    repo = DuckDBRepository(":memory:")
+    client.app.dependency_overrides[get_repository] = lambda: repo  # type: ignore[attr-defined]
+    end = pd.Timestamp.now(tz="UTC").floor("h")
+    hours = pd.date_range(end - pd.Timedelta(days=20), end, freq="1h", inclusive="left")
+    grid = (np.arange(len(hours)) % 6 < 4).astype(float)  # on four hours in six
+    repo.upsert(
+        pd.DataFrame(
+            {
+                "operator_id": "op",
+                "site_id": "s1",
+                "timestamp": hours,
+                "load_kw": 3.3,
+                "generation_kw": 0.0,
+                "grid_available": grid,
+                "genset_kw": np.where(grid < 0.5, 4.8, 0.0),  # on every grid failure
+            }
+        )
+    )
+    auth = {"Authorization": "Bearer admin"}
+    resp = client.get("/sites/op/s1/efficiency?days=14", headers=auth)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["recommended"] == "Battery first" and body["reference"] == "What the site did"
+    assert body["share_saved"] > 0.5 and "summary" in body
+    assert client.get("/sites/op/s1/efficiency?days=3", headers=auth).status_code == 422
+    assert client.get("/sites/op/nope/efficiency", headers=auth).status_code == 404
+    assert client.get("/sites/op/s1/efficiency").status_code == 401
