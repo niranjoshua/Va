@@ -32,6 +32,7 @@ exit with status 1 if any site failed, so a scheduler can alert on it.
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from collections.abc import Sequence
 from datetime import UTC, date, datetime, timedelta
@@ -136,6 +137,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 return 0
             if args.command == "fuel":
                 return _fuel_report(args, portfolio, repo, store)
+            if args.command == "efficiency":
+                return _efficiency(args, portfolio, repo)
             if args.command == "report":
                 return _savings_report(args, settings, portfolio, repo, store)
             if args.command == "summary":
@@ -466,6 +469,29 @@ def _fuel_report(
     return worst
 
 
+def _efficiency(args: argparse.Namespace, portfolio: Portfolio, repo: object) -> int:
+    from vaticore.decisions.efficiency import review_efficiency
+
+    end = pd.Timestamp(datetime.now(tz=UTC)).floor("h")
+    start = end - pd.Timedelta(days=args.days)
+    chosen = {_site_key(s) for s in args.site} if args.site else None
+    reviewed = 0
+    for site in portfolio.sites:
+        if site.generator is None or (chosen is not None and site.key not in chosen):
+            continue
+        readings = repo.read_history(site.operator_id, site.site_id, start, end)  # type: ignore[attr-defined]
+        review = review_efficiency(site, readings, start=start, end=end)
+        print(review.to_text(site.timezone) + "\n")
+        if args.out:
+            args.out.mkdir(parents=True, exist_ok=True)
+            path = args.out / f"efficiency-{site.operator_id}-{site.site_id}-{end:%Y-%m-%d}.json"
+            path.write_text(json.dumps(review.to_dict(), indent=2))
+        reviewed += 1
+    if not reviewed:
+        print("no sites with a generator to review")
+    return 0
+
+
 def _savings_report(
     args: argparse.Namespace,
     settings: Settings,
@@ -642,6 +668,14 @@ def _parser() -> argparse.ArgumentParser:
     fuel.add_argument("--timezone", help="for times without an offset, e.g. Africa/Lagos")
     fuel.add_argument("--csv", type=Path, help="deliveries file for import")
     fuel.add_argument("--days", type=int, default=30)
+
+    eff = sub.add_parser(
+        "efficiency", help="how each site should run its generator, from its own history"
+    )
+    _portfolio_arg(eff)
+    eff.add_argument("--site", action="append", help="operator_id/site_id; repeatable")
+    eff.add_argument("--days", type=int, default=60, help="the last N days (at least 7)")
+    eff.add_argument("--out", type=Path, help="also write JSON here, one file per site")
 
     rep = sub.add_parser("report", help="pilot savings report for one operator (monthly)")
     _portfolio_arg(rep)

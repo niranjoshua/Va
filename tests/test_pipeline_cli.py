@@ -231,3 +231,32 @@ def test_recent_replies_are_listed(env: Path, capsys: pytest.CaptureFixture[str]
     assert main(["replies", "--days", "3"]) == 0
     out = capsys.readouterr().out
     assert "op/s1 2026-10-06  reason (no_diesel)  'B'" in out
+
+
+def test_efficiency_review_from_the_command_line(
+    env: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import json
+    from datetime import UTC, datetime, timedelta
+
+    from vaticore.storage import DuckDBRepository
+
+    (env / "sites.toml").write_text(_SITES)  # off grid: a 15 kW generator for a 3 kW load
+    now = pd.Timestamp(datetime.now(tz=UTC)).floor("h")
+    hours = pd.date_range(now - timedelta(days=14), now, freq="h", inclusive="left")
+    repo = DuckDBRepository(f"{env / 'readings.duckdb'}")
+    repo.upsert(
+        pd.DataFrame({"operator_id": "op", "site_id": "s1", "timestamp": hours, "load_kw": 3.0,
+                      "generation_kw": 0.0, "genset_kw": 4.5})  # runs all the time, lightly
+    )  # fmt: skip
+    repo.close()
+
+    args = ["efficiency", "--portfolio", str(env / "sites.toml"), "--days", "10"]
+    assert main([*args, "--out", str(env / "out")]) == 0
+    out = capsys.readouterr().out
+    assert "Efficiency review: op/s1" in out and "Battery first, run hard:" in out
+    assert "below 40% of its rating" in out
+    (written,) = (env / "out").glob("efficiency-op-s1-*.json")
+    assert json.loads(written.read_text())["recommended"] == "Battery first, run hard"
+    assert main(["efficiency", "--portfolio", str(env / "sites.toml"), "--site", "op/nope"]) == 0
+    assert "no sites with a generator to review" in capsys.readouterr().out

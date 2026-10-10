@@ -41,6 +41,7 @@ from vaticore.api.schemas import (
 from vaticore.config import Settings, get_settings
 from vaticore.datasets import make_synthetic_fleet
 from vaticore.decisions.dispatch import SiteAssets
+from vaticore.decisions.efficiency import review_efficiency
 from vaticore.delivery.channels import WhatsAppChannel
 from vaticore.delivery.webhook import TextSender, handle_webhook, verify_signature
 from vaticore.forecasting.base import ForecasterError, quantile_column
@@ -559,6 +560,26 @@ def create_app() -> FastAPI:
             end=end,
         )
         return {**report.to_dict(), "summary": report.to_text(site.timezone)}
+
+    @app.get("/sites/{operator_id}/{site_id}/efficiency", dependencies=[Depends(site_access)])
+    def site_efficiency(
+        operator_id: str,
+        site_id: str,
+        days: int = Query(default=60, ge=7, le=366),
+        repo: TimeSeriesRepository = Depends(get_repository),
+    ) -> dict[str, object]:
+        """How the site should run its generator, from its own history, and what it saves."""
+        site = _registered_site(operator_id, site_id)
+        if site is None or site.generator is None:
+            raise HTTPException(
+                404, "the efficiency review needs a registered site with a generator"
+            )
+        end = pd.Timestamp.now(tz="UTC").floor("h")
+        start = end - pd.Timedelta(days=days)
+        review = review_efficiency(
+            site, repo.read_history(operator_id, site_id, start, end), start=start, end=end
+        )
+        return {**review.to_dict(), "summary": review.to_text(site.timezone)}
 
     # -- pilot reporting: one operator at a time -----------------------------------
 
