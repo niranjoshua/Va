@@ -10,7 +10,7 @@ notebooks, and each can be rerun from one command.
 | # | Question | Why it matters | Status |
 |---|---|---|---|
 | RQ1 | Does a calibrated range beat a more accurate point forecast when a site plans its generator? | Decides what we sell: honest ranges, not just accuracy | **Supported on two independent datasets** (notes 1 and 2); note 3 agrees: a 21% more accurate forecast added under 2 points of value once ranges were calibrated |
-| RQ2 | What is a forecast worth in litres, outage hours and money, against today's practice? | The number a customer pays for | Measured on shaped sites (notes 1 and 2); pilot data next |
+| RQ2 | What is a forecast worth in litres, outage hours and money, against today's practice? | The number a customer pays for | **Measured against today's practice on shaped sites** (note 4): the largest savings come from how the generator is run, which Vaticore recommends per site; pilot data next |
 | RQ3 | How much does weather add, for solar and for net load? | The largest accuracy gap left | Gap measured against Elia (note 2); weather study needs archived forecasts |
 | RQ4 | Can a site's grid supply hours be forecast well enough to plan on? | Core for towers, banks and factories on weak grids | Baseline built; needs real grid on/off records |
 | RQ5 | How fast can a new site be forecast well, borrowing from similar sites? | Onboarding thousands of towers | **Pretrained models answer it on public data** (note 3): Chronos-2 with two weeks of history beat the GBM with three years; fleet models and site data next |
@@ -52,6 +52,7 @@ notebooks, and each can be rerun from one command.
 | [1. What a forecast is worth to a solar mini-grid](value-study-2018.md) | RQ1, RQ2 | ENTSO-E Spain demand and solar, 2017 to 2018, one held-out year | Calibrated P90 plan: 82 to 84% less unserved energy, 72% fewer outage hours, 7 to 10% lower cost |
 | [2. Vaticore against a grid operator's own forecasts](elia-benchmark.md) | RQ1, RQ2, RQ3 | Elia (Belgium) load 2015 to 2026 and solar 2025 to 2026, with Elia's P10, P50 and P90 | Load: parity with Elia's forecast over 453 held-out days, with a better calibrated range (80.4% against 74.9%), no weather. Solar: weather is the gap (Elia 68% better than persistence, Vaticore 23%). Value: calibrated P90 captured 85% of possible savings, Elia's medians 84% |
 | [3. Pretrained foundation models against Vaticore's planning model](foundation-models.md) | RQ1, RQ5 | Elia load and solar (Spain excluded: it is in the models' pretraining data) | Chronos-2, zero shot, no weather: 21% lower pinball than Elia's own load forecast and Vaticore's GBM over 453 days, calibrated range 80.3%; value 86.7% of possible against 85.2%; with two weeks of history it beat the GBM with three years |
+| [4. Diesel against how sites run today](diesel-practice.md) | RQ2 | ENTSO-E Spain demand and solar shaped into a mini-grid and two towers (one on a synthetic weak grid); design 2017, test 2018 | Off-grid tower: 19.6% less diesel than the best-run practice, 30.4% less than an evening timer; the run-hard setting alone 24.7%. Weak-grid tower: battery first 83.5% less than the generator whenever the grid is off. Mini-grid: 2.0% less diesel, outage hours 94 to 30 |
 
 ## Results are locked
 

@@ -47,6 +47,21 @@ median forecast and the same planning rules, to give the charge at midnight.
 Replaying an old day (`run --date`) uses only readings from before the issue
 time, so a replay never sees the day it plans.
 
+## Using less diesel: two site settings
+
+Research note 4 (`docs/research/diesel-practice.md`) found that most of the
+diesel a site can save is in how its generator is run. Two settings in the
+portfolio TOML put that into the plans:
+
+| Setting | What it does | Use it |
+|---|---|---|
+| `generator.charge_setpoint = 0.8` | While the generator runs, it is loaded to 80% of its rating and the surplus charges the battery: run hard, then off | Off-grid sites with a battery whose charger can load the generator. Saved 24.7% at the study's off-grid tower. Not at grid sites: the grid refills the battery for free |
+| `look_ahead = true` | Plans the whole day at once for the fewest litres, instead of hour by hour; never less reliable than the hour-by-hour plan on the forecast | Optional: it added 0.4 points at the tower and nothing elsewhere. Off by default |
+
+The advice that goes with them, for the site's owner: never start the
+generator just because the grid failed (battery first cut 83.5% of the diesel
+at the study's weak-grid tower).
+
 ## Which model plans
 
 From research note 3:

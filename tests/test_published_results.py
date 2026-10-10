@@ -100,11 +100,17 @@ def _expected(name: str, header: list[str], label: str, column: str) -> float | 
             "Unserved (kWh)": policy["unserved_kwh"],
             "Outage hours": policy["unserved_hours"],
             "Hours with outages": policy["unserved_hours"],
-            "Total cost": policy["total_cost"],
-            "Saved vs baseline": policy["savings_vs_baseline"],
+            "Total cost": policy.get("total_cost"),
+            "Saved vs baseline": policy.get("savings_vs_baseline"),
+            "Starts": policy.get("genset_starts"),
         }
+        if column == "Saved vs today":
+            return 100 * policy["fuel_saved_vs_reference"]
         if column in fields:
-            return float(fields[column])
+            value = fields[column]
+            if value is None:
+                raise KeyError(column)
+            return float(value)
         if column.startswith("Share of possible"):
             return 100 * policy["share_of_possible"]
     elif any("holds" in h for h in header):
@@ -186,8 +192,77 @@ def _skill(name: str, model: str) -> float:
     return 1 - _pinball(name, model) / _pinball(name, "persistence")
 
 
+BEST_RUN = "Today: start when the battery runs out"
+TIMER = "Today: evening timer"
+ATS = "Today: generator whenever the grid is off"
+V_PLAN = "Vaticore plan, today's planner"
+V_HARD = "Vaticore plan, run hard"
+V_AHEAD = "Vaticore plan, run hard + look ahead"
+SETTING = "Charger setting alone, no forecast"
+BOUND = "Perfect forecast, run hard + look ahead"
+
+
+def _diesel(site: str, policy: str, field: str = "fuel_l") -> float:
+    return float(result(f"diesel_test_{site}")["value"][policy][field])
+
+
+def _less(site: str, policy: str, reference: str) -> str:
+    """'19.6%': the diesel a policy saved against a reference practice."""
+    return pct(1 - _diesel(site, policy) / _diesel(site, reference), 1)
+
+
+NOTE4 = "docs/research/diesel-practice.md"
+
 # (document, a function giving the exact text it must contain)
 CLAIMS: list[tuple[str, Callable[[], str]]] = [
+    # Research note 4: diesel against how sites run today.
+    (NOTE4, lambda: f"**{_less('tower', V_AHEAD, BEST_RUN)} less diesel than"),
+    ("docs/pipeline.md", lambda: f"Saved {_less('tower', SETTING, BEST_RUN)} at the study's"),
+    ("docs/pipeline.md", lambda: f"battery first cut {_less('tower-grid', BEST_RUN, ATS)} of"),
+    (
+        "README.md",
+        lambda: (
+            f"Vaticore's plan used {_less('tower', V_AHEAD, BEST_RUN)} less diesel than the "
+            f"best-run practice and {_less('tower', V_AHEAD, TIMER)}\nless than an evening timer"
+        ),
+    ),
+    (
+        "README.md",
+        lambda: f"used {_less('tower-grid', BEST_RUN, ATS)} less diesel than running",
+    ),
+    (
+        "README.md",
+        lambda: (
+            f"diesel fell {_less('minigrid', V_HARD, BEST_RUN)} and\noutage hours fell from "
+            f"{_diesel('minigrid', BEST_RUN, 'unserved_hours'):.0f} to "
+            f"{_diesel('minigrid', V_HARD, 'unserved_hours'):.0f}"
+        ),
+    ),
+    (
+        "docs/research/README.md",
+        lambda: (
+            f"Off-grid tower: {_less('tower', V_AHEAD, BEST_RUN)} less diesel than the best-run "
+            f"practice, {_less('tower', V_AHEAD, TIMER)} less than an evening timer; the run-hard "
+            f"setting alone {_less('tower', SETTING, BEST_RUN)}. Weak-grid tower: battery first "
+            f"{_less('tower-grid', BEST_RUN, ATS)} less than the generator whenever the grid is "
+            f"off. Mini-grid: {_less('minigrid', V_HARD, BEST_RUN)} less diesel, outage hours "
+            f"{_diesel('minigrid', BEST_RUN, 'unserved_hours'):.0f} to "
+            f"{_diesel('minigrid', V_HARD, 'unserved_hours'):.0f}"
+        ),
+    ),
+    (NOTE4, lambda: f"**{_less('tower', V_AHEAD, TIMER)} less than an evening timer**"),
+    (NOTE4, lambda: f"saved\n  **{_less('tower', SETTING, BEST_RUN)}**"),
+    (NOTE4, lambda: f"perfect forecast allows ({_less('tower', BOUND, BEST_RUN)})"),
+    (NOTE4, lambda: f"Battery first cut diesel by **{_less('tower-grid', BEST_RUN, ATS)}**"),
+    (NOTE4, lambda: f"by **{_less('tower-grid', V_PLAN, ATS)}**"),
+    (NOTE4, lambda: f"diesel fell only **{_less('minigrid', V_HARD, BEST_RUN)}**"),
+    (
+        NOTE4,
+        lambda: (
+            f"**from {_diesel('minigrid', BEST_RUN, 'unserved_hours'):.0f} to "
+            f"{_diesel('minigrid', V_HARD, 'unserved_hours'):.0f}**"
+        ),
+    ),
     # Research note 1: the 2018 value study, two sites.
     (
         "README.md",
